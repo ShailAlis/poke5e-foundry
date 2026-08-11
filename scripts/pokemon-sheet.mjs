@@ -2,6 +2,15 @@ import { loadPoke5eData } from "./data-service.mjs";
 import { MODULE_ID, MODULE_PATH, displayPokemonName, portraitUrl } from "./model.mjs";
 import { MAX_KNOWN_MOVES, applyLearnedMove, filterMoveCatalog, moveEligibility } from "./move-learning.mjs";
 import { normalizeMoveDamageTypes, pokemonDefenses, typeLabel } from "./combat.mjs";
+import { recallPokemon } from "./deployment.mjs";
+import {
+  evolutionReadiness,
+  experienceAtLevel,
+  experienceAward,
+  experienceProgress,
+  levelForExperience,
+  normalizedExperience
+} from "./progression.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -36,10 +45,11 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const data = await loadPoke5eData();
     const species = this.pokemonItem.getFlag(MODULE_ID, "species") ?? {};
     const instance = this.pokemonItem.getFlag(MODULE_ID, "instance") ?? {};
+    const combatSpecies = { ...species, attributes: instance.attributes ?? species.attributes ?? {} };
     const level = Number(instance.level) || 1;
     const moves = (instance.moves ?? []).map(entry => {
       const move = data.movesById.get(entry.moveId);
-      return move ? prepareMove(entry, move, species, level) : null;
+      return move ? prepareMove(entry, move, combatSpecies, level) : null;
     }).filter(Boolean);
     const knownMoveIds = new Set((instance.moves ?? []).map(entry => entry.moveId));
     const catalog = this.moveManagerOpen
@@ -50,10 +60,11 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       name: ability.name,
       description: `<p>${foundry.utils.escapeHTML(ability.description ?? "")}</p>`
     }));
-    const abilityScores = Object.entries(species.attributes ?? {}).map(([key, score]) => ({
+    const abilityScores = Object.entries(combatSpecies.attributes).map(([key, score]) => ({
       key: key.toUpperCase(), score, modifier: signed(Math.floor((Number(score) - 10) / 2))
     }));
     const defenses = pokemonDefenses(species.type);
+    const experience = experienceProgress(instance.experience, level);
     return {
       item: this.pokemonItem,
       trainer: this.pokemonItem.parent,
@@ -62,6 +73,17 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       species,
       instance,
       level,
+      experience: {
+        ...experience,
+        totalLabel: formatNumber(experience.total),
+        remainingLabel: formatNumber(experience.remaining),
+        nextLabel: formatNumber(experience.ceiling),
+        nextLevel: Math.min(level + 1, 20),
+        progressMax: Math.max(experience.span, 1),
+        progressValue: experience.maximumLevel ? 1 : experience.gained,
+        award: experienceAward(level, species.sr),
+        awardLabel: formatNumber(experienceAward(level, species.sr))
+      },
       moves,
       maxKnownMoves: MAX_KNOWN_MOVES,
       moveLimitExceeded: moves.length > MAX_KNOWN_MOVES,
@@ -76,7 +98,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
         },
         total: catalog.length,
         truncated: catalog.length > 120,
-        entries: catalog.slice(0, 120).map(entry => prepareCatalogMove(entry, data.movesById.get(entry.id), species, level))
+        entries: catalog.slice(0, 120).map(entry => prepareCatalogMove(entry, data.movesById.get(entry.id), combatSpecies, level))
       },
       abilities,
       abilityScores,
@@ -85,7 +107,8 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       ac: instance.ac ?? species.ac,
       speeds: prepareSpeeds(species.speed),
       gender: prepareGender(instance.gender, species.gender),
-      evolutions: prepareEvolutions(data.evolutionsByFrom.get(species.id) ?? [], data),
+      captureBall: instance.caughtWith ? (data.itemsById.get(instance.caughtWith)?.name ?? instance.caughtWith) : "",
+      evolutions: prepareEvolutions(data.evolutionsByFrom.get(species.id) ?? [], data, instance),
       defenses: {
         vulnerabilities: defenses.vulnerabilities.map(prepareType),
         resistances: defenses.resistances.map(prepareType),
@@ -122,6 +145,9 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       this.refocusMoveSearch = false;
     }
     this.element.querySelector("[data-action='change-level']")?.addEventListener("change", event => this.#changeLevel(event));
+    this.element.querySelector("[data-action='change-experience']")?.addEventListener("change", event => this.#changeExperience(event));
+    this.element.querySelector("[data-action='add-experience']")?.addEventListener("click", () => this.#addExperience());
+    this.element.querySelectorAll("[data-action='evolve-pokemon']").forEach(button => button.addEventListener("click", event => this.#evolve(event)));
     this.element.querySelector("[data-action='change-hp']")?.addEventListener("change", event => this.#changeHp(event));
     this.element.querySelector("[data-action='open-trainer-sheet']")?.addEventListener("click", () => this.pokemonItem.parent?.sheet.render(true));
     this.element.addEventListener("dragover", event => event.preventDefault());
@@ -131,7 +157,71 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
   async #changeLevel(event) {
     const instance = this.#instance();
     instance.level = Math.max(1, Math.min(20, Number(event.currentTarget.value) || 1));
+    instance.experience = experienceAtLevel(instance.level);
     await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
+    this.render({ force: true });
+  }
+
+  async #changeExperience(event) {
+    const instance = this.#instance();
+    const oldLevel = Math.max(1, Math.min(20, Number(instance.level) || 1));
+    instance.experience = normalizedExperience(event.currentTarget.value, oldLevel);
+    instance.level = Math.max(oldLevel, levelForExperience(instance.experience));
+    await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
+    notifyLevelGain(this.pokemonItem, oldLevel, instance.level);
+    this.render({ force: true });
+  }
+
+  async #addExperience() {
+    const instance = this.#instance();
+    const oldLevel = Math.max(1, Math.min(20, Number(instance.level) || 1));
+    const amount = await promptExperienceAmount();
+    if (!amount) return;
+    instance.experience = normalizedExperience(instance.experience, oldLevel) + amount;
+    instance.level = Math.max(oldLevel, levelForExperience(instance.experience));
+    await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
+    notifyLevelGain(this.pokemonItem, oldLevel, instance.level);
+    this.render({ force: true });
+  }
+
+  async #evolve(event) {
+    const evolutionId = event.currentTarget.dataset.evolutionId;
+    const data = await loadPoke5eData();
+    const species = this.pokemonItem.getFlag(MODULE_ID, "species") ?? {};
+    const evolution = (data.evolutionsByFrom.get(species.id) ?? []).find(entry => entry.id === evolutionId);
+    const target = data.pokemonById.get(evolution?.to);
+    if (!evolution || !target) return ui.notifications.error("No se encontraron los datos de esta evolución.");
+    const instance = this.#instance();
+    const readiness = evolutionReadiness(evolution, {
+      level: instance.level,
+      gender: instance.gender,
+      knownMoveIds: (instance.moves ?? []).map(entry => entry.moveId),
+      movesById: data.movesById
+    });
+    if (!readiness.available) return ui.notifications.warn("Este Pokémon aún no cumple las condiciones verificables para evolucionar.");
+    const asiPoints = Number(evolution.effects?.find(effect => effect.type === "asi")?.value) || 0;
+    const allocation = await promptEvolution({ evolution, target, data, instance, species, asiPoints, manual: readiness.manual });
+    if (!allocation) return;
+    const currentAttributes = foundry.utils.deepClone(instance.attributes ?? species.attributes ?? {});
+    if (!applyAbilityAllocation(currentAttributes, allocation, asiPoints)) {
+      return ui.notifications.warn(`Debes distribuir exactamente ${asiPoints} puntos; máximo 4 por característica y ninguna puede superar 20.`);
+    }
+    await recallPokemon(this.pokemonItem);
+    const missingHp = Math.max(0, Number(instance.hp?.max) - Number(instance.hp?.value));
+    const evolutionHpBonus = 2 * (Number(instance.level) || 1);
+    const newMaximumHp = Math.max(1, Number(instance.hp?.max) || Number(species.hp) || 1) + evolutionHpBonus;
+    instance.hp = { value: Math.max(0, newMaximumHp - missingHp), max: newMaximumHp };
+    instance.ac = Number(target.ac) || instance.ac || 10;
+    instance.attributes = currentAttributes;
+    instance.abilities = evolvedAbilities(instance.abilities, target);
+    await this.pokemonItem.update({
+      name: target.name,
+      img: portraitUrl(target),
+      [`flags.${MODULE_ID}.sourceId`]: target.id,
+      [`flags.${MODULE_ID}.species`]: foundry.utils.deepClone(target),
+      [`flags.${MODULE_ID}.instance`]: instance
+    });
+    ui.notifications.info(`${displayPokemonName(this.pokemonItem)} ha evolucionado a ${target.name}.`);
     this.render({ force: true });
   }
 
@@ -233,7 +323,8 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     if (Number(entry.pp.max) > 0 && Number(entry.pp.value) <= 0) {
       return ui.notifications.warn(game.i18n.format("POKE5E.Notifications.NoPP", { name: displayPokemonName(this.pokemonItem), move: move.name }));
     }
-    const species = this.pokemonItem.getFlag(MODULE_ID, "species");
+    const storedSpecies = this.pokemonItem.getFlag(MODULE_ID, "species");
+    const species = { ...storedSpecies, attributes: instance.attributes ?? storedSpecies.attributes ?? {} };
     const level = Number(instance.level) || 1;
     const moveModifier = getMoveModifier(species, move);
     const proficiency = 2 + Math.floor((level - 1) / 4);
@@ -337,14 +428,24 @@ function prepareGender(gender, ratio) {
   return { value, ...labels[value], probability };
 }
 
-function prepareEvolutions(evolutions, data) {
-  return evolutions.map(evolution => ({
+function prepareEvolutions(evolutions, data, instance) {
+  return evolutions.map(evolution => {
+    const readiness = evolutionReadiness(evolution, {
+      level: instance.level,
+      gender: instance.gender,
+      knownMoveIds: (instance.moves ?? []).map(entry => entry.moveId),
+      movesById: data.movesById
+    });
+    return {
     id: evolution.id,
     toId: evolution.to,
     toName: data.pokemonById.get(evolution.to)?.name ?? evolution.to,
     level: evolution.conditions.find(condition => condition.type === "level")?.value ?? null,
-    conditions: evolution.conditions.map(condition => evolutionConditionLabel(condition, data))
-  }));
+    conditions: evolution.conditions.map(condition => evolutionConditionLabel(condition, data)),
+    available: readiness.available,
+    manualConfirmation: readiness.manual.length > 0
+  };
+  });
 }
 
 function evolutionConditionLabel(condition, data) {
@@ -491,6 +592,90 @@ function prepareSpeeds(speeds = []) {
     label: display[speed.type]?.label ?? titleCase(speed.type),
     icon: display[speed.type]?.icon ?? "fa-shoe-prints"
   }));
+}
+
+async function promptExperienceAmount() {
+  try {
+    return await foundry.applications.api.DialogV2.prompt({
+      window: { title: "Añadir experiencia" },
+      content: `<div class="poke5e-experience-dialog">
+        <p>Introduce los PX obtenidos. Si se alcanza el siguiente umbral, el nivel aumentará automáticamente.</p>
+        <label><span>Experiencia obtenida</span><input type="number" name="amount" min="1" step="1" value="100" autofocus></label>
+      </div>`,
+      modal: true,
+      rejectClose: false,
+      ok: {
+        label: "Añadir PX",
+        icon: "fa-solid fa-plus",
+        callback: (event, button) => Math.max(0, Math.trunc(Number(button.form.elements.amount.value) || 0))
+      }
+    });
+  } catch {
+    return 0;
+  }
+}
+
+async function promptEvolution({ evolution, target, data, instance, species, asiPoints, manual }) {
+  const attributes = instance.attributes ?? species.attributes ?? {};
+  const allocation = asiPoints ? `<fieldset class="poke5e-asi-allocation">
+    <legend>Distribuye ${asiPoints} puntos de característica</legend>
+    <p>Máximo 4 puntos por característica; ninguna puede superar 20.</p>
+    <div>${["str", "dex", "con", "int", "wis", "cha"].map(key => `<label><span>${key.toUpperCase()} (${Number(attributes[key]) || 10})</span><input type="number" name="asi-${key}" min="0" max="4" step="1" value="0"></label>`).join("")}</div>
+  </fieldset>` : "";
+  const manualConfirmation = manual.length ? `<label class="poke5e-manual-confirmation">
+    <input type="checkbox" name="manualConfirmed">
+    <span>Confirmo que se cumplen: ${manual.map(condition => escapeHtml(evolutionConditionLabel(condition, data))).join(" · ")}</span>
+  </label>` : "";
+  try {
+    return await foundry.applications.api.DialogV2.prompt({
+      window: { title: `Evolucionar a ${target.name}` },
+      content: `<div class="poke5e-evolution-dialog">
+        <p><strong>${escapeHtml(displayPokemonName({ getFlag: () => instance, name: species.name }))}</strong> evolucionará a <strong>${escapeHtml(target.name)}</strong>. Mantendrá su nivel, experiencia, sexo, movimientos y daño recibido.</p>
+        <p>Obtendrá la CA y defensas de su nueva forma, además de ${2 * (Number(instance.level) || 1)} PG máximos.</p>
+        ${manualConfirmation}${allocation}
+      </div>`,
+      modal: true,
+      rejectClose: false,
+      ok: {
+        label: "Evolucionar",
+        icon: "fa-solid fa-dna",
+        callback: (dialogEvent, button) => {
+          const form = button.form;
+          if (manual.length && !form.elements.manualConfirmed.checked) return null;
+          return Object.fromEntries(["str", "dex", "con", "int", "wis", "cha"].map(key => [key, Math.trunc(Number(form.elements[`asi-${key}`]?.value) || 0)]));
+        }
+      }
+    });
+  } catch {
+    return null;
+  }
+}
+
+function applyAbilityAllocation(attributes, allocation, expectedPoints) {
+  if (!allocation || Object.values(allocation).some(value => value < 0 || value > 4)) return false;
+  if (Object.values(allocation).reduce((total, value) => total + value, 0) !== expectedPoints) return false;
+  for (const [key, increase] of Object.entries(allocation)) {
+    const current = Number(attributes[key]) || 10;
+    if (current + increase > 20) return false;
+  }
+  for (const [key, increase] of Object.entries(allocation)) attributes[key] = (Number(attributes[key]) || 10) + increase;
+  return true;
+}
+
+function evolvedAbilities(current = [], target) {
+  const available = (target.abilities ?? []).filter(entry => !entry.hidden).map(entry => entry.id);
+  const retained = current.filter(id => available.includes(id));
+  return retained.length ? retained : available.slice(0, 1);
+}
+
+function notifyLevelGain(item, previousLevel, currentLevel) {
+  if (currentLevel <= previousLevel) return;
+  const levels = currentLevel - previousLevel;
+  ui.notifications.info(`${displayPokemonName(item)} ha alcanzado el nivel ${currentLevel}${levels > 1 ? ` (sube ${levels} niveles)` : ""}. Recuerda aplicar sus PG y beneficios de subida de nivel.`);
+}
+
+function formatNumber(value) {
+  return new Intl.NumberFormat(game.i18n.lang || "es").format(Number(value) || 0);
 }
 
 function signed(value) { return Number(value) >= 0 ? `+${value}` : String(value); }

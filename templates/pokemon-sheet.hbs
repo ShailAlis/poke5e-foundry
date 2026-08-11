@@ -11,6 +11,7 @@
       </div>
       <div class="poke5e-pokemon-meta">
         <span title="{{gender.probability}}"><i class="fa-solid {{gender.icon}}"></i> {{gender.label}}</span>
+        {{#if captureBall}}<span><i class="fa-solid fa-circle-dot"></i> {{captureBall}}</span>{{/if}}
       </div>
     </div>
     <div class="poke5e-vitals">
@@ -19,6 +20,25 @@
       <label><span>Nivel</span><input type="number" min="1" max="20" value="{{level}}" data-action="change-level" {{#unless canEdit}}disabled{{/unless}}></label>
     </div>
   </header>
+
+  <section class="poke5e-experience-panel" aria-label="Experiencia">
+    <div class="poke5e-experience-heading">
+      <h2><i class="fa-solid fa-star"></i> Experiencia</h2>
+      <span class="poke5e-exp-award" title="Experiencia que otorga este Pokémon al ser derrotado"><i class="fa-solid fa-trophy"></i> Recompensa: <strong>{{experience.awardLabel}} PX</strong></span>
+    </div>
+    <div class="poke5e-experience-controls">
+      <label><span>PX totales</span><input type="number" min="0" max="450000" step="1" value="{{experience.total}}" data-action="change-experience" {{#unless canEdit}}disabled{{/unless}}></label>
+      {{#if canEdit}}<button type="button" class="bright" data-action="add-experience"><i class="fa-solid fa-plus"></i> Añadir PX</button>{{/if}}
+    </div>
+    <div class="poke5e-experience-progress">
+      <progress min="0" max="{{experience.progressMax}}" value="{{experience.progressValue}}"></progress>
+      {{#if experience.maximumLevel}}
+        <small>Nivel máximo alcanzado · {{experience.totalLabel}} PX</small>
+      {{else}}
+        <small>{{experience.remainingLabel}} PX para nivel {{experience.nextLevel}}<span class="poke5e-next-exp"> · Próximo umbral: {{experience.nextLabel}} PX</span></small>
+      {{/if}}
+    </div>
+  </section>
 
   <section class="poke5e-stat-grid" aria-label="Características">
     {{#each abilityScores}}
@@ -57,6 +77,9 @@
         <article>
           <div><span>Evoluciona a</span><strong>{{toName}}</strong></div>
           <div class="poke5e-evolution-conditions">{{#each conditions}}<span>{{this}}</span>{{/each}}</div>
+          {{#if ../canEdit}}
+            <button type="button" class="{{#if available}}bright{{/if}}" data-action="evolve-pokemon" data-evolution-id="{{id}}" {{#unless available}}disabled{{/unless}} title="{{#if available}}{{#if manualConfirmation}}Confirma las condiciones manuales para evolucionar{{else}}Evolución disponible{{/if}}{{else}}Todavía no cumple las condiciones{{/if}}"><i class="fa-solid fa-dna"></i> {{#if available}}Evolucionar{{else}}No disponible{{/if}}</button>
+          {{/if}}
         </article>
       {{else}}
         <span class="poke5e-none">Esta especie no tiene una evolución posterior registrada.</span>

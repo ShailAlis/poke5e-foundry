@@ -2,7 +2,7 @@
   "id": "poke5e-foundry",
   "title": "Pokémon 5e for Foundry VTT",
   "description": "Pokémon 5e para D&D 5e: clase de Entrenador, compendios de especies, movimientos, habilidades y objetos; equipos embebidos, ficha Pokédex y tiradas con PP.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "compatibility": {
     "minimum": "13.347",
     "verified": "14"
@@ -44,5 +44,5 @@
   },
   "url": "https://github.com/ShailAlis/poke5e-foundry",
   "manifest": "https://github.com/ShailAlis/poke5e-foundry/releases/latest/download/module.json",
-  "download": "https://github.com/ShailAlis/poke5e-foundry/releases/download/v1.0.0/poke5e-foundry.zip"
+  "download": "https://github.com/ShailAlis/poke5e-foundry/releases/download/v1.1.0/poke5e-foundry.zip"
 }

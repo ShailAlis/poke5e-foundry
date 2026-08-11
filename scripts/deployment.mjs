@@ -49,9 +49,10 @@ export async function recallPokemon(pokemonItem) {
 }
 
 export async function syncDeploymentHp(actor) {
-  if (actor.getFlag(MODULE_ID, "kind") !== "deployed") return;
+  const kind = actor.getFlag(MODULE_ID, "kind");
+  if (!["deployed", "wild"].includes(kind)) return;
   const uuid = actor.getFlag(MODULE_ID, "pokemonItemUuid");
-  const item = await fromUuid(uuid);
+  const item = uuid ? await fromUuid(uuid) : actor.items.find(entry => entry.getFlag(MODULE_ID, "kind") === "pokemon");
   if (!item) return;
   const instance = foundry.utils.deepClone(item.getFlag(MODULE_ID, "instance"));
   instance.hp = {
@@ -62,7 +63,8 @@ export async function syncDeploymentHp(actor) {
 }
 
 export async function syncPokemonHpToDeployment(item) {
-  const actor = deployedActorFor(item);
+  const actor = item.parent?.documentName === "Actor" && item.parent.getFlag(MODULE_ID, "kind") === "wild"
+    ? item.parent : deployedActorFor(item);
   if (!actor) return;
   const hp = item.getFlag(MODULE_ID, "instance")?.hp;
   if (!hp) return;
@@ -73,7 +75,7 @@ export async function syncPokemonHpToDeployment(item) {
 
 export async function cleanDeploymentActor(token) {
   const actor = game.actors.get(token.actorId);
-  if (!actor || actor.getFlag(MODULE_ID, "kind") !== "deployed") return;
+  if (!actor || !["deployed", "wild"].includes(actor.getFlag(MODULE_ID, "kind"))) return;
   if (deploymentCleanup.has(actor.id)) return deploymentCleanup.get(actor.id);
   const stillUsed = game.scenes.some(scene => scene.tokens.some(sceneToken => sceneToken.actorId === actor.id));
   if (!stillUsed) await removeDeployment(actor, { deleteTokens: false });
@@ -205,9 +207,10 @@ async function deployedActorSource(pokemonItem) {
   const trainer = pokemonItem.parent;
   const species = pokemonItem.getFlag(MODULE_ID, "species");
   const instance = pokemonItem.getFlag(MODULE_ID, "instance");
+  const pokemonAttributes = instance.attributes ?? species.attributes ?? {};
   const abilities = {};
   for (const key of ["str", "dex", "con", "int", "wis", "cha"]) {
-    abilities[key] = { value: Number(species.attributes?.[key]) || 10, proficient: species.savingThrows?.includes(key) ? 1 : 0 };
+    abilities[key] = { value: Number(pokemonAttributes[key]) || 10, proficient: species.savingThrows?.includes(key) ? 1 : 0 };
   }
   const movement = { walk: 0, fly: 0, swim: 0, burrow: 0, climb: 0, units: "ft", hover: false };
   for (const speed of species.speed ?? []) {

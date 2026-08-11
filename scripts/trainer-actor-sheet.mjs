@@ -3,6 +3,7 @@ import { Poke5ePokemonSheet } from "./pokemon-sheet.mjs";
 import { Poke5eSpeciesBrowser } from "./species-browser.mjs";
 import { Poke5eTrainerTeam } from "./trainer-team.mjs";
 import { deployPokemon, deployedActorFor, recallPokemon } from "./deployment.mjs";
+import { attemptCapture } from "./capture.mjs";
 
 const CharacterActorSheet = dnd5e.applications.actor.CharacterActorSheet;
 
@@ -12,6 +13,7 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
     position: { width: 900, height: 1000 },
     actions: {
       browsePokemon: Poke5eTrainerActorSheet.#browsePokemon,
+      capturePokemon: Poke5eTrainerActorSheet.#capturePokemon,
       deployPokemon: Poke5eTrainerActorSheet.#deployPokemon,
       openPokemon: Poke5eTrainerActorSheet.#openPokemon,
       openTeamManager: Poke5eTrainerActorSheet.#openTeamManager,
@@ -63,6 +65,12 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
   static #browsePokemon(event, target) {
     const sheet = this;
     new Poke5eSpeciesBrowser({ actor: sheet.actor }).render(true);
+  }
+
+  static async #capturePokemon(event, target) {
+    const sheet = this;
+    await attemptCapture(sheet.actor);
+    sheet.render({ force: true });
   }
 
   static #openPokemon(event, target) {

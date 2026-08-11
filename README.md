@@ -33,6 +33,9 @@ Las versiones posteriores aparecerán al usar **Comprobar actualización** o **A
 - Tiradas de ataque y daño, cálculo de MOVE, CD y consumo/restauración de PP.
 - Los 18 tipos de daño Pokémon se integran en D&D 5e sin eliminar sus tipos habituales. Las tiradas Pokémon usan el flujo de daño de D&D y aplican automáticamente resistencias, vulnerabilidades e inmunidades a los actores desplegados.
 - Cada Pokémon conserva un sexo generado según la proporción F:M de su especie y muestra sus posibles evoluciones con sus niveles y demás condiciones.
+- Contador de experiencia acumulada, subida automática de nivel, recompensa por derrota y evolución guiada desde la ficha Pokémon.
+- Generador de encuentros exclusivo del director con filtros por bioma, región, tipo, SR y nivel, generación por objetivo de PX y despliegue de salvajes temporales.
+- Sistema de captura con alcance, límite de nivel, CD por SR/nivel/PG, ventaja por estados y efectos de las distintas Poké Balls. Al capturarlo, el salvaje conserva sus datos y pasa al equipo o a la reserva.
 - Interfaz en español e inglés.
 - Acceso directo a todas las secciones de reglas de poke5e.app.
 
@@ -53,6 +56,8 @@ Los sprites y retratos se cargan desde `poke5e.app` para que la instalación y l
 game.poke5e.openTeam(canvas.tokens.controlled[0]?.actor)
 game.poke5e.openImporter()
 game.poke5e.openReference()
+game.poke5e.openEncounterBuilder()
+game.poke5e.captureTarget(canvas.tokens.controlled[0]?.actor)
 ```
 
 ## Actualización desde 0.1
@@ -76,6 +81,10 @@ La versión 0.7 añade a cada ficha Pokémon un gestor de movimientos basado en 
 ## Actualización a 1.0
 
 La versión 1.0 incorpora el sistema de combate por tipos. Los Pokémon ya guardados que todavía no tengan sexo recibirán uno automáticamente al abrir el mundo. Los actores de combate activos actualizarán sus resistencias, vulnerabilidades e inmunidades; al volver a desplegarlos también se generarán siempre con estos datos. Para actualizar las descripciones de los compendios con evoluciones y afinidades, vuelve a ejecutar **Gestionar compendios** con la opción de especies marcada.
+
+## Actualización a 1.1
+
+La versión 1.1 incorpora experiencia y evolución, el generador de encuentros salvajes y el sistema de captura. Para capturar, añade Poké Balls desde el compendio de objetos al inventario del entrenador, selecciona como objetivo un token salvaje y pulsa **Capturar objetivo** en la pestaña o gestor de equipo. Los actores salvajes se eliminan automáticamente después de una captura o al borrar su último token.
 
 ## Desarrollo
 

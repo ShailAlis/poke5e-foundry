@@ -11,6 +11,7 @@
         {{#if pokemon.darkMode}}<i class="fa-solid fa-sun"></i> Modo claro{{else}}<i class="fa-solid fa-moon"></i> Modo oscuro{{/if}}
       </button>
       {{#if pokemon.canEdit}}
+        <button type="button" class="bright" data-action="capturePokemon"><i class="fa-solid fa-circle-dot"></i> Capturar objetivo</button>
         <button type="button" class="bright" data-action="browsePokemon"><i class="fa-solid fa-plus"></i> Añadir Pokémon</button>
       {{/if}}
       <button type="button" data-action="openTeamManager"><i class="fa-solid fa-sliders"></i> Gestión completa</button>

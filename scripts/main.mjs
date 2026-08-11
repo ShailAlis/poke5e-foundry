@@ -6,6 +6,8 @@ import { MODULE_ID, displayAssetUrl, getPokemonItems, normalizeDroppedSpecies, r
 import { cleanDeploymentActor, recallPokemon, syncDeploymentHp, syncPokemonHpToDeployment } from "./deployment.mjs";
 import { registerTrainerActorSheet } from "./trainer-actor-sheet.mjs";
 import { damageTraitsForPokemonTypes, registerPokemonDamageTypes } from "./combat.mjs";
+import { Poke5eEncounterBuilder } from "./encounter-builder.mjs";
+import { attemptCapture, registerCaptureSocket } from "./capture.mjs";
 
 Hooks.once("init", () => {
   registerPokemonDamageTypes();
@@ -37,13 +39,24 @@ Hooks.once("init", () => {
     name: "POKE5E.Menu.Reference.Name", label: "POKE5E.Menu.Reference.Label", hint: "POKE5E.Menu.Reference.Hint",
     icon: "fa-solid fa-book-open", type: Poke5eReference, restricted: false
   });
+  game.settings.registerMenu(MODULE_ID, "encounterBuilder", {
+    name: "Generador de encuentros salvajes",
+    label: "Abrir generador de encuentros",
+    hint: "Prepara y despliega Pokémon salvajes en la escena activa.",
+    icon: "fa-solid fa-mountain-sun",
+    type: Poke5eEncounterBuilder,
+    restricted: true
+  });
 });
 
 Hooks.once("ready", () => {
   applyDarkMode(game.settings.get(MODULE_ID, "darkMode"));
+  registerCaptureSocket();
   game.poke5e = {
     openImporter: () => new Poke5eImporter().render(true),
     openReference: () => new Poke5eReference().render(true),
+    openEncounterBuilder: () => game.user.isGM ? new Poke5eEncounterBuilder().render(true) : ui.notifications.warn("Solo el director de juego puede abrir esta herramienta."),
+    captureTarget: actor => attemptCapture(actor ?? canvas?.tokens?.controlled?.[0]?.actor),
     openTeam: actor => openTeam(actor ?? canvas?.tokens?.controlled?.[0]?.actor),
     openPokemon: document => openPokemon(document)
   };
@@ -65,6 +78,7 @@ Hooks.on("preCreateItem", item => {
 
 Hooks.on("getActorSheetHeaderButtons", (sheet, buttons) => addLegacyHeaderControl(sheet, buttons));
 Hooks.on("getApplicationV1HeaderButtons", (application, buttons) => addLegacyHeaderControl(application, buttons));
+Hooks.on("getSceneControlButtons", controls => addEncounterSceneControl(controls));
 Hooks.on("getHeaderControlsApplicationV2", (application, controls) => {
   if (application instanceof Poke5ePokemonSheet || application instanceof Poke5eTrainerTeam) return;
   const actor = application.actor ?? application.document;
@@ -75,7 +89,7 @@ Hooks.on("getHeaderControlsApplicationV2", (application, controls) => {
       onClick: () => new Poke5eTrainerTeam({ actor }).render(true)
     });
   }
-  if (actor.getFlag(MODULE_ID, "kind") === "deployed" && !controls.some(control => control.action === "poke5e-open-pokemon")) {
+  if (["deployed", "wild"].includes(actor.getFlag(MODULE_ID, "kind")) && !controls.some(control => control.action === "poke5e-open-pokemon")) {
     controls.unshift({
       label: "Pokédex", icon: "fa-solid fa-address-card", action: "poke5e-open-pokemon", visible: true,
       onClick: () => openPokemon(actor)
@@ -84,7 +98,7 @@ Hooks.on("getHeaderControlsApplicationV2", (application, controls) => {
 });
 
 Hooks.on("updateActor", (actor, changes) => {
-  if (actor.getFlag(MODULE_ID, "kind") !== "deployed") return;
+  if (!["deployed", "wild"].includes(actor.getFlag(MODULE_ID, "kind"))) return;
   if (foundry.utils.hasProperty(changes, "system.attributes.hp") || foundry.utils.hasProperty(changes, "system.attributes.hp.value") || foundry.utils.hasProperty(changes, "system.attributes.hp.max")) {
     syncDeploymentHp(actor).catch(error => console.error(`${MODULE_ID} | HP sync failed`, error));
   }
@@ -114,7 +128,7 @@ function addLegacyHeaderControl(application, buttons) {
       onclick: () => new Poke5eTrainerTeam({ actor }).render(true)
     });
   }
-  if (actor.getFlag(MODULE_ID, "kind") === "deployed" && !buttons.some(button => button.class === "poke5e-open-pokemon")) {
+  if (["deployed", "wild"].includes(actor.getFlag(MODULE_ID, "kind")) && !buttons.some(button => button.class === "poke5e-open-pokemon")) {
     buttons.unshift({ label: "Pokédex", class: "poke5e-open-pokemon", icon: "fa-solid fa-address-card", onclick: () => openPokemon(actor) });
   }
 }
@@ -126,8 +140,9 @@ function openTeam(actor) {
 
 async function openPokemon(document) {
   let item = document;
-  if (document?.documentName === "Actor" && document.getFlag(MODULE_ID, "kind") === "deployed") {
-    item = await fromUuid(document.getFlag(MODULE_ID, "pokemonItemUuid"));
+  if (document?.documentName === "Actor" && ["deployed", "wild"].includes(document.getFlag(MODULE_ID, "kind"))) {
+    const uuid = document.getFlag(MODULE_ID, "pokemonItemUuid");
+    item = uuid ? await fromUuid(uuid) : document.items.find(entry => entry.getFlag(MODULE_ID, "kind") === "pokemon");
   }
   if (item?.documentName !== "Item" || item.getFlag(MODULE_ID, "kind") !== "pokemon") {
     return ui.notifications.warn(game.i18n.localize("POKE5E.Notifications.NoActor"));
@@ -168,6 +183,31 @@ async function migratePokemonCombatData() {
       "system.traits.dv": traits.dv,
       "system.traits.di": traits.di
     });
+  }
+}
+
+function addEncounterSceneControl(controls) {
+  if (!game.user.isGM) return;
+  const open = () => new Poke5eEncounterBuilder().render(true);
+  const tool = {
+    name: "poke5e-encounter-builder",
+    title: "Generador de encuentros salvajes",
+    icon: "fa-solid fa-mountain-sun",
+    button: true,
+    visible: true,
+    onChange: (event, active) => { if (active !== false) open(); }
+  };
+  if (Array.isArray(controls)) {
+    const tokenControls = controls.find(control => control.name === "token" || control.name === "tokens");
+    if (tokenControls && !tokenControls.tools.some(entry => entry.name === tool.name)) tokenControls.tools.push(tool);
+    return;
+  }
+  const tokenControls = controls.tokens ?? controls.token;
+  if (!tokenControls?.tools) return;
+  if (Array.isArray(tokenControls.tools)) {
+    if (!tokenControls.tools.some(entry => entry.name === tool.name)) tokenControls.tools.push(tool);
+  } else if (!tokenControls.tools[tool.name]) {
+    tokenControls.tools[tool.name] = tool;
   }
 }
 

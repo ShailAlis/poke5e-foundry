@@ -58,4 +58,18 @@ if (scene.tokenDeletionCalls !== 1) throw new Error(`Expected one token deletion
 if (actorDeletionCalls !== 1) throw new Error(`Expected one actor deletion, got ${actorDeletionCalls}.`);
 if (actors.has(actor.id)) throw new Error("The deployed actor still exists after recall.");
 
+let wildDeletionCalls = 0;
+const wildActor = {
+  id: "wild-pokemon",
+  getFlag: (scope, key) => key === "kind" ? "wild" : null,
+  async delete() {
+    wildDeletionCalls++;
+    actors.delete(this.id);
+  }
+};
+actors.set(wildActor.id, wildActor);
+scene.tokens = [];
+await cleanDeploymentActor({ actorId: wildActor.id });
+if (wildDeletionCalls !== 1 || actors.has(wildActor.id)) throw new Error("The wild actor was not removed after deleting its final token.");
+
 console.log("Validated idempotent Pokémon deployment cleanup.");

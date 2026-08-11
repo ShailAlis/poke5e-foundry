@@ -2,6 +2,7 @@ import { MODULE_ID, MODULE_PATH, displayAssetUrl, displayPokemonName, getPokemon
 import { Poke5eSpeciesBrowser } from "./species-browser.mjs";
 import { Poke5ePokemonSheet } from "./pokemon-sheet.mjs";
 import { deployPokemon, recallPokemon, deployedActorFor } from "./deployment.mjs";
+import { attemptCapture } from "./capture.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin, DialogV2 } = foundry.applications.api;
 
@@ -45,6 +46,7 @@ export class Poke5eTrainerTeam extends HandlebarsApplicationMixin(ApplicationV2)
   _onRender(context, options) {
     super._onRender(context, options);
     this.element.querySelector("[data-action='browse-species']")?.addEventListener("click", () => new Poke5eSpeciesBrowser({ actor: this.actor }).render(true));
+    this.element.querySelector("[data-action='capture-target']")?.addEventListener("click", () => attemptCapture(this.actor).then(() => this.render({ force: true })));
     this.element.querySelectorAll("[data-action='open-pokemon']").forEach(button => button.addEventListener("click", event => this.#open(event)));
     this.element.querySelectorAll("[data-action='toggle-team']").forEach(button => button.addEventListener("click", event => this.#toggleTeam(event)));
     this.element.querySelectorAll("[data-action='deploy']").forEach(button => button.addEventListener("click", event => this.#deploy(event)));

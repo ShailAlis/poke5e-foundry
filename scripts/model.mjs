@@ -1,4 +1,5 @@
 import { pokemonDefenses, typeLabel } from "./combat.mjs";
+import { experienceAtLevel } from "./progression.mjs";
 
 export const MODULE_ID = "poke5e-foundry";
 export const MODULE_PATH = `modules/${MODULE_ID}`;
@@ -84,7 +85,7 @@ export function gearItemSource(item) {
       quantity: 1,
       price: { value: Number(item.cost) || 0, denomination: "gp" }
     },
-    flags: { [MODULE_ID]: { kind: "gear", sourceId: item.id, category: item.category ?? "" } }
+    flags: { [MODULE_ID]: { kind: "gear", sourceId: item.id, category: item.type ?? item.category ?? "" } }
   };
 }
 
@@ -198,9 +199,10 @@ export function pokemonItemSourceFromSpecies(speciesDocument) {
         instance: {
           nickname: "",
           level: Math.max(1, Number(species.minLevel) || 1),
-          experience: 0,
+          experience: experienceAtLevel(Math.max(1, Number(species.minLevel) || 1)),
           hp: { value: Number(species.hp) || 1, max: Number(species.hp) || 1 },
           ac: Number(species.ac) || 10,
+          attributes: foundry.utils.deepClone(species.attributes ?? {}),
           nature: "",
           gender: randomGenderForRatio(species.gender),
           shiny: false,
