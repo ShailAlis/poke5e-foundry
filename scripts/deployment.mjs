@@ -226,6 +226,8 @@ async function deployedActorSource(pokemonItem) {
   const tokenSize = { tiny: 0.5, small: 1, medium: 1, large: 2, huge: 3, gargantuan: 4 }[species.size] ?? 1;
   const size = { tiny: "tiny", small: "sm", medium: "med", large: "lg", huge: "huge", gargantuan: "grg" }[species.size] ?? "med";
   const damageTraits = damageTraitsForPokemonTypes(species.type);
+  const trainerSpecialization = trainer.getFlag(MODULE_ID, "trainerCreation")?.specialization;
+  const specializationBonus = (species.type ?? []).includes(trainerSpecialization) ? 1 : 0;
   const moveItems = (instance.moves ?? []).map(entry => data.movesById.get(entry.moveId)).filter(Boolean).map(move => ({
     name: move.name,
     type: "feat",
@@ -245,6 +247,7 @@ async function deployedActorSource(pokemonItem) {
     },
     system: {
       abilities,
+      bonuses: { abilities: { check: "", save: "", skill: specializationBonus ? String(specializationBonus) : "" } },
       attributes: {
         ac: { calc: "flat", flat: Number(instance.ac) || Number(species.ac) || 10 },
         hp: { value: Number(instance.hp?.value) || 0, max: Number(instance.hp?.max) || Number(species.hp) || 1 },

@@ -24,6 +24,8 @@ Las versiones posteriores aparecerán al usar **Comprobar actualización** o **A
 
 ## Funciones
 
+- Flujo guiado al crear un personaje: fija la especie **Humano** y aplica origen regional, bonificaciones, feat, idiomas, competencias, especialización, equipo inicial y Pokémon inicial con sus elecciones válidas.
+- Las fichas de personaje rechazan especies distintas de Humano. Los actores antiguos no se modifican automáticamente.
 - Ficha de Entrenador Pokémon personalizada, registrada automáticamente como ficha predeterminada para los personajes.
 - Pestaña **Equipo Pokémon** dentro de la ficha: muestra los seis huecos, abre cada Pokémon con un clic y permite añadir, desplegar, retirar o gestionar el equipo sin tapar las características.
 - Modo oscuro inspirado en poke5e.app, configurable por cada usuario desde los ajustes o la propia pestaña de equipo.
@@ -44,7 +46,7 @@ Las versiones posteriores aparecerán al usar **Comprobar actualización** o **A
 1. Copia toda esta carpeta dentro de `Data/modules/poke5e-foundry`.
 2. Activa **Pokémon 5e for Foundry VTT** en un mundo que use D&D 5e.
 3. Abre **Ajustes del juego → Configurar ajustes → Pokémon 5e → Importar contenido** y crea los compendios.
-4. Abre **Pokémon 5e — Clases y progresión** y arrastra **Entrenador** a una ficha de personaje.
+4. Crea un actor de tipo **Personaje** y completa el asistente de Entrenador que se abrirá automáticamente.
 5. Abre la pestaña **Equipo Pokémon** de esa ficha.
 6. Añade especies con el buscador o arrastrándolas desde **Pokémon 5e — Especies**.
 
@@ -58,6 +60,7 @@ game.poke5e.openImporter()
 game.poke5e.openReference()
 game.poke5e.openEncounterBuilder()
 game.poke5e.captureTarget(canvas.tokens.controlled[0]?.actor)
+game.poke5e.createTrainer(canvas.tokens.controlled[0]?.actor)
 ```
 
 ## Actualización desde 0.1
@@ -85,6 +88,10 @@ La versión 1.0 incorpora el sistema de combate por tipos. Los Pokémon ya guard
 ## Actualización a 1.1
 
 La versión 1.1 incorpora experiencia y evolución, el generador de encuentros salvajes y el sistema de captura. Para capturar, añade Poké Balls desde el compendio de objetos al inventario del entrenador, selecciona como objetivo un token salvaje y pulsa **Capturar objetivo** en la pestaña o gestor de equipo. Los actores salvajes se eliminan automáticamente después de una captura o al borrar su último token.
+
+## Actualización a 1.2
+
+La versión 1.2 incorpora el asistente guiado de creación de Entrenadores. Los personajes nuevos quedan limitados a la especie Humano y reciben automáticamente su origen regional, bonificaciones, competencias, dote, especialización, equipo inicial y Pokémon inicial. Los personajes existentes no se modifican automáticamente.
 
 ## Desarrollo
 

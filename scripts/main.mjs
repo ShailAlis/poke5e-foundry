@@ -8,6 +8,7 @@ import { registerTrainerActorSheet } from "./trainer-actor-sheet.mjs";
 import { damageTraitsForPokemonTypes, registerPokemonDamageTypes } from "./combat.mjs";
 import { Poke5eEncounterBuilder } from "./encounter-builder.mjs";
 import { attemptCapture, registerCaptureSocket } from "./capture.mjs";
+import { Poke5eTrainerCreator, enforceHumanActorSource, isHumanSpecies } from "./trainer-creator.mjs";
 
 Hooks.once("init", () => {
   registerPokemonDamageTypes();
@@ -57,6 +58,7 @@ Hooks.once("ready", () => {
     openReference: () => new Poke5eReference().render(true),
     openEncounterBuilder: () => game.user.isGM ? new Poke5eEncounterBuilder().render(true) : ui.notifications.warn("Solo el director de juego puede abrir esta herramienta."),
     captureTarget: actor => attemptCapture(actor ?? canvas?.tokens?.controlled?.[0]?.actor),
+    createTrainer: actor => openTrainerCreator(actor ?? canvas?.tokens?.controlled?.[0]?.actor),
     openTeam: actor => openTeam(actor ?? canvas?.tokens?.controlled?.[0]?.actor),
     openPokemon: document => openPokemon(document)
   };
@@ -71,9 +73,19 @@ function applyDarkMode(enabled) {
 }
 
 Hooks.on("preCreateItem", item => {
+  if (item.parent?.documentName === "Actor" && item.parent.type === "character" && item.type === "race" && !isHumanSpecies(item)) {
+    ui.notifications.warn("En Pokémon 5e los personajes jugadores solo pueden ser humanos.");
+    return false;
+  }
   if (!normalizeDroppedSpecies(item)) return;
   const currentTeam = getPokemonItems(item.parent).filter(entry => entry.getFlag(MODULE_ID, "instance")?.inTeam);
   if (currentTeam.length >= 6) item.updateSource({ [`flags.${MODULE_ID}.instance.inTeam`]: false });
+});
+
+Hooks.on("preCreateActor", actor => enforceHumanActorSource(actor));
+Hooks.on("createActor", (actor, options, userId) => {
+  if (userId !== game.user.id || actor.type !== "character" || actor.getFlag(MODULE_ID, "trainerCreation")?.completed) return;
+  setTimeout(() => new Poke5eTrainerCreator({ actor }).render(true), 250);
 });
 
 Hooks.on("getActorSheetHeaderButtons", (sheet, buttons) => addLegacyHeaderControl(sheet, buttons));
@@ -87,6 +99,12 @@ Hooks.on("getHeaderControlsApplicationV2", (application, controls) => {
     controls.unshift({
       label: teamLabel(actor), icon: "fa-solid fa-circle-dot", action: "poke5e-open-team", visible: true,
       onClick: () => new Poke5eTrainerTeam({ actor }).render(true)
+    });
+  }
+  if (needsTrainerCreation(actor) && !controls.some(control => control.action === "poke5e-create-trainer")) {
+    controls.unshift({
+      label: "Completar Entrenador", icon: "fa-solid fa-user-plus", action: "poke5e-create-trainer", visible: true,
+      onClick: () => new Poke5eTrainerCreator({ actor }).render(true)
     });
   }
   if (["deployed", "wild"].includes(actor.getFlag(MODULE_ID, "kind")) && !controls.some(control => control.action === "poke5e-open-pokemon")) {
@@ -122,6 +140,9 @@ Hooks.on("deleteToken", token => {
 function addLegacyHeaderControl(application, buttons) {
   const actor = application.actor ?? application.document;
   if (actor?.documentName !== "Actor") return;
+  if (needsTrainerCreation(actor) && !buttons.some(button => button.class === "poke5e-create-trainer")) {
+    buttons.unshift({ label: "Completar Entrenador", class: "poke5e-create-trainer", icon: "fa-solid fa-user-plus", onclick: () => new Poke5eTrainerCreator({ actor }).render(true) });
+  }
   if (actor.type === "character" && !buttons.some(button => button.class === "poke5e-open-team")) {
     buttons.unshift({
       label: teamLabel(actor), class: "poke5e-open-team", icon: "fa-solid fa-circle-dot",
@@ -136,6 +157,16 @@ function addLegacyHeaderControl(application, buttons) {
 function openTeam(actor) {
   if (!actor || actor.type !== "character") return ui.notifications.warn("Selecciona un actor de entrenador.");
   return new Poke5eTrainerTeam({ actor }).render(true);
+}
+
+function openTrainerCreator(actor) {
+  if (!actor || actor.type !== "character") return ui.notifications.warn("Selecciona un personaje Entrenador.");
+  if (!actor.isOwner) return ui.notifications.warn("No tienes permiso para configurar este personaje.");
+  return new Poke5eTrainerCreator({ actor }).render(true);
+}
+
+function needsTrainerCreation(actor) {
+  return actor?.documentName === "Actor" && actor.type === "character" && !actor.getFlag(MODULE_ID, "trainerCreation")?.completed;
 }
 
 async function openPokemon(document) {
