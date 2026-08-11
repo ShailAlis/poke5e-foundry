@@ -1,4 +1,4 @@
-import { MODULE_ID, MODULE_PATH, displayPokemonName, getPokemonItems, portraitUrl } from "./model.mjs";
+import { MODULE_ID, MODULE_PATH, displayAssetUrl, displayPokemonName, getPokemonItems, portraitUrl } from "./model.mjs";
 import { Poke5eSpeciesBrowser } from "./species-browser.mjs";
 import { Poke5ePokemonSheet } from "./pokemon-sheet.mjs";
 import { deployPokemon, recallPokemon, deployedActorFor } from "./deployment.mjs";
@@ -29,7 +29,7 @@ export class Poke5eTrainerTeam extends HandlebarsApplicationMixin(ApplicationV2)
     const team = all.filter(entry => entry.instance.inTeam);
     const reserve = all.filter(entry => !entry.instance.inTeam);
     const gear = this.actor.items.filter(item => item.getFlag(MODULE_ID, "kind") === "gear").map(item => ({
-      id: item.id, name: item.name, img: item.img, quantity: item.system.quantity ?? 1
+      id: item.id, name: item.name, img: displayAssetUrl(item.img, "icons/svg/item-bag.svg"), quantity: item.system.quantity ?? 1
     }));
     return {
       actor: this.actor,

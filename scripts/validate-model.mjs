@@ -18,15 +18,22 @@ const movesById = new Map(moves.map(move => [move.id, move]));
 const {
   MODULE_ID,
   TRAINER_FEATURES,
+  displayAssetUrl,
   speciesItemSource,
   pokemonItemSourceFromSpecies,
   trainerFeatureSources,
   trainerClassSource
 } = await import("./model.mjs");
 
+if (displayAssetUrl("modules/poke5e-foundry/assets/pokemon/0001/sprite.png") !== "https://poke5e.app/assets/pokemon/0001/sprite.png") {
+  throw new Error("Legacy module asset URLs are not migrated to the configured asset host.");
+}
+if (displayAssetUrl("icons/svg/sword.svg") !== "icons/svg/sword.svg") throw new Error("Foundry icon URLs must remain unchanged.");
+
 for (const species of pokemon) {
   const catalog = speciesItemSource(species, movesById);
   if (catalog.type !== "feat" || catalog.flags[MODULE_ID].kind !== "species") throw new Error(`${species.id}: invalid catalog source.`);
+  if (species.media?.sprite && !catalog.img.startsWith("https://poke5e.app/assets/")) throw new Error(`${species.id}: catalog image is not remote.`);
   const individual = pokemonItemSourceFromSpecies(catalog);
   const flags = individual.flags[MODULE_ID];
   if (flags.kind !== "pokemon" || flags.sourceId !== species.id) throw new Error(`${species.id}: invalid individual source.`);

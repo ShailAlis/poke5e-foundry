@@ -34,7 +34,7 @@ jobs:
         run: npm run check
 
       - name: Crear ZIP instalable
-        run: zip -r poke5e-foundry.zip module.json package.json README.md LICENSE assets data lang scripts styles templates
+        run: zip -r poke5e-foundry.zip module.json package.json README.md LICENSE data lang scripts styles templates
 
       - name: Crear GitHub Release
         env:

@@ -46,7 +46,7 @@ export function speciesItemSource(species, movesById = new Map()) {
   return {
     name: species.name,
     type: "feat",
-    img: localAssetUrl(species.media?.sprite) || "icons/svg/mystery-man.svg",
+    img: remoteAssetUrl(species.media?.sprite) || "icons/svg/mystery-man.svg",
     system: { description: { value: speciesDescription(species), chat: "" } },
     flags: { [MODULE_ID]: { kind: "species", sourceId: species.id, species, startingMoves } }
   };
@@ -73,11 +73,10 @@ export function abilityItemSource(ability) {
 }
 
 export function gearItemSource(item) {
-  const baseUrl = String(game.settings.get(MODULE_ID, "assetBaseUrl") ?? "").replace(/\/$/, "");
   return {
     name: item.name,
     type: "loot",
-    img: localAssetUrl(item.media?.sprite) || assetUrl(baseUrl, item.media?.sprite) || "icons/svg/item-bag.svg",
+    img: remoteAssetUrl(item.media?.sprite) || "icons/svg/item-bag.svg",
     system: {
       description: { value: paragraphs(item.description), chat: "" },
       quantity: 1,
@@ -231,14 +230,24 @@ export function displayPokemonName(item) {
   return instance.nickname?.trim() || item.name;
 }
 
-export function localAssetUrl(path) {
-  if (!path || /^https?:\/\//i.test(path)) return "";
-  return `${MODULE_PATH}${path.startsWith("/") ? "" : "/"}${path}`;
+export function remoteAssetUrl(path) {
+  const baseUrl = String(game.settings.get(MODULE_ID, "assetBaseUrl") ?? "").replace(/\/$/, "");
+  return assetUrl(baseUrl, path);
+}
+
+export function displayAssetUrl(path, fallback = "") {
+  const original = String(path ?? "").trim();
+  if (!original) return fallback;
+  if (/^https?:\/\//i.test(original)) return original;
+  const normalized = original.replace(/^\/+/, "");
+  const modulePrefix = `${MODULE_PATH}/`;
+  const relative = normalized.startsWith(modulePrefix) ? normalized.slice(modulePrefix.length) : normalized;
+  if (relative.startsWith("assets/")) return remoteAssetUrl(relative) || original;
+  return original;
 }
 
 export function portraitUrl(species) {
-  const baseUrl = String(game.settings.get(MODULE_ID, "assetBaseUrl") ?? "").replace(/\/$/, "");
-  return assetUrl(baseUrl, species.media?.main) || localAssetUrl(species.media?.sprite) || "icons/svg/mystery-man.svg";
+  return remoteAssetUrl(species.media?.main) || remoteAssetUrl(species.media?.sprite) || "icons/svg/mystery-man.svg";
 }
 
 export function assetUrl(baseUrl, path) {

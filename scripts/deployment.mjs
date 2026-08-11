@@ -1,4 +1,4 @@
-import { MODULE_ID, displayPokemonName, localAssetUrl, portraitUrl } from "./model.mjs";
+import { MODULE_ID, displayPokemonName, portraitUrl, remoteAssetUrl } from "./model.mjs";
 import { loadPoke5eData } from "./data-service.mjs";
 
 export function deployedActorFor(pokemonItem) {
@@ -107,7 +107,7 @@ async function deployedActorSource(pokemonItem) {
     prototypeToken: {
       name: displayPokemonName(pokemonItem), actorLink: true, disposition: 1, displayName: 20,
       width: tokenSize, height: tokenSize,
-      texture: { src: localAssetUrl(species.media?.sprite) || portraitUrl(species) }
+      texture: { src: remoteAssetUrl(species.media?.sprite) || portraitUrl(species) }
     },
     system: {
       abilities,

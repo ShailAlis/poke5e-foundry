@@ -43,7 +43,7 @@ Las versiones posteriores aparecerán al usar **Comprobar actualización** o **A
 5. Abre la pestaña **Equipo Pokémon** de esa ficha.
 6. Añade especies con el buscador o arrastrándolas desde **Pokémon 5e — Especies**.
 
-Los sprites de token están incluidos para que el tablero funcione sin conexión. Los retratos grandes se cargan desde `poke5e.app` para mantener pequeño el módulo; su URL base puede cambiarse en los ajustes del mundo.
+Los sprites y retratos se cargan desde `poke5e.app` para que la instalación y las actualizaciones sean rápidas; su URL base puede cambiarse en los ajustes del mundo. Al actualizar desde una versión anterior, las imágenes guardadas en las fichas se migran automáticamente y los compendios se actualizan al volver a ejecutar el importador.
 
 ## API para macros
 

@@ -2,7 +2,7 @@ import { Poke5eImporter } from "./importer.mjs";
 import { Poke5ePokemonSheet } from "./pokemon-sheet.mjs";
 import { Poke5eReference } from "./reference.mjs";
 import { Poke5eTrainerTeam } from "./trainer-team.mjs";
-import { MODULE_ID, getPokemonItems, normalizeDroppedSpecies } from "./model.mjs";
+import { MODULE_ID, displayAssetUrl, getPokemonItems, normalizeDroppedSpecies } from "./model.mjs";
 import { cleanDeploymentActor, recallPokemon, syncDeploymentHp, syncPokemonHpToDeployment } from "./deployment.mjs";
 import { registerTrainerActorSheet } from "./trainer-actor-sheet.mjs";
 
@@ -45,6 +45,7 @@ Hooks.once("ready", () => {
     openTeam: actor => openTeam(actor ?? canvas?.tokens?.controlled?.[0]?.actor),
     openPokemon: document => openPokemon(document)
   };
+  if (game.user.isGM) migrateEmbeddedAssetUrls().catch(error => console.error(`${MODULE_ID} | Asset migration failed`, error));
 });
 
 function applyDarkMode(enabled) {
@@ -127,6 +128,17 @@ async function openPokemon(document) {
     return ui.notifications.warn(game.i18n.localize("POKE5E.Notifications.NoActor"));
   }
   return new Poke5ePokemonSheet({ pokemonItem: item }).render(true);
+}
+
+async function migrateEmbeddedAssetUrls() {
+  for (const actor of game.actors) {
+    const updates = actor.items.reduce((entries, item) => {
+      const img = displayAssetUrl(item.img);
+      if (img && img !== item.img) entries.push({ _id: item.id, img });
+      return entries;
+    }, []);
+    if (updates.length) await actor.updateEmbeddedDocuments("Item", updates);
+  }
 }
 
 function teamLabel(actor) {

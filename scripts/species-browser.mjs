@@ -1,4 +1,4 @@
-import { MODULE_ID, MODULE_PATH, getPack, getPokemonItems, pokemonItemSourceFromSpecies } from "./model.mjs";
+import { MODULE_ID, MODULE_PATH, displayAssetUrl, getPack, getPokemonItems, pokemonItemSourceFromSpecies } from "./model.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -66,7 +66,7 @@ export class Poke5eSpeciesBrowser extends HandlebarsApplicationMixin(Application
       entries: all.slice(0, 80).map(entry => ({
         id: entry._id,
         name: entry.name,
-        img: entry.img,
+        img: displayAssetUrl(entry.img, "icons/svg/mystery-man.svg"),
         number: number(entry),
         types: types(entry),
         sr: sr(entry),

@@ -1,4 +1,4 @@
-import { MODULE_ID, MODULE_PATH, displayPokemonName, getPokemonItems } from "./model.mjs";
+import { MODULE_ID, MODULE_PATH, displayAssetUrl, displayPokemonName, getPokemonItems } from "./model.mjs";
 import { Poke5ePokemonSheet } from "./pokemon-sheet.mjs";
 import { Poke5eSpeciesBrowser } from "./species-browser.mjs";
 import { Poke5eTrainerTeam } from "./trainer-team.mjs";
@@ -126,7 +126,7 @@ function preparePokemon(item) {
     itemId: item.id,
     name: displayPokemonName(item),
     speciesName: item.name,
-    img: item.img,
+    img: displayAssetUrl(item.img, "icons/svg/mystery-man.svg"),
     instance,
     deployed: Boolean(deployedActorFor(item)),
     hpValue,
