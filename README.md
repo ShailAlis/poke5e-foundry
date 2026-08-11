@@ -26,7 +26,8 @@ Las versiones posteriores aparecerán al usar **Comprobar actualización** o **A
 
 - Ficha de Entrenador Pokémon personalizada, registrada automáticamente como ficha predeterminada para los personajes.
 - Pestaña **Equipo Pokémon** dentro de la ficha: muestra los seis huecos, abre cada Pokémon con un clic y permite añadir, desplegar, retirar o gestionar el equipo sin tapar las características.
-- Buscador de especies y gestión de equipo/reserva.
+- Modo oscuro inspirado en poke5e.app, configurable por cada usuario desde los ajustes o la propia pestaña de equipo.
+- Buscador de especies con filtros por tipo, rango de SR/CR y nivel mínimo, además de distintas ordenaciones.
 - Ficha Pokédex para cada Pokémon individual.
 - Tiradas de ataque y daño, cálculo de MOVE, CD y consumo/restauración de PP.
 - Interfaz en español e inglés.
@@ -62,6 +63,8 @@ La versión 0.3 añade **Entrenador** como clase real de D&D 5e. Después de act
 La versión 0.4 añade un acceso permanente al equipo dentro de la ficha del personaje. No es necesario volver a importar los compendios para activar esta mejora visual.
 
 La versión 0.5 sustituye esa franja por una ficha personalizada de Entrenador con una pestaña de equipo propia. También deja de crear el personaje de ejemplo al importar: cualquier personaje nuevo usa la ficha adecuada automáticamente. Los personajes de ejemplo existentes no se borran para evitar pérdidas de datos.
+
+La versión 0.6 corrige la visibilidad de la pestaña de equipo para que solo aparezca al seleccionarla, incorpora el modo oscuro y amplía el buscador Pokémon con filtros y ordenación.
 
 ## Desarrollo
 

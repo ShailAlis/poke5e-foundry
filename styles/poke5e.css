@@ -285,13 +285,67 @@
 .poke5e-species-browser-body > header { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 0.7rem; position: sticky; top: 0; z-index: 2; padding: 0.35rem; border-radius: 8px; background: #f2f0e9; }
 .poke5e-species-browser-body > header label { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 0.45rem; }
 .poke5e-species-browser-body input[type="search"] { width: 100%; }
+.poke5e-species-filters { display: grid; grid-template-columns: minmax(110px, 0.7fr) 1fr 1fr minmax(150px, 1fr) auto; align-items: end; gap: 0.5rem; padding: 0.65rem; border: 1px solid rgba(24, 33, 43, 0.16); border-radius: 9px; background: var(--poke-card); }
+.poke5e-species-filters > label { display: grid; gap: 0.2rem; min-width: 0; font-size: 0.75rem; font-weight: 800; }
+.poke5e-species-filters select { width: 100%; }
+.poke5e-species-filters fieldset { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 0.25rem; min-width: 0; margin: 0; padding: 0; border: 0; background: none; }
+.poke5e-species-filters legend { grid-column: 1 / -1; padding: 0; font-size: 0.75rem; }
+.poke5e-species-filters input { width: 100%; min-width: 0; }
+.poke5e-species-filters button { width: auto; margin: 0; white-space: nowrap; }
 .poke5e-species-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.4rem; }
 .poke5e-species-grid article { display: grid; grid-template-columns: 64px 1fr auto; align-items: center; gap: 0.5rem; padding: 0.35rem; border: 1px solid rgba(24, 33, 43, 0.15); border-radius: 8px; background: var(--poke-card); }
 .poke5e-species-grid img { width: 64px; height: 64px; object-fit: contain; image-rendering: auto; }
 .poke5e-species-grid article > div { display: grid; min-width: 0; }
 .poke5e-species-grid article strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .poke5e-species-grid article span { font-size: 0.72rem; opacity: 0.72; }
+.poke5e-species-grid article .species-rating { margin-top: 0.15rem; color: var(--poke-red-dark); font-weight: 800; opacity: 1; }
 .poke5e-species-grid button { min-width: 2.2rem; padding: 0.35rem; }
+
+body.poke5e-dark-mode .poke5e {
+  --poke-ink: hsl(0, 0%, 83%);
+  --poke-paper: hsl(0, 0%, 18%);
+  --poke-card: hsla(0, 0%, 18%, 0.94);
+  --poke-red-dark: hsl(355, 66%, 58%);
+  color: var(--poke-ink);
+  color-scheme: dark;
+}
+body.poke5e-dark-mode .poke5e .window-content {
+  background:
+    radial-gradient(circle at 8% 5%, rgba(217, 54, 62, 0.12), transparent 24rem),
+    linear-gradient(145deg, hsl(0, 0%, 20%), hsl(251, 13%, 12%));
+}
+body.poke5e-dark-mode .poke5e input,
+body.poke5e-dark-mode .poke5e select,
+body.poke5e-dark-mode .poke5e textarea,
+body.poke5e-dark-mode .poke5e button:not(.bright) { color: hsl(0, 0%, 92%); border-color: hsl(0, 0%, 34%); background-color: hsl(0, 0%, 25%); }
+body.poke5e-dark-mode .poke5e small { color: hsla(0, 0%, 100%, 0.66); }
+body.poke5e-dark-mode .poke5e fieldset,
+body.poke5e-dark-mode .poke5e-reference-grid a,
+body.poke5e-dark-mode .poke5e-team-card,
+body.poke5e-dark-mode .poke5e-reserve-list article,
+body.poke5e-dark-mode .poke5e-stat-grid > div,
+body.poke5e-dark-mode .poke5e-move,
+body.poke5e-dark-mode .poke5e-ability,
+body.poke5e-dark-mode .poke5e-species-grid article,
+body.poke5e-dark-mode .poke5e-species-filters { border-color: hsl(0, 0%, 31%); box-shadow: 0 2px 7px rgba(0, 0, 0, 0.28); }
+body.poke5e-dark-mode .poke5e-reference-grid a { color: var(--poke-ink); }
+body.poke5e-dark-mode .poke5e-species-browser-body > header { background: hsl(0, 0%, 16%); }
+body.poke5e-dark-mode .poke5e-team-card > img,
+body.poke5e-dark-mode .poke5e-dex-header > img { background: linear-gradient(145deg, hsl(0, 0%, 28%), hsl(0, 0%, 20%)); }
+body.poke5e-dark-mode .poke5e-sheet-team-tab { color: hsl(0, 0%, 83%); background: linear-gradient(145deg, hsl(0, 0%, 20%), hsl(251, 13%, 12%)); }
+body.poke5e-dark-mode .poke5e-sheet-slot,
+body.poke5e-dark-mode .poke5e-sheet-reserve-grid article { color: hsl(0, 0%, 83%); border-color: hsl(0, 0%, 32%); background: hsla(0, 0%, 18%, 0.94); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28); }
+body.poke5e-dark-mode .poke5e-sheet-slot.empty { color: hsla(0, 0%, 100%, 0.56); }
+body.poke5e-dark-mode .poke5e-sheet-slot.empty:hover { color: hsl(355, 80%, 72%); background: hsl(0, 0%, 23%); }
+body.poke5e-dark-mode .poke5e-sheet-slot .pokemon-portrait { background: linear-gradient(145deg, hsl(0, 0%, 28%), hsl(0, 0%, 20%)); }
+body.poke5e-dark-mode .poke5e-sheet-slot .pokemon-name { color: hsl(0, 0%, 92%); }
+body.poke5e-dark-mode .poke5e-trainer-sheet {
+  --color-text-primary: hsl(0, 0%, 90%);
+  --color-text-secondary: hsl(0, 0%, 70%);
+  --color-border-light-1: hsl(0, 0%, 38%);
+  color-scheme: dark;
+}
+body.poke5e-dark-mode .poke5e-trainer-sheet .window-content { background-color: hsl(0, 0%, 17%); color: hsl(0, 0%, 88%); }
 
 @media (max-width: 650px) {
   .poke5e-reference-grid,
@@ -307,6 +361,8 @@
   .poke5e-team-app .poke5e-hero.compact > button { grid-column: 1 / -1; }
   .poke5e-team-grid,
   .poke5e-species-grid { grid-template-columns: 1fr; }
+  .poke5e-species-filters { grid-template-columns: 1fr 1fr; }
+  .poke5e-species-filters button { grid-column: 1 / -1; }
   .poke5e-reserve-list article { grid-template-columns: 42px 1fr auto auto auto; }
   .poke5e-reserve-list article > span { grid-column: 2 / -1; }
   .poke5e-sheet-team-header { grid-template-columns: 48px 1fr; }

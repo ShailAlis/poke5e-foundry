@@ -3,6 +3,8 @@
   "POKE5E.Settings.Language.Hint": "Idioma usado al importar movimientos, habilidades, objetos y contenido de progresión.",
   "POKE5E.Settings.Assets.Name": "URL base de retratos",
   "POKE5E.Settings.Assets.Hint": "Origen de los retratos grandes. Los sprites de token están incluidos en el módulo; deja este campo vacío para usarlos también como retrato.",
+  "POKE5E.Settings.DarkMode.Name": "Modo oscuro",
+  "POKE5E.Settings.DarkMode.Hint": "Aplica a las fichas y herramientas de Pokémon 5e la apariencia oscura de poke5e.app.",
   "POKE5E.Menu.Importer.Name": "Biblioteca Pokémon 5e",
   "POKE5E.Menu.Importer.Label": "Gestionar compendios",
   "POKE5E.Menu.Importer.Hint": "Crea o actualiza los compendios, incluida la clase de Entrenador y sus rasgos.",

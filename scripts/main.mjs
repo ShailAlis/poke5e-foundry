@@ -8,6 +8,12 @@ import { registerTrainerActorSheet } from "./trainer-actor-sheet.mjs";
 
 Hooks.once("init", () => {
   registerTrainerActorSheet();
+  game.settings.register(MODULE_ID, "darkMode", {
+    name: "POKE5E.Settings.DarkMode.Name",
+    hint: "POKE5E.Settings.DarkMode.Hint",
+    scope: "client", config: true, type: Boolean, default: true,
+    onChange: applyDarkMode
+  });
   game.settings.register(MODULE_ID, "dataLanguage", {
     name: "POKE5E.Settings.Language.Name",
     hint: "POKE5E.Settings.Language.Hint",
@@ -32,6 +38,7 @@ Hooks.once("init", () => {
 });
 
 Hooks.once("ready", () => {
+  applyDarkMode(game.settings.get(MODULE_ID, "darkMode"));
   game.poke5e = {
     openImporter: () => new Poke5eImporter().render(true),
     openReference: () => new Poke5eReference().render(true),
@@ -39,6 +46,10 @@ Hooks.once("ready", () => {
     openPokemon: document => openPokemon(document)
   };
 });
+
+function applyDarkMode(enabled) {
+  document.body.classList.toggle("poke5e-dark-mode", Boolean(enabled));
+}
 
 Hooks.on("preCreateItem", item => {
   if (!normalizeDroppedSpecies(item)) return;

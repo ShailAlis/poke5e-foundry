@@ -16,6 +16,7 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
       openPokemon: Poke5eTrainerActorSheet.#openPokemon,
       openTeamManager: Poke5eTrainerActorSheet.#openTeamManager,
       recallPokemon: Poke5eTrainerActorSheet.#recallPokemon,
+      toggleDarkMode: Poke5eTrainerActorSheet.#toggleDarkMode,
       togglePokemonTeam: Poke5eTrainerActorSheet.#togglePokemonTeam
     }
   };
@@ -45,6 +46,7 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
       pokemon: {
         allCount: all.length,
         canEdit: this.actor.isOwner,
+        darkMode: game.settings.get(MODULE_ID, "darkMode"),
         reserve: all.filter(entry => !entry.instance.inTeam),
         slots: Array.from({ length: 6 }, (_, index) => team[index]
           ? { ...team[index], position: index + 1 }
@@ -71,6 +73,12 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
   static #openTeamManager(event, target) {
     const sheet = this;
     new Poke5eTrainerTeam({ actor: sheet.actor }).render(true);
+  }
+
+  static async #toggleDarkMode(event, target) {
+    const enabled = !game.settings.get(MODULE_ID, "darkMode");
+    await game.settings.set(MODULE_ID, "darkMode", enabled);
+    this.render({ force: true });
   }
 
   static async #togglePokemonTeam(event, target) {

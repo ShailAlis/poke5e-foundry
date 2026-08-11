@@ -3,6 +3,8 @@
   "POKE5E.Settings.Language.Hint": "Language used when importing moves, abilities, items, and progression content.",
   "POKE5E.Settings.Assets.Name": "Portrait base URL",
   "POKE5E.Settings.Assets.Hint": "Source for large portraits. Token sprites are bundled with the module; leave this empty to use them as portraits too.",
+  "POKE5E.Settings.DarkMode.Name": "Dark mode",
+  "POKE5E.Settings.DarkMode.Hint": "Use the dark poke5e.app appearance for Pokémon 5e sheets and tools.",
   "POKE5E.Menu.Importer.Name": "Pokémon 5e library",
   "POKE5E.Menu.Importer.Label": "Manage compendiums",
   "POKE5E.Menu.Importer.Hint": "Create or update compendiums, including the Trainer class and its features.",
