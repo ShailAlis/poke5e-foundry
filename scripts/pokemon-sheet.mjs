@@ -12,7 +12,12 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     position: { width: 760, height: 720 }
   };
 
-  static PARTS = { main: { template: `${MODULE_PATH}/templates/pokemon-sheet.hbs` } };
+  static PARTS = {
+    main: {
+      template: `${MODULE_PATH}/templates/pokemon-sheet.hbs`,
+      scrollable: [""]
+    }
+  };
 
   constructor({ pokemonItem, ...options } = {}) {
     super({ ...options, id: `poke5e-pokemon-${pokemonItem?.id ?? "unknown"}` });

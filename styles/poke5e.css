@@ -17,6 +17,20 @@
     linear-gradient(145deg, #f8f5ed, #e8edf0);
 }
 
+.poke5e-pokemon-sheet .window-content {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.poke5e-pokemon-sheet .poke5e-dex {
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
 .poke5e-panel,
 .poke5e-dex { padding: 1.15rem; }
 .poke5e h1,
@@ -197,7 +211,7 @@
 .poke5e-move-manager > header { display: grid; grid-template-columns: minmax(0, 1fr) minmax(150px, auto) auto; align-items: center; gap: 0.5rem; }
 .poke5e-move-manager > header label { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 0.4rem; }
 .poke5e-move-manager > header input { width: 100%; }
-.poke5e-move-catalog { display: grid; gap: 0.3rem; max-height: 340px; overflow-y: auto; padding-right: 0.25rem; scrollbar-gutter: stable; }
+.poke5e-move-catalog { display: grid; gap: 0.3rem; max-height: min(340px, 45vh); min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: 0.25rem; scrollbar-gutter: stable; }
 .poke5e-move-catalog-entry { border: 1px solid rgba(24, 33, 43, 0.14); border-radius: 7px; background: rgba(255, 255, 255, 0.45); }
 .poke5e-move-catalog-entry.future,
 .poke5e-move-catalog-entry.incompatible { opacity: 0.68; }
