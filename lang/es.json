@@ -1,0 +1,19 @@
+{
+  "POKE5E.Settings.Language.Name": "Idioma del contenido",
+  "POKE5E.Settings.Language.Hint": "Idioma usado al importar movimientos, habilidades, objetos y contenido de progresión.",
+  "POKE5E.Settings.Assets.Name": "URL base de retratos",
+  "POKE5E.Settings.Assets.Hint": "Origen de los retratos grandes. Los sprites de token están incluidos en el módulo; deja este campo vacío para usarlos también como retrato.",
+  "POKE5E.Menu.Importer.Name": "Biblioteca Pokémon 5e",
+  "POKE5E.Menu.Importer.Label": "Gestionar compendios",
+  "POKE5E.Menu.Importer.Hint": "Crea o actualiza los compendios, incluida la clase de Entrenador y sus rasgos.",
+  "POKE5E.Menu.Reference.Name": "Reglas de Pokémon 5e",
+  "POKE5E.Menu.Reference.Label": "Abrir referencia",
+  "POKE5E.Menu.Reference.Hint": "Acceso a las reglas, clase de entrenador y herramientas de poke5e.app.",
+  "POKE5E.Sheet.Title": "Pokédex: {name}",
+  "POKE5E.Sheet.Open": "Abrir Pokédex",
+  "POKE5E.Notifications.GMOnly": "Solo el GM puede importar contenido.",
+  "POKE5E.Notifications.NoActor": "Selecciona un Pokémon perteneciente a un entrenador.",
+  "POKE5E.Notifications.NoPP": "A {name} no le quedan PP para {move}.",
+  "POKE5E.Notifications.ImportComplete": "Importación completada: {actors} Pokémon y {items} elementos.",
+  "POKE5E.Notifications.ImportFailed": "La importación no pudo completarse. Revisa la consola para más detalles."
+}

@@ -1,0 +1,52 @@
+<div class="poke5e-panel">
+  <header class="poke5e-hero compact">
+    <div class="poke5e-ball" aria-hidden="true"></div>
+    <div>
+      <p class="eyebrow">Foundry VTT + D&amp;D 5e</p>
+      <h1>Biblioteca Pokémon 5e</h1>
+      <p>Crea compendios de mundo editables y prepara las fichas de entrenador.</p>
+    </div>
+  </header>
+
+  {{#unless isGM}}
+    <div class="poke5e-callout warning">Solo el GM puede ejecutar una importación.</div>
+  {{/unless}}
+
+  <fieldset>
+    <legend>Compendios de contenido</legend>
+    <label class="poke5e-check"><input type="checkbox" name="species" checked> <span><strong>Especies Pokémon</strong><small>Pokédex completa como plantillas; no crea actores en el directorio.</small></span></label>
+    <label class="poke5e-check"><input type="checkbox" name="moves" checked> <span><strong>Movimientos</strong><small>830 movimientos con datos de PP, ataque, salvación y daño.</small></span></label>
+    <label class="poke5e-check"><input type="checkbox" name="abilities" checked> <span><strong>Habilidades</strong><small>Habilidades normales y ocultas como elementos de rasgo.</small></span></label>
+    <label class="poke5e-check"><input type="checkbox" name="gear" checked> <span><strong>Objetos</strong><small>Poké Balls, medicina, objetos equipables y objetos clave.</small></span></label>
+    <label class="poke5e-check"><input type="checkbox" name="progression" checked> <span><strong>Clase de Entrenador</strong><small>Crea una clase nativa de D&amp;D 5e y sus rasgos de nivel en el compendio de progresión.</small></span></label>
+    <label class="poke5e-check"><input type="checkbox" name="reference" checked> <span><strong>Referencia de reglas</strong><small>Crea un diario con accesos a reglas, clase y herramientas.</small></span></label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Contenido de la Pokédex</legend>
+    <label class="poke5e-field">
+      <span>Identificadores separados por comas</span>
+      <textarea name="pokemonIds" rows="3" spellcheck="false">{{defaultPokemon}}</textarea>
+      <small>Usa <code>*</code> para incluir los {{numberFormat 1151}} Pokémon en el compendio. También puedes limitarlo durante las pruebas.</small>
+    </label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Entrenadores</legend>
+    <label class="poke5e-check"><input type="checkbox" name="trainer" checked> <span><strong>Crear personaje de ejemplo</strong><small>Crea una ficha vacía desde la que puedes arrastrar la clase Entrenador del compendio.</small></span></label>
+  </fieldset>
+
+  <div class="poke5e-callout">
+    Idioma de contenido: <strong>{{language}}</strong>. Volver a ejecutar el proceso actualiza los compendios sin alterar los Pokémon individuales de los entrenadores.
+  </div>
+
+  <div class="poke5e-import-status" data-import-status aria-live="polite">
+    <progress max="100" value="0"></progress>
+    <span>Preparado para crear los compendios.</span>
+  </div>
+
+  <footer class="poke5e-actions">
+    <a href="{{referenceUrl}}" target="_blank" rel="noopener">Abrir poke5e.app</a>
+    <button type="button" class="bright" data-action="import" {{#unless isGM}}disabled{{/unless}}><i class="fa-solid fa-box-archive"></i> Crear o actualizar compendios</button>
+  </footer>
+</div>

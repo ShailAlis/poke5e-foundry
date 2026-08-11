@@ -1,0 +1,42 @@
+name: Publicar módulo
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Comprobar versión de la etiqueta
+        shell: bash
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          MANIFEST_VERSION="$(node -p "require('./module.json').version")"
+          if [ "$TAG_VERSION" != "$MANIFEST_VERSION" ]; then
+            echo "La etiqueta v$TAG_VERSION no coincide con module.json ($MANIFEST_VERSION)."
+            exit 1
+          fi
+
+      - name: Validar el módulo
+        run: npm run check
+
+      - name: Crear ZIP instalable
+        run: zip -r poke5e-foundry.zip module.json package.json README.md LICENSE assets data lang scripts styles templates
+
+      - name: Crear GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" module.json poke5e-foundry.zip --title "Pokémon 5e Foundry $GITHUB_REF_NAME" --generate-notes

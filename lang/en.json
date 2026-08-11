@@ -1,0 +1,19 @@
+{
+  "POKE5E.Settings.Language.Name": "Content language",
+  "POKE5E.Settings.Language.Hint": "Language used when importing moves, abilities, items, and progression content.",
+  "POKE5E.Settings.Assets.Name": "Portrait base URL",
+  "POKE5E.Settings.Assets.Hint": "Source for large portraits. Token sprites are bundled with the module; leave this empty to use them as portraits too.",
+  "POKE5E.Menu.Importer.Name": "Pokémon 5e library",
+  "POKE5E.Menu.Importer.Label": "Manage compendiums",
+  "POKE5E.Menu.Importer.Hint": "Create or update compendiums, including the Trainer class and its features.",
+  "POKE5E.Menu.Reference.Name": "Pokémon 5e rules",
+  "POKE5E.Menu.Reference.Label": "Open reference",
+  "POKE5E.Menu.Reference.Hint": "Open the rules, Trainer class, and tools on poke5e.app.",
+  "POKE5E.Sheet.Title": "Pokédex: {name}",
+  "POKE5E.Sheet.Open": "Open Pokédex",
+  "POKE5E.Notifications.GMOnly": "Only the GM can import content.",
+  "POKE5E.Notifications.NoActor": "Select a Pokémon belonging to a Trainer.",
+  "POKE5E.Notifications.NoPP": "{name} has no PP left for {move}.",
+  "POKE5E.Notifications.ImportComplete": "Import complete: {actors} Pokémon and {items} entries.",
+  "POKE5E.Notifications.ImportFailed": "The import could not be completed. Check the console for details."
+}

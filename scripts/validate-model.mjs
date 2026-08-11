@@ -1,0 +1,58 @@
+import { readFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+globalThis.game = { settings: { get: () => "https://poke5e.app" }, packs: new Map() };
+globalThis.foundry = {
+  utils: {
+    deepClone: structuredClone,
+    escapeHTML: value => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;"),
+    randomID: (() => { let id = 0; return () => `test${++id}`; })()
+  }
+};
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "data");
+const pokemon = JSON.parse(await readFile(resolve(root, "pokemon.json"), "utf8")).items;
+const moves = JSON.parse(await readFile(resolve(root, "moves.json"), "utf8")).moves;
+const movesById = new Map(moves.map(move => [move.id, move]));
+const {
+  MODULE_ID,
+  TRAINER_FEATURES,
+  speciesItemSource,
+  pokemonItemSourceFromSpecies,
+  trainerFeatureSources,
+  trainerClassSource
+} = await import("./model.mjs");
+
+for (const species of pokemon) {
+  const catalog = speciesItemSource(species, movesById);
+  if (catalog.type !== "feat" || catalog.flags[MODULE_ID].kind !== "species") throw new Error(`${species.id}: invalid catalog source.`);
+  const individual = pokemonItemSourceFromSpecies(catalog);
+  const flags = individual.flags[MODULE_ID];
+  if (flags.kind !== "pokemon" || flags.sourceId !== species.id) throw new Error(`${species.id}: invalid individual source.`);
+  if (flags.instance.moves.length > 4) throw new Error(`${species.id}: more than four starting moves.`);
+  if (flags.instance.hp.value !== species.hp || flags.instance.hp.max !== species.hp) throw new Error(`${species.id}: invalid HP.`);
+  for (const entry of flags.instance.moves) {
+    const move = movesById.get(entry.moveId);
+    if (!move || entry.pp.max !== Number(move.pp)) throw new Error(`${species.id}: invalid move PP for ${entry.moveId}.`);
+  }
+}
+const trainerFeatures = trainerFeatureSources();
+if (trainerFeatures.length !== TRAINER_FEATURES.filter(entry => entry.grant).length) throw new Error("Invalid Trainer feature count.");
+const featureUuids = new Map(trainerFeatures.map((source, index) => [source.flags[MODULE_ID].sourceId, `Compendium.world.poke5e-progression.Item.feature${index}`]));
+const trainerClass = trainerClassSource(featureUuids);
+if (trainerClass.type !== "class" || trainerClass.system.identifier !== "trainer") throw new Error("Invalid Trainer class source.");
+if (trainerClass.system.hd.denomination !== "d6") throw new Error("Invalid Trainer hit die.");
+if (!Object.values(trainerClass.system.advancement).some(entry => entry.type === "HitPoints")) throw new Error("Trainer class has no Hit Points advancement.");
+if (!Object.values(trainerClass.system.advancement).some(entry => entry.type === "Trait" && entry.configuration.grants.includes("saves:cha"))) throw new Error("Trainer class has no proficiency advancement.");
+for (const feature of TRAINER_FEATURES) {
+  if (!feature.grant) {
+    if (!Object.values(trainerClass.system.advancement).some(entry => entry.type === "AbilityScoreImprovement" && entry.level === feature.level)) throw new Error(`Trainer ASI not configured at level ${feature.level}.`);
+    continue;
+  }
+  const grant = Object.values(trainerClass.system.advancement).find(entry => entry.type === "ItemGrant" && entry.level === feature.level);
+  const uuid = featureUuids.get(`trainer-feature-${feature.id}`);
+  if (!grant?.configuration.items.some(entry => entry.uuid === uuid)) throw new Error(`Trainer feature not granted: ${feature.id}.`);
+}
+console.log(`Validated compendium and trainer-item conversion for ${pokemon.length} Pokémon.`);
+console.log(`Validated Trainer class, ${trainerFeatures.length} granted features, and 5 ability-score advancements.`);

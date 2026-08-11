@@ -1,0 +1,75 @@
+<article class="poke5e-dex">
+  <header class="poke5e-dex-header">
+    <div class="poke5e-dex-number">#{{data.number}}</div>
+    <img src="{{img}}" alt="{{name}}">
+    <div class="poke5e-dex-identity">
+      <p class="eyebrow">Pokédex · Nivel {{level}}</p>
+      <h1>{{name}}</h1>
+      {{#if instance.nickname}}<p class="poke5e-species-name">{{species.name}}</p>{{/if}}
+      <div class="poke5e-types">
+        {{#each types}}<span class="poke5e-type type-{{id}}">{{label}}</span>{{/each}}
+      </div>
+      <p class="poke5e-movement">{{movement}}</p>
+    </div>
+    <div class="poke5e-vitals">
+      <div><span>CA</span><strong>{{ac}}</strong></div>
+      <label><span>PG</span><input type="number" min="0" max="{{hp.max}}" value="{{hp.value}}" data-action="change-hp" {{#unless canEdit}}disabled{{/unless}}><small>/ {{hp.max}}</small></label>
+      <label><span>Nivel</span><input type="number" min="1" max="20" value="{{level}}" data-action="change-level" {{#unless canEdit}}disabled{{/unless}}></label>
+    </div>
+  </header>
+
+  <section class="poke5e-stat-grid" aria-label="Características">
+    {{#each abilityScores}}
+      <div><span>{{key}}</span><strong>{{score}}</strong><small>{{modifier}}</small></div>
+    {{/each}}
+  </section>
+
+  <nav class="poke5e-sheet-actions">
+    <button type="button" data-action="open-trainer-sheet"><i class="fa-solid fa-user-shield"></i> Abrir entrenador</button>
+  </nav>
+
+  <section>
+    <div class="poke5e-section-title"><h2>Movimientos</h2><span>{{moves.length}} conocidos</span></div>
+    {{#if canEdit}}<div class="poke5e-drop-hint"><i class="fa-solid fa-hand-pointer"></i> Arrastra movimientos desde el compendio para aprenderlos.</div>{{/if}}
+    <div class="poke5e-move-list">
+      {{#each moves}}
+        <details class="poke5e-move type-border-{{type}}">
+          <summary>
+            <span class="poke5e-type type-{{type}}">{{type}}</span>
+            <strong>{{name}}</strong>
+            <span class="poke5e-move-rolls">
+              {{#if attackBonus}}Ataque {{attackBonus}}{{/if}}
+              {{#if saveDc}}CD {{saveDc}}{{/if}}
+              · {{damage}}
+            </span>
+            {{#if hasPp}}<span class="poke5e-pp">PP {{pp.value}}/{{pp.max}}</span>{{/if}}
+          </summary>
+          <div class="poke5e-move-body">
+            <div class="poke5e-move-meta"><span>{{time}}</span><span>{{range}}</span></div>
+            <div class="poke5e-description">{{{description}}}</div>
+            <div class="poke5e-actions inline">
+              {{#if ../canEdit}}{{#if hasPp}}<button type="button" data-action="restore-pp" data-move-entry-id="{{entryId}}" title="Restaurar PP"><i class="fa-solid fa-rotate-left"></i></button>{{/if}}
+              <button type="button" data-action="remove-move" data-move-entry-id="{{entryId}}" title="Olvidar movimiento"><i class="fa-solid fa-trash"></i></button>{{/if}}
+              <button type="button" class="bright" data-action="roll-move" data-move-entry-id="{{entryId}}"><i class="fa-solid fa-dice-d20"></i> Usar movimiento</button>
+            </div>
+          </div>
+        </details>
+      {{else}}
+        <div class="poke5e-empty">Este actor todavía no tiene movimientos Pokémon.</div>
+      {{/each}}
+    </div>
+  </section>
+
+  <section>
+    <div class="poke5e-section-title"><h2>Habilidades</h2></div>
+    {{#if canEdit}}<div class="poke5e-drop-hint"><i class="fa-solid fa-hand-pointer"></i> Arrastra habilidades desde su compendio para añadirlas.</div>{{/if}}
+    <div class="poke5e-ability-grid">
+      {{#each abilities}}
+        <article class="poke5e-ability">
+          <h3>{{name}}{{#if hidden}} <span>Oculta</span>{{/if}} {{#if ../canEdit}}<button type="button" data-action="remove-ability" data-ability-id="{{id}}" title="Eliminar habilidad"><i class="fa-solid fa-xmark"></i></button>{{/if}}</h3>
+          <div>{{{description}}}</div>
+        </article>
+      {{/each}}
+    </div>
+  </section>
+</article>

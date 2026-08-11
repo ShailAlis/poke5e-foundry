@@ -1,0 +1,57 @@
+<div class="poke5e-team-app">
+  <header class="poke5e-hero compact">
+    <div class="poke5e-ball" aria-hidden="true"></div>
+    <div>
+      <p class="eyebrow">{{actor.name}}</p>
+      <h1>Equipo Pokémon</h1>
+      <p>{{teamCount}} de 6 en el equipo · {{totalCount}} Pokémon en total</p>
+    </div>
+    {{#if canEdit}}<button type="button" class="bright" data-action="browse-species"><i class="fa-solid fa-plus"></i> Añadir desde Pokédex</button>{{/if}}
+  </header>
+
+  <section>
+    <div class="poke5e-section-title"><h2>Equipo activo</h2><span>{{teamCount}} / 6</span></div>
+    <div class="poke5e-team-grid">
+      {{#each team}}
+        <article class="poke5e-team-card" data-item-id="{{id}}">
+          <img src="{{img}}" alt="{{name}}">
+          <div class="poke5e-team-card-body">
+            <input class="poke5e-nickname" value="{{instance.nickname}}" placeholder="{{speciesName}}" data-field="nickname" {{#unless ../canEdit}}disabled{{/unless}}>
+            <p>{{speciesName}} · Nivel <input type="number" min="1" max="20" value="{{instance.level}}" data-field="level" {{#unless ../canEdit}}disabled{{/unless}}></p>
+            <div class="poke5e-types">{{#each types}}<span class="poke5e-type type-{{this}}">{{this}}</span>{{/each}}</div>
+            <label>PG <input type="number" min="0" max="{{instance.hp.max}}" value="{{instance.hp.value}}" data-field="hp.value" {{#unless ../canEdit}}disabled{{/unless}}> / {{instance.hp.max}}</label>
+          </div>
+          <div class="poke5e-card-actions">
+            <button type="button" data-action="open-pokemon" title="Abrir ficha"><i class="fa-solid fa-address-card"></i></button>
+            {{#if deployed}}<button type="button" data-action="recall" title="Retirar del mapa"><i class="fa-solid fa-arrow-rotate-left"></i></button>{{else}}<button type="button" data-action="deploy" title="Sacar al mapa"><i class="fa-solid fa-location-dot"></i></button>{{/if}}
+            <button type="button" data-action="toggle-team" title="Enviar a la reserva"><i class="fa-solid fa-box-archive"></i></button>
+            <button type="button" data-action="remove" title="Retirar del entrenador"><i class="fa-solid fa-trash"></i></button>
+          </div>
+        </article>
+      {{else}}<div class="poke5e-empty">El equipo está vacío. Añade una especie desde la Pokédex o arrástrala desde el compendio a la ficha.</div>{{/each}}
+    </div>
+  </section>
+
+  {{#if reserve.length}}
+  <section>
+    <div class="poke5e-section-title"><h2>Reserva</h2><span>{{reserve.length}}</span></div>
+    <div class="poke5e-reserve-list">
+      {{#each reserve}}
+        <article data-item-id="{{id}}">
+          <img src="{{img}}" alt="{{name}}"><strong>{{name}}</strong><span>{{speciesName}} · Nivel {{instance.level}} · PG {{instance.hp.value}}/{{instance.hp.max}}</span>
+          <button type="button" data-action="open-pokemon"><i class="fa-solid fa-address-card"></i></button>
+          <button type="button" data-action="toggle-team"><i class="fa-solid fa-arrow-up"></i> Al equipo</button>
+          <button type="button" data-action="remove"><i class="fa-solid fa-trash"></i></button>
+        </article>
+      {{/each}}
+    </div>
+  </section>
+  {{/if}}
+
+  {{#if gear.length}}
+  <section>
+    <div class="poke5e-section-title"><h2>Objetos Pokémon</h2><span>Gestionados también desde el inventario D&amp;D 5e</span></div>
+    <div class="poke5e-gear-row">{{#each gear}}<span><img src="{{img}}" alt="">{{name}} ×{{quantity}}</span>{{/each}}</div>
+  </section>
+  {{/if}}
+</div>

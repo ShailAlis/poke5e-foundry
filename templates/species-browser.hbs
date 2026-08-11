@@ -1,0 +1,20 @@
+<div class="poke5e-species-browser-body">
+  <header>
+    <label><i class="fa-solid fa-magnifying-glass"></i><input type="search" value="{{query}}" placeholder="Buscar por nombre o identificador…" data-action="search"></label>
+    <span>{{total}} resultados</span>
+  </header>
+  {{#if missingPack}}
+    <div class="poke5e-callout warning">Primero debes crear el compendio de especies desde los ajustes de Pokémon 5e.</div>
+  {{else}}
+    {{#if truncated}}<div class="poke5e-callout">Se muestran los primeros 80 resultados. Escribe para acotar la búsqueda.</div>{{/if}}
+    <div class="poke5e-species-grid">
+      {{#each entries}}
+        <article>
+          <img src="{{img}}" alt="{{name}}">
+          <div><small>#{{number}}</small><strong>{{name}}</strong><span>{{#each types}}{{this}}{{#unless @last}} / {{/unless}}{{/each}}</span></div>
+          <button type="button" class="bright" data-action="add-species" data-document-id="{{id}}"><i class="fa-solid fa-plus"></i></button>
+        </article>
+      {{else}}<div class="poke5e-empty">No se encontraron especies.</div>{{/each}}
+    </div>
+  {{/if}}
+</div>

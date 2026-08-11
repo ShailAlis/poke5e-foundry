@@ -1,0 +1,23 @@
+<div class="poke5e-panel">
+  <header class="poke5e-hero">
+    <div class="poke5e-ball" aria-hidden="true"></div>
+    <div>
+      <p class="eyebrow">Manual digital</p>
+      <h1>Pokémon 5e</h1>
+      <p>Reglas, creación de entrenadores, Pokédex y herramientas de campaña.</p>
+    </div>
+  </header>
+
+  <div class="poke5e-reference-grid">
+    {{#each links}}
+      <a href="{{url}}" target="_blank" rel="noopener"><i class="{{icon}}"></i><span>{{label}}</span><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+    {{/each}}
+  </div>
+
+  {{#if isGM}}
+    <footer class="poke5e-actions">
+      <span>¿Primera vez en este mundo?</span>
+      <button type="button" class="bright" data-action="open-importer"><i class="fa-solid fa-download"></i> Importar contenido</button>
+    </footer>
+  {{/if}}
+</div>
