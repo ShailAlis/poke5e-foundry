@@ -1,8 +1,25 @@
 <div class="poke5e-species-browser-body">
   <header>
-    <label><i class="fa-solid fa-magnifying-glass"></i><input type="search" value="{{query}}" placeholder="Buscar por nombre o identificador…" data-action="search"></label>
+    <label><i class="fa-solid fa-magnifying-glass"></i><input type="search" value="{{filters.query}}" placeholder="Buscar por nombre, número o identificador…" data-action="search"></label>
     <span>{{total}} resultados</span>
   </header>
+  <div class="poke5e-species-filters">
+    <label><span>Tipo</span><select data-filter="type">{{selectOptions typeOptions selected=filters.type blank="Todos"}}</select></label>
+    <fieldset>
+      <legend>SR / CR</legend>
+      <input type="number" min="0" step="0.125" value="{{filters.srMin}}" placeholder="Mín." aria-label="SR mínimo" data-filter="srMin">
+      <span>—</span>
+      <input type="number" min="0" step="0.125" value="{{filters.srMax}}" placeholder="Máx." aria-label="SR máximo" data-filter="srMax">
+    </fieldset>
+    <fieldset>
+      <legend>Nivel mínimo</legend>
+      <input type="number" min="1" max="20" step="1" value="{{filters.levelMin}}" placeholder="Mín." aria-label="Nivel mínimo desde" data-filter="levelMin">
+      <span>—</span>
+      <input type="number" min="1" max="20" step="1" value="{{filters.levelMax}}" placeholder="Máx." aria-label="Nivel mínimo hasta" data-filter="levelMax">
+    </fieldset>
+    <label><span>Ordenar</span><select data-filter="sort">{{selectOptions sortOptions selected=filters.sort}}</select></label>
+    <button type="button" data-action="clear-filters" title="Restablecer todos los filtros"><i class="fa-solid fa-filter-circle-xmark"></i> Limpiar</button>
+  </div>
   {{#if missingPack}}
     <div class="poke5e-callout warning">Primero debes crear el compendio de especies desde los ajustes de Pokémon 5e.</div>
   {{else}}
@@ -11,7 +28,7 @@
       {{#each entries}}
         <article>
           <img src="{{img}}" alt="{{name}}">
-          <div><small>#{{number}}</small><strong>{{name}}</strong><span>{{#each types}}{{this}}{{#unless @last}} / {{/unless}}{{/each}}</span></div>
+          <div><small>#{{number}}</small><strong>{{name}}</strong><span>{{#each types}}{{this}}{{#unless @last}} / {{/unless}}{{/each}}</span><span class="species-rating">SR {{sr}} · Nivel mín. {{minLevel}}</span></div>
           <button type="button" class="bright" data-action="add-species" data-document-id="{{id}}"><i class="fa-solid fa-plus"></i></button>
         </article>
       {{else}}<div class="poke5e-empty">No se encontraron especies.</div>{{/each}}

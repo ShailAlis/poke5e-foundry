@@ -1,4 +1,4 @@
-<section class="poke5e poke5e-sheet-team-tab">
+<section class="poke5e poke5e-sheet-team-tab tab {{tab.cssClass}}" data-tab="{{tab.id}}" data-group="{{tab.group}}">
   <header class="poke5e-sheet-team-header">
     <div class="poke5e-ball small" aria-hidden="true"></div>
     <div>
@@ -7,6 +7,9 @@
       <p>{{pokemon.teamCount}} de 6 activos · {{pokemon.allCount}} Pokémon en total</p>
     </div>
     <div class="poke5e-sheet-team-actions">
+      <button type="button" data-action="toggleDarkMode" title="Cambiar entre modo claro y oscuro">
+        {{#if pokemon.darkMode}}<i class="fa-solid fa-sun"></i> Modo claro{{else}}<i class="fa-solid fa-moon"></i> Modo oscuro{{/if}}
+      </button>
       {{#if pokemon.canEdit}}
         <button type="button" class="bright" data-action="browsePokemon"><i class="fa-solid fa-plus"></i> Añadir Pokémon</button>
       {{/if}}
