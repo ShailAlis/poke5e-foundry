@@ -66,6 +66,8 @@ La versión 0.5 sustituye esa franja por una ficha personalizada de Entrenador c
 
 La versión 0.6 corrige la visibilidad de la pestaña de equipo para que solo aparezca al seleccionarla, incorpora el modo oscuro y amplía el buscador Pokémon con filtros y ordenación.
 
+La versión 0.6.1 corrige el desplazamiento de la lista de resultados del buscador Pokémon, manteniendo visibles la búsqueda y los filtros.
+
 ## Desarrollo
 
 Los JSON de `data/` se generan a partir de `../static/data`. Ejecuta `node scripts/sync-data.mjs` desde esta carpeta después de actualizar los datos del sitio. Después ejecuta `npm run check`.

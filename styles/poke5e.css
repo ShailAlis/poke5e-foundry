@@ -281,7 +281,8 @@
 .poke5e-sheet-reserve-grid .reserve-portrait img { width: 100%; height: 100%; object-fit: contain; }
 .poke5e-sheet-reserve-grid .reserve-name { display: grid; width: auto; padding: 0; color: inherit; border: 0; background: none; text-align: left; }
 
-.poke5e-species-browser-body { display: grid; gap: 0.7rem; padding: 0.8rem; }
+.poke5e-species-browser .window-content { min-height: 0; overflow: hidden; }
+.poke5e-species-browser-body { display: flex; flex-direction: column; gap: 0.7rem; height: 100%; min-height: 0; padding: 0.8rem; }
 .poke5e-species-browser-body > header { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 0.7rem; position: sticky; top: 0; z-index: 2; padding: 0.35rem; border-radius: 8px; background: #f2f0e9; }
 .poke5e-species-browser-body > header label { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 0.45rem; }
 .poke5e-species-browser-body input[type="search"] { width: 100%; }
@@ -292,7 +293,7 @@
 .poke5e-species-filters legend { grid-column: 1 / -1; padding: 0; font-size: 0.75rem; }
 .poke5e-species-filters input { width: 100%; min-width: 0; }
 .poke5e-species-filters button { width: auto; margin: 0; white-space: nowrap; }
-.poke5e-species-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.4rem; }
+.poke5e-species-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: 0.4rem; min-height: 0; overflow-y: auto; padding-right: 0.25rem; scrollbar-gutter: stable; }
 .poke5e-species-grid article { display: grid; grid-template-columns: 64px 1fr auto; align-items: center; gap: 0.5rem; padding: 0.35rem; border: 1px solid rgba(24, 33, 43, 0.15); border-radius: 8px; background: var(--poke-card); }
 .poke5e-species-grid img { width: 64px; height: 64px; object-fit: contain; image-rendering: auto; }
 .poke5e-species-grid article > div { display: grid; min-width: 0; }
