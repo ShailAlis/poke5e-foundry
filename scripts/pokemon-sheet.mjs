@@ -1,6 +1,6 @@
 import { loadPoke5eData } from "./data-service.mjs";
 import { MODULE_ID, MODULE_PATH, displayPokemonName, portraitUrl } from "./model.mjs";
-import { filterMoveCatalog, moveEligibility } from "./move-learning.mjs";
+import { MAX_KNOWN_MOVES, applyLearnedMove, filterMoveCatalog, moveEligibility } from "./move-learning.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -56,6 +56,8 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       instance,
       level,
       moves,
+      maxKnownMoves: MAX_KNOWN_MOVES,
+      moveLimitExceeded: moves.length > MAX_KNOWN_MOVES,
       moveManager: {
         open: this.moveManagerOpen,
         filters: this.moveFilters,
@@ -67,7 +69,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
         },
         total: catalog.length,
         truncated: catalog.length > 120,
-        entries: catalog.slice(0, 120)
+        entries: catalog.slice(0, 120).map(entry => prepareCatalogMove(entry, data.movesById.get(entry.id), species, level))
       },
       abilities,
       abilityScores,
@@ -158,8 +160,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const eligibility = moveEligibility(species, move, Number(instance.level) || 1);
     if (!eligibility.availableNow) return notifyMoveUnavailable(move, eligibility);
     if (instance.moves.some(entry => entry.moveId === move.id)) return ui.notifications.warn("Este Pokémon ya conoce ese movimiento.");
-    if (instance.moves.length >= 6) return ui.notifications.warn("Este Pokémon ya conoce el máximo de seis movimientos. Olvida uno antes de aprender otro.");
-    instance.moves.push(moveEntry(move));
+    if (!await this.#addMove(instance, move, data.movesById)) return;
     await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
     this.render({ force: true });
   }
@@ -177,19 +178,33 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const instance = this.#instance();
     if (kind === "move") {
       if (instance.moves.some(entry => entry.moveId === sourceId)) return ui.notifications.warn("Este Pokémon ya conoce ese movimiento.");
-      if (instance.moves.length >= 6) return ui.notifications.warn("Un Pokémon no puede conocer más de seis movimientos, incluso con las dotes correspondientes.");
       const move = document.getFlag(MODULE_ID, "move");
       if (!move?.id) return ui.notifications.error("El movimiento no contiene datos válidos.");
       const species = this.pokemonItem.getFlag(MODULE_ID, "species") ?? {};
       const eligibility = moveEligibility(species, move, Number(instance.level) || 1);
       if (!eligibility.availableNow) return notifyMoveUnavailable(move, eligibility);
-      instance.moves.push(moveEntry(move));
+      const data = await loadPoke5eData();
+      if (!await this.#addMove(instance, move, data.movesById)) return;
     } else if (kind === "ability") {
       if (instance.abilities.includes(sourceId)) return ui.notifications.warn("Este Pokémon ya tiene esa habilidad.");
       instance.abilities.push(sourceId);
     } else return;
     await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
     this.render({ force: true });
+  }
+
+  async #addMove(instance, move, movesById) {
+    if (instance.moves.length > MAX_KNOWN_MOVES) {
+      ui.notifications.warn(`Este Pokémon conoce ${instance.moves.length} movimientos de una versión anterior. Debe olvidar movimientos hasta quedarse con cuatro antes de aprender otro.`);
+      return false;
+    }
+    let replacedEntryId = null;
+    if (instance.moves.length === MAX_KNOWN_MOVES) {
+      replacedEntryId = await chooseMoveToForget(instance.moves, move, movesById);
+      if (!replacedEntryId) return false;
+    }
+    instance.moves = applyLearnedMove(instance.moves, moveEntry(move), replacedEntryId);
+    return true;
   }
 
   async #rollMove(event) {
@@ -261,6 +276,49 @@ function prepareMove(entry, move, species, level) {
   };
 }
 
+function prepareCatalogMove(entry, move, species, level) {
+  if (!move) return entry;
+  const modifier = getMoveModifier(species, move);
+  const proficiency = 2 + Math.floor((level - 1) / 4);
+  return {
+    ...entry,
+    time: move.time ?? "—",
+    range: move.range ?? "—",
+    duration: move.duration ?? "—",
+    description: moveDescription(move),
+    attackBonus: move.attack?.scope ? signed(modifier + proficiency) : null,
+    saveDc: move.save ? 8 + modifier + proficiency : null,
+    damage: damageFormula(move, level, modifier, species) ?? "—"
+  };
+}
+
+async function chooseMoveToForget(knownMoves, newMove, movesById) {
+  const options = knownMoves.map(entry => {
+    const move = movesById.get(entry.moveId);
+    const name = move?.name ?? entry.moveId;
+    return `<option value="${escapeHtml(entry.id)}">${escapeHtml(name)}</option>`;
+  }).join("");
+  try {
+    return await foundry.applications.api.DialogV2.prompt({
+      window: { title: `Aprender ${newMove.name}` },
+      content: `<div class="poke5e-forget-dialog">
+        <p>Un Pokémon solo puede conocer cuatro movimientos. Para aprender <strong>${escapeHtml(newMove.name)}</strong>, elige cuál debe olvidar.</p>
+        <label><span>Movimiento que olvidar</span><select name="forgottenMove">${options}</select></label>
+        <div class="poke5e-description">${moveDescription(newMove)}</div>
+      </div>`,
+      modal: true,
+      rejectClose: false,
+      ok: {
+        label: "Olvidar y aprender",
+        icon: "fa-solid fa-arrows-rotate",
+        callback: (event, button) => button.form.elements.forgottenMove.value
+      }
+    });
+  } catch {
+    return null;
+  }
+}
+
 function moveEntry(move) {
   const pp = Math.max(Number(move?.pp) || 0, 0);
   return { id: foundry.utils.randomID(), moveId: move.id, pp: { value: pp, max: pp } };
@@ -300,8 +358,17 @@ function appendModifier(dice, modifier) {
 }
 
 function moveDescription(move) {
-  const body = (move.description ?? []).map(text => `<p>${escapeHtml(text)}</p>`).join("");
+  const blocks = Array.isArray(move.description) ? move.description : move.description ? [move.description] : [];
+  const body = blocks.map(descriptionBlock).join("");
   return `${body}${move.higherLevels ? `<h3>A niveles superiores</h3><p>${escapeHtml(move.higherLevels)}</p>` : ""}`;
+}
+
+function descriptionBlock(block) {
+  if (typeof block === "string") return `<p>${escapeHtml(block)}</p>`;
+  if (block?.type !== "table") return "";
+  const headers = (block.headers ?? []).map(value => `<th>${escapeHtml(value)}</th>`).join("");
+  const rows = (block.rows ?? []).map(row => `<tr>${row.map(value => `<td>${escapeHtml(value)}</td>`).join("")}</tr>`).join("");
+  return `<table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 function movementText(speeds = []) {

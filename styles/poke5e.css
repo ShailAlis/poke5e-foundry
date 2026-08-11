@@ -192,11 +192,19 @@
 .poke5e-move-manager > header label { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 0.4rem; }
 .poke5e-move-manager > header input { width: 100%; }
 .poke5e-move-catalog { display: grid; gap: 0.3rem; max-height: 340px; overflow-y: auto; padding-right: 0.25rem; scrollbar-gutter: stable; }
-.poke5e-move-catalog article { display: grid; grid-template-columns: 5rem minmax(0, 1fr) minmax(8rem, auto) auto; align-items: center; gap: 0.5rem; padding: 0.35rem; border: 1px solid rgba(24, 33, 43, 0.14); border-radius: 7px; background: rgba(255, 255, 255, 0.45); }
+.poke5e-move-catalog article { display: grid; grid-template-columns: 5rem minmax(0, 1fr) minmax(8rem, auto) auto; align-items: center; gap: 0.5rem; padding: 0.5rem; border: 1px solid rgba(24, 33, 43, 0.14); border-radius: 7px; background: rgba(255, 255, 255, 0.45); }
 .poke5e-move-catalog article.future,
 .poke5e-move-catalog article.incompatible { opacity: 0.68; }
-.poke5e-move-catalog article > div:nth-child(2) { display: grid; min-width: 0; }
+.poke5e-move-catalog-name { display: grid; min-width: 0; }
 .poke5e-move-catalog article button { width: auto; margin: 0; white-space: nowrap; }
+.poke5e-move-catalog-effect { grid-column: 1 / -1; padding: 0.45rem 0.55rem 0.15rem; border-top: 1px dashed rgba(24, 33, 43, 0.18); }
+.poke5e-move-catalog-effect .poke5e-move-meta { flex-wrap: wrap; }
+.poke5e-move-catalog-effect .poke5e-description { margin-top: 0.35rem; font-size: 0.78rem; }
+.poke5e-move-catalog-effect .poke5e-description p { margin: 0.25rem 0; }
+.poke5e-description table { width: 100%; margin: 0.4rem 0; border-collapse: collapse; }
+.poke5e-description th, .poke5e-description td { padding: 0.25rem 0.4rem; border: 1px solid rgba(24, 33, 43, 0.18); text-align: left; }
+.poke5e-forget-dialog { display: grid; gap: 0.65rem; }
+.poke5e-forget-dialog label { display: grid; gap: 0.3rem; }
 .poke5e-learning-methods { display: flex; flex-wrap: wrap; gap: 0.25rem; }
 .poke5e-learning-methods > span { padding: 0.12rem 0.35rem; border-radius: 99px; color: #244f7f; background: rgba(46, 111, 187, 0.12); font-size: 0.68rem; font-weight: 800; }
 .poke5e-learning-methods > span.warning { color: #8b1d27; background: rgba(217, 54, 62, 0.13); }

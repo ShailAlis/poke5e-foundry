@@ -7,6 +7,18 @@ const LEVEL_GROUPS = [
   [18, "level18"]
 ];
 
+export const MAX_KNOWN_MOVES = 4;
+
+export function applyLearnedMove(knownMoves, newEntry, replacedEntryId = null) {
+  const entries = Array.isArray(knownMoves) ? [...knownMoves] : [];
+  if (entries.length < MAX_KNOWN_MOVES) return [...entries, newEntry];
+  if (entries.length > MAX_KNOWN_MOVES) throw new RangeError("legacy-overflow");
+  const index = entries.findIndex(entry => entry.id === replacedEntryId);
+  if (index < 0) throw new RangeError("replacement-required");
+  entries[index] = newEntry;
+  return entries;
+}
+
 export function moveEligibility(species, move, level = 1) {
   const pool = species.moves ?? {};
   const levelRequirements = LEVEL_GROUPS

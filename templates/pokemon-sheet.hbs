@@ -31,9 +31,10 @@
   <section>
     <div class="poke5e-section-title">
       <h2>Movimientos</h2>
-      <span>{{moves.length}} conocidos</span>
+      <span>{{moves.length}}/{{maxKnownMoves}} conocidos</span>
       {{#if canEdit}}<button type="button" data-action="toggle-move-manager"><i class="fa-solid fa-list-check"></i> {{#if moveManager.open}}Cerrar gestor{{else}}Gestionar movimientos{{/if}}</button>{{/if}}
     </div>
+    {{#if moveLimitExceeded}}<div class="poke5e-callout"><i class="fa-solid fa-triangle-exclamation"></i> Esta ficha conserva más de cuatro movimientos de una versión anterior. Olvida los sobrantes antes de aprender otro.</div>{{/if}}
     {{#if canEdit}}<div class="poke5e-drop-hint"><i class="fa-solid fa-shield-halved"></i> Solo se pueden aprender movimientos compatibles y disponibles para el nivel actual.</div>{{/if}}
     {{#if moveManager.open}}
       <div class="poke5e-move-manager">
@@ -47,7 +48,7 @@
           {{#each moveManager.entries}}
             <article class="{{#unless compatible}}incompatible{{/unless}} {{#if future}}future{{/if}}">
               <span class="poke5e-type type-{{type}}">{{type}}</span>
-              <div><strong>{{name}}</strong><small>PP {{pp}}</small></div>
+              <div class="poke5e-move-catalog-name"><strong>{{name}}</strong><small>PP {{pp}}</small></div>
               <div class="poke5e-learning-methods">
                 {{#each methods}}<span>{{label}}</span>{{else}}<span class="warning">No compatible</span>{{/each}}
               </div>
@@ -56,6 +57,17 @@
               {{else}}
                 <button type="button" class="bright" data-action="learn-move" data-move-id="{{id}}" {{#unless availableNow}}disabled{{/unless}} title="{{#if future}}Disponible más adelante{{else}}{{#unless compatible}}Esta especie no puede aprenderlo{{/unless}}{{/if}}"><i class="fa-solid fa-plus"></i> Aprender</button>
               {{/if}}
+              <div class="poke5e-move-catalog-effect">
+                <div class="poke5e-move-meta">
+                  <span><strong>Activación:</strong> {{time}}</span>
+                  <span><strong>Alcance:</strong> {{range}}</span>
+                  <span><strong>Duración:</strong> {{duration}}</span>
+                  {{#if attackBonus}}<span><strong>Ataque:</strong> {{attackBonus}}</span>{{/if}}
+                  {{#if saveDc}}<span><strong>CD:</strong> {{saveDc}}</span>{{/if}}
+                  <span><strong>Daño:</strong> {{damage}}</span>
+                </div>
+                <div class="poke5e-description">{{{description}}}</div>
+              </div>
             </article>
           {{else}}<div class="poke5e-empty">No hay movimientos en esta categoría.</div>{{/each}}
         </div>
