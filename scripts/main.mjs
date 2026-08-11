@@ -2,11 +2,12 @@ import { Poke5eImporter } from "./importer.mjs";
 import { Poke5ePokemonSheet } from "./pokemon-sheet.mjs";
 import { Poke5eReference } from "./reference.mjs";
 import { Poke5eTrainerTeam } from "./trainer-team.mjs";
-import { Poke5eSpeciesBrowser } from "./species-browser.mjs";
 import { MODULE_ID, getPokemonItems, normalizeDroppedSpecies } from "./model.mjs";
 import { cleanDeploymentActor, recallPokemon, syncDeploymentHp, syncPokemonHpToDeployment } from "./deployment.mjs";
+import { registerTrainerActorSheet } from "./trainer-actor-sheet.mjs";
 
 Hooks.once("init", () => {
+  registerTrainerActorSheet();
   game.settings.register(MODULE_ID, "dataLanguage", {
     name: "POKE5E.Settings.Language.Name",
     hint: "POKE5E.Settings.Language.Hint",
@@ -47,8 +48,6 @@ Hooks.on("preCreateItem", item => {
 
 Hooks.on("getActorSheetHeaderButtons", (sheet, buttons) => addLegacyHeaderControl(sheet, buttons));
 Hooks.on("getApplicationV1HeaderButtons", (application, buttons) => addLegacyHeaderControl(application, buttons));
-Hooks.on("renderActorSheet", (application, element) => addTrainerTeamDock(application, element));
-Hooks.on("renderApplicationV2", (application, element) => addTrainerTeamDock(application, element));
 Hooks.on("getHeaderControlsApplicationV2", (application, controls) => {
   if (application instanceof Poke5ePokemonSheet || application instanceof Poke5eTrainerTeam) return;
   const actor = application.actor ?? application.document;
@@ -101,51 +100,6 @@ function addLegacyHeaderControl(application, buttons) {
   if (actor.getFlag(MODULE_ID, "kind") === "deployed" && !buttons.some(button => button.class === "poke5e-open-pokemon")) {
     buttons.unshift({ label: "Pokédex", class: "poke5e-open-pokemon", icon: "fa-solid fa-address-card", onclick: () => openPokemon(actor) });
   }
-}
-
-function addTrainerTeamDock(application, renderedElement) {
-  if (application instanceof Poke5ePokemonSheet || application instanceof Poke5eTrainerTeam || application instanceof Poke5eSpeciesBrowser) return;
-  const actor = application.document ?? application.object;
-  if (actor?.documentName !== "Actor" || actor.type !== "character") return;
-  const root = renderedElement instanceof HTMLElement ? renderedElement : renderedElement?.[0] ?? application.element;
-  if (!root) return;
-  const content = root.matches?.(".window-content") ? root : root.querySelector?.(".window-content") ?? root;
-  if (content.querySelector?.(".poke5e-team-dock")) return;
-
-  const team = getPokemonItems(actor).filter(item => item.getFlag(MODULE_ID, "instance")?.inTeam).slice(0, 6);
-  const slots = Array.from({ length: 6 }, (_, index) => team[index] ? pokemonSlot(team[index]) : emptyPokemonSlot(index));
-  const dock = document.createElement("section");
-  dock.className = "poke5e poke5e-team-dock";
-  dock.setAttribute("aria-label", "Equipo Pokémon");
-  dock.innerHTML = `
-    <button type="button" class="poke5e-team-dock-heading" data-action="poke5e-open-team" title="Abrir el equipo Pokémon completo">
-      <i class="fa-solid fa-circle-dot"></i>
-      <span><strong>Equipo Pokémon</strong><small>${team.length}/6 activos</small></span>
-    </button>
-    <div class="poke5e-team-dock-slots">${slots.join("")}</div>
-    <button type="button" class="poke5e-team-dock-manage" data-action="poke5e-open-team">
-      <i class="fa-solid fa-paw"></i><span>Gestionar</span>
-    </button>`;
-  dock.querySelectorAll("[data-action='poke5e-open-team']").forEach(button => button.addEventListener("click", () => openTeam(actor)));
-  dock.querySelectorAll("[data-pokemon-id]").forEach(button => button.addEventListener("click", () => openPokemon(actor.items.get(button.dataset.pokemonId))));
-  dock.querySelectorAll("[data-action='poke5e-add-pokemon']").forEach(button => button.addEventListener("click", () => new Poke5eSpeciesBrowser({ actor }).render(true)));
-
-  const header = content.querySelector?.(".sheet-header, header.character-header, header.sheet-header");
-  if (header) header.insertAdjacentElement("afterend", dock);
-  else content.prepend(dock);
-}
-
-function pokemonSlot(item) {
-  const instance = item.getFlag(MODULE_ID, "instance") ?? {};
-  const name = foundry.utils.escapeHTML(instance.nickname?.trim() || item.name);
-  const species = foundry.utils.escapeHTML(item.name);
-  const img = foundry.utils.escapeHTML(item.img ?? "icons/svg/mystery-man.svg");
-  const hp = instance.hp ? ` · PG ${Number(instance.hp.value) || 0}/${Number(instance.hp.max) || 0}` : "";
-  return `<button type="button" class="poke5e-team-dock-slot occupied" data-pokemon-id="${item.id}" title="Abrir ${name} (${species})${hp}"><img src="${img}" alt=""><span>${name}</span></button>`;
-}
-
-function emptyPokemonSlot(index) {
-  return `<button type="button" class="poke5e-team-dock-slot empty" data-action="poke5e-add-pokemon" title="Añadir Pokémon al hueco ${index + 1}"><i class="fa-solid fa-plus"></i><span>Vacío</span></button>`;
 }
 
 function openTeam(actor) {
