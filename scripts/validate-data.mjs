@@ -23,9 +23,15 @@ const moveIds = new Set(moves.moves.map(move => move.id));
 const abilityIds = new Set(abilities.items.map(ability => ability.id));
 const missingStartMoves = new Set();
 const missingAbilities = new Set();
+const speedTypes = new Set(["walking", "flying", "swimming", "burrowing", "climbing", "hover"]);
 for (const species of pokemon.items) {
   for (const id of species.moves?.start ?? []) if (!moveIds.has(id)) missingStartMoves.add(id);
   for (const ability of species.abilities ?? []) if (!abilityIds.has(ability.id)) missingAbilities.add(ability.id);
+  if (!species.speed?.length) throw new Error(`${species.id}: missing movement speed.`);
+  for (const speed of species.speed) {
+    if (!speedTypes.has(speed.type)) throw new Error(`${species.id}: unknown movement type ${speed.type}.`);
+    if (!Number.isFinite(Number(speed.value)) || Number(speed.value) < 0) throw new Error(`${species.id}: invalid ${speed.type} speed.`);
+  }
 }
 if (missingStartMoves.size) throw new Error(`Missing starting moves: ${[...missingStartMoves].join(", ")}`);
 if (missingAbilities.size) throw new Error(`Missing abilities: ${[...missingAbilities].join(", ")}`);

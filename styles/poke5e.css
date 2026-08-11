@@ -146,7 +146,6 @@
 .poke5e-dex-identity { align-self: center; padding: 1rem; }
 .poke5e-dex-identity .eyebrow { color: #ffe59a; }
 .poke5e-dex-identity h1 { font-size: 2rem; }
-.poke5e-movement { margin: 0.55rem 0 0; font-size: 0.8rem; opacity: 0.88; }
 .poke5e-vitals { display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem; align-content: center; padding: 1rem; background: rgba(24, 33, 43, 0.27); }
 .poke5e-vitals > div,
 .poke5e-vitals > label { display: grid; min-width: 70px; text-align: center; }
@@ -174,6 +173,13 @@
 .poke5e-stat-grid span { grid-column: 1 / -1; font-size: 0.68rem; font-weight: 800; color: var(--poke-red-dark); }
 .poke5e-stat-grid strong { font-size: 1.1rem; }
 .poke5e-stat-grid small { align-self: center; }
+.poke5e-speed-panel { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 0.8rem; padding: 0.55rem 0.7rem; border-radius: 8px; background: var(--poke-card); box-shadow: 0 1px 4px rgba(24, 33, 43, 0.12); }
+.poke5e-speed-panel h2 { margin: 0; color: var(--poke-red-dark); font-size: 0.9rem; white-space: nowrap; }
+.poke5e-speed-list { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.poke5e-speed-list > div { display: grid; grid-template-columns: auto auto; align-items: center; gap: 0 0.35rem; min-width: 6.8rem; padding: 0.3rem 0.5rem; border: 1px solid rgba(46, 111, 187, 0.22); border-radius: 7px; background: rgba(46, 111, 187, 0.08); }
+.poke5e-speed-list > div > i { grid-row: 1 / 3; color: var(--poke-blue); }
+.poke5e-speed-list span { font-size: 0.62rem; font-weight: 800; text-transform: uppercase; opacity: 0.72; }
+.poke5e-speed-list strong { font-size: 0.82rem; }
 .poke5e-sheet-actions { display: flex; justify-content: flex-end; }
 .poke5e-section-title { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 0.45rem; border-bottom: 2px solid rgba(24, 33, 43, 0.17); }
 .poke5e-section-title > span { font-size: 0.75rem; opacity: 0.68; }
@@ -192,12 +198,16 @@
 .poke5e-move-manager > header label { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 0.4rem; }
 .poke5e-move-manager > header input { width: 100%; }
 .poke5e-move-catalog { display: grid; gap: 0.3rem; max-height: 340px; overflow-y: auto; padding-right: 0.25rem; scrollbar-gutter: stable; }
-.poke5e-move-catalog article { display: grid; grid-template-columns: 5rem minmax(0, 1fr) minmax(8rem, auto) auto; align-items: center; gap: 0.5rem; padding: 0.5rem; border: 1px solid rgba(24, 33, 43, 0.14); border-radius: 7px; background: rgba(255, 255, 255, 0.45); }
-.poke5e-move-catalog article.future,
-.poke5e-move-catalog article.incompatible { opacity: 0.68; }
+.poke5e-move-catalog-entry { border: 1px solid rgba(24, 33, 43, 0.14); border-radius: 7px; background: rgba(255, 255, 255, 0.45); }
+.poke5e-move-catalog-entry.future,
+.poke5e-move-catalog-entry.incompatible { opacity: 0.68; }
+.poke5e-move-catalog-entry summary { display: grid; grid-template-columns: 5rem minmax(0, 1fr) minmax(8rem, auto) auto 1rem; align-items: center; gap: 0.5rem; padding: 0.4rem 0.5rem; cursor: pointer; list-style: none; }
+.poke5e-move-catalog-entry summary::-webkit-details-marker { display: none; }
 .poke5e-move-catalog-name { display: grid; min-width: 0; }
-.poke5e-move-catalog article button { width: auto; margin: 0; white-space: nowrap; }
-.poke5e-move-catalog-effect { grid-column: 1 / -1; padding: 0.45rem 0.55rem 0.15rem; border-top: 1px dashed rgba(24, 33, 43, 0.18); }
+.poke5e-move-catalog-entry button { width: auto; margin: 0; white-space: nowrap; }
+.poke5e-catalog-expand { transition: transform 120ms ease; }
+.poke5e-move-catalog-entry[open] .poke5e-catalog-expand { transform: rotate(180deg); }
+.poke5e-move-catalog-effect { padding: 0.45rem 0.65rem 0.5rem; border-top: 1px dashed rgba(24, 33, 43, 0.18); }
 .poke5e-move-catalog-effect .poke5e-move-meta { flex-wrap: wrap; }
 .poke5e-move-catalog-effect .poke5e-description { margin-top: 0.35rem; font-size: 0.78rem; }
 .poke5e-move-catalog-effect .poke5e-description p { margin: 0.25rem 0; }
@@ -348,6 +358,7 @@ body.poke5e-dark-mode .poke5e-reference-grid a,
 body.poke5e-dark-mode .poke5e-team-card,
 body.poke5e-dark-mode .poke5e-reserve-list article,
 body.poke5e-dark-mode .poke5e-stat-grid > div,
+body.poke5e-dark-mode .poke5e-speed-panel,
 body.poke5e-dark-mode .poke5e-move,
 body.poke5e-dark-mode .poke5e-ability,
 body.poke5e-dark-mode .poke5e-species-grid article,
@@ -355,7 +366,7 @@ body.poke5e-dark-mode .poke5e-species-filters { border-color: hsl(0, 0%, 31%); b
 body.poke5e-dark-mode .poke5e-reference-grid a { color: var(--poke-ink); }
 body.poke5e-dark-mode .poke5e-species-browser-body > header { background: hsl(0, 0%, 16%); }
 body.poke5e-dark-mode .poke5e-move-manager,
-body.poke5e-dark-mode .poke5e-move-catalog article { border-color: hsl(0, 0%, 31%); background: hsl(0, 0%, 20%); }
+body.poke5e-dark-mode .poke5e-move-catalog-entry { border-color: hsl(0, 0%, 31%); background: hsl(0, 0%, 20%); }
 body.poke5e-dark-mode .poke5e-learning-methods > span { color: hsl(205, 85%, 76%); background: hsla(205, 70%, 42%, 0.24); }
 body.poke5e-dark-mode .poke5e-learning-methods > span.warning { color: hsl(355, 84%, 76%); background: hsla(355, 70%, 42%, 0.24); }
 body.poke5e-dark-mode .poke5e-team-card > img,
@@ -385,8 +396,11 @@ body.poke5e-dark-mode .poke5e-trainer-sheet .window-content { background-color: 
   .poke5e-stat-grid { grid-template-columns: repeat(3, 1fr); }
   .poke5e-move summary { grid-template-columns: auto 1fr auto; }
   .poke5e-move-manager > header { grid-template-columns: 1fr; }
-  .poke5e-move-catalog article { grid-template-columns: 4.8rem 1fr auto; }
-  .poke5e-move-catalog article .poke5e-learning-methods { grid-column: 2 / -1; }
+  .poke5e-speed-panel { grid-template-columns: 1fr; }
+  .poke5e-move-catalog-entry summary { grid-template-columns: 4.8rem 1fr auto 1rem; }
+  .poke5e-move-catalog-entry summary .poke5e-learning-methods { grid-column: 2 / -1; grid-row: 2; }
+  .poke5e-move-catalog-entry summary button { grid-column: 3; grid-row: 1; }
+  .poke5e-move-catalog-entry summary .poke5e-catalog-expand { grid-column: 4; grid-row: 1; }
   .poke5e-move-rolls { grid-column: 2 / -1; }
   .poke5e-team-app .poke5e-hero.compact { grid-template-columns: 60px 1fr; }
   .poke5e-team-app .poke5e-hero.compact > button { grid-column: 1 / -1; }

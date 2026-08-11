@@ -76,7 +76,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       types: (species.type ?? []).map(type => ({ id: type, label: titleCase(type) })),
       hp: instance.hp,
       ac: instance.ac ?? species.ac,
-      movement: movementText(species.speed),
+      speeds: prepareSpeeds(species.speed),
       canEdit: this.pokemonItem.isOwner
     };
   }
@@ -152,8 +152,11 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
   }
 
   async #learnMove(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const moveId = event.currentTarget.dataset.moveId;
     const data = await loadPoke5eData();
-    const move = data.movesById.get(event.currentTarget.dataset.moveId);
+    const move = data.movesById.get(moveId);
     if (!move) return ui.notifications.error("No se encontró el movimiento.");
     const instance = this.#instance();
     const species = this.pokemonItem.getFlag(MODULE_ID, "species") ?? {};
@@ -371,9 +374,21 @@ function descriptionBlock(block) {
   return `<table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
 }
 
-function movementText(speeds = []) {
-  const labels = { walking: "Caminar", flying: "Volar", swimming: "Nadar", burrowing: "Excavar", climbing: "Trepar", hover: "Flotar" };
-  return speeds.map(speed => `${labels[speed.type] ?? titleCase(speed.type)} ${speed.value} ft`).join(" · ");
+function prepareSpeeds(speeds = []) {
+  const display = {
+    walking: { label: "Caminar", icon: "fa-person-walking" },
+    flying: { label: "Volar", icon: "fa-dove" },
+    swimming: { label: "Nadar", icon: "fa-person-swimming" },
+    burrowing: { label: "Excavar", icon: "fa-trowel" },
+    climbing: { label: "Trepar", icon: "fa-mountain" },
+    hover: { label: "Flotar", icon: "fa-wind" }
+  };
+  return speeds.map(speed => ({
+    type: speed.type,
+    value: Number(speed.value) || 0,
+    label: display[speed.type]?.label ?? titleCase(speed.type),
+    icon: display[speed.type]?.icon ?? "fa-shoe-prints"
+  }));
 }
 
 function signed(value) { return Number(value) >= 0 ? `+${value}` : String(value); }
