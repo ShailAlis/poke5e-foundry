@@ -1,30 +1,41 @@
 import { MODULE_ID, displayPokemonName, portraitUrl, remoteAssetUrl } from "./model.mjs";
 import { loadPoke5eData } from "./data-service.mjs";
 
+const DEPLOY_RANGE = 10;
+const deploymentCleanup = new Map();
+
 export function deployedActorFor(pokemonItem) {
   return game.actors.find(actor => actor.getFlag(MODULE_ID, "kind") === "deployed" && actor.getFlag(MODULE_ID, "pokemonItemUuid") === pokemonItem.uuid);
 }
 
 export async function deployPokemon(pokemonItem) {
   if (!canvas?.ready || !canvas.scene) return ui.notifications.warn("Abre una escena antes de desplegar un Pokémon.");
-  const existing = deployedActorFor(pokemonItem);
-  if (existing) {
-    existing.sheet.render(true);
-    return existing;
-  }
   const trainer = pokemonItem.parent;
   if (!trainer?.isOwner) return ui.notifications.warn("No tienes permiso para desplegar este Pokémon.");
-  const source = await deployedActorSource(pokemonItem);
-  const actor = await Actor.create(source);
+  const trainerToken = trainerTokenFor(trainer);
+  if (!trainerToken) return ui.notifications.warn("Coloca el token del entrenador en la escena antes de sacar un Pokémon.");
+  let actor = deployedActorFor(pokemonItem);
+  const deployedToken = actor ? deployedTokenFor(actor) : null;
+  if (deployedToken) {
+    if (deployedToken.parent?.id !== canvas.scene.id) return ui.notifications.warn(`${displayPokemonName(pokemonItem)} ya está desplegado en otra escena.`);
+    deployedToken.object?.control({ releaseOthers: true });
+    if (deployedToken.object) canvas.pan({ x: deployedToken.object.center.x, y: deployedToken.object.center.y });
+    return actor;
+  }
+  const source = actor ? null : await deployedActorSource(pokemonItem);
+  const tokenData = actor?.prototypeToken ?? source.prototypeToken;
+  const position = await chooseDeploymentPosition(trainerToken, tokenData, displayPokemonName(pokemonItem));
+  if (!position) return null;
+  const createdActor = !actor;
+  actor ??= await Actor.create(source);
   try {
-    const x = Math.round((canvas.stage?.pivot?.x ?? 0) / canvas.grid.size) * canvas.grid.size;
-    const y = Math.round((canvas.stage?.pivot?.y ?? 0) / canvas.grid.size) * canvas.grid.size;
-    const token = await actor.getTokenDocument({ x, y });
-    await canvas.scene.createEmbeddedDocuments("Token", [token.toObject()]);
+    const token = await actor.getTokenDocument(position);
+    const [createdToken] = await canvas.scene.createEmbeddedDocuments("Token", [token.toObject()]);
+    createdToken?.object?.control({ releaseOthers: true });
     ui.notifications.info(`${displayPokemonName(pokemonItem)} ha salido al combate.`);
     return actor;
   } catch (error) {
-    await actor.delete();
+    if (createdActor && game.actors.has(actor.id)) await actor.delete();
     throw error;
   }
 }
@@ -32,11 +43,7 @@ export async function deployPokemon(pokemonItem) {
 export async function recallPokemon(pokemonItem) {
   const actor = deployedActorFor(pokemonItem);
   if (!actor) return;
-  for (const scene of game.scenes) {
-    const tokens = scene.tokens.filter(token => token.actorId === actor.id);
-    if (tokens.length) await scene.deleteEmbeddedDocuments("Token", tokens.map(token => token.id));
-  }
-  if (game.actors.has(actor.id)) await actor.delete();
+  await removeDeployment(actor, { deleteTokens: true });
   ui.notifications.info(`${displayPokemonName(pokemonItem)} ha vuelto con su entrenador.`);
 }
 
@@ -66,8 +73,130 @@ export async function syncPokemonHpToDeployment(item) {
 export async function cleanDeploymentActor(token) {
   const actor = game.actors.get(token.actorId);
   if (!actor || actor.getFlag(MODULE_ID, "kind") !== "deployed") return;
+  if (deploymentCleanup.has(actor.id)) return deploymentCleanup.get(actor.id);
   const stillUsed = game.scenes.some(scene => scene.tokens.some(sceneToken => sceneToken.actorId === actor.id));
-  if (!stillUsed) await actor.delete();
+  if (!stillUsed) await removeDeployment(actor, { deleteTokens: false });
+}
+
+export async function removeDeployment(actor, { deleteTokens }) {
+  const current = deploymentCleanup.get(actor.id);
+  if (current) return current;
+  const cleanup = Promise.resolve().then(async () => {
+    if (deleteTokens) {
+      for (const scene of game.scenes) {
+        const tokenIds = scene.tokens.filter(token => token.actorId === actor.id).map(token => token.id);
+        if (tokenIds.length) await scene.deleteEmbeddedDocuments("Token", tokenIds);
+      }
+    }
+    if (game.actors.has(actor.id)) await actor.delete();
+  });
+  deploymentCleanup.set(actor.id, cleanup);
+  try {
+    await cleanup;
+  } finally {
+    deploymentCleanup.delete(actor.id);
+  }
+}
+
+function trainerTokenFor(trainer) {
+  const tokens = canvas.tokens?.placeables?.filter(token => token.actor?.id === trainer.id) ?? [];
+  return tokens.find(token => token.controlled) ?? tokens[0] ?? null;
+}
+
+function deployedTokenFor(actor) {
+  for (const scene of game.scenes) {
+    const token = scene.tokens.find(candidate => candidate.actorId === actor.id);
+    if (token) return token;
+  }
+  return null;
+}
+
+function chooseDeploymentPosition(trainerToken, tokenData, pokemonName) {
+  const highlightName = `${MODULE_ID}-deploy-${foundry.utils.randomID()}`;
+  const gridLayer = canvas.interface?.grid;
+  gridLayer?.addHighlightLayer?.(highlightName);
+  highlightDeploymentArea(highlightName, trainerToken, tokenData);
+  ui.notifications.info(`Elige en el mapa dónde aparece ${pokemonName}. Debe estar a un máximo de ${DEPLOY_RANGE} pies del entrenador. Pulsa Escape o haz clic derecho para cancelar.`);
+  return new Promise(resolve => {
+    let settled = false;
+    let canvasTearDownHook;
+    const finish = position => {
+      if (settled) return;
+      settled = true;
+      canvas.stage.off("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+      if (canvasTearDownHook) Hooks.off("canvasTearDown", canvasTearDownHook);
+      gridLayer?.destroyHighlightLayer?.(highlightName);
+      resolve(position);
+    };
+    const onKeyDown = event => {
+      if (event.key === "Escape") finish(null);
+    };
+    const onPointerDown = event => {
+      const button = event.button ?? event.nativeEvent?.button ?? 0;
+      event.stopPropagation?.();
+      event.stopImmediatePropagation?.();
+      if (button === 2) {
+        return finish(null);
+      }
+      if (button !== 0) return;
+      const point = canvas.stage.toLocal(event.global);
+      const position = deploymentPosition(point, tokenData);
+      if (!isAllowedDeployment(position, trainerToken, tokenData)) {
+        ui.notifications.warn(`Elige una casilla libre a no más de ${DEPLOY_RANGE} pies del entrenador.`);
+        return;
+      }
+      finish({ x: position.x, y: position.y });
+    };
+    document.addEventListener("keydown", onKeyDown);
+    canvas.stage.on("pointerdown", onPointerDown);
+    canvasTearDownHook = Hooks.once("canvasTearDown", () => finish(null));
+  });
+}
+
+function highlightDeploymentArea(name, trainerToken, tokenData) {
+  const gridLayer = canvas.interface?.grid;
+  if (!gridLayer?.highlightPosition) return;
+  const steps = Math.ceil(DEPLOY_RANGE / Math.max(Number(canvas.grid.distance) || 5, 1)) + 2;
+  const seen = new Set();
+  for (let dx = -steps; dx <= steps; dx++) {
+    for (let dy = -steps; dy <= steps; dy++) {
+      const point = { x: trainerToken.center.x + (dx * canvas.grid.sizeX), y: trainerToken.center.y + (dy * canvas.grid.sizeY) };
+      const position = deploymentPosition(point, tokenData);
+      const key = `${position.x}:${position.y}`;
+      if (seen.has(key) || !isAllowedDeployment(position, trainerToken, tokenData)) continue;
+      seen.add(key);
+      gridLayer.highlightPosition(name, { x: position.x, y: position.y, color: 0x2e6fbb, alpha: 0.38 });
+    }
+  }
+}
+
+export function deploymentPosition(point, tokenData) {
+  if (canvas.grid.isGridless) {
+    const width = Number(tokenData.width ?? 1) * canvas.grid.sizeX;
+    const height = Number(tokenData.height ?? 1) * canvas.grid.sizeY;
+    return { x: Math.round(point.x - (width / 2)), y: Math.round(point.y - (height / 2)) };
+  }
+  const topLeft = canvas.grid.getTopLeftPoint(point);
+  return { x: Math.round(topLeft.x), y: Math.round(topLeft.y) };
+}
+
+export function isAllowedDeployment(position, trainerToken, tokenData) {
+  const width = Number(tokenData.width ?? 1) * canvas.grid.sizeX;
+  const height = Number(tokenData.height ?? 1) * canvas.grid.sizeY;
+  const center = { x: position.x + (width / 2), y: position.y + (height / 2) };
+  const distance = canvas.grid.measurePath([trainerToken.center, center]).distance;
+  if (distance > DEPLOY_RANGE) return false;
+  const sceneRect = canvas.dimensions?.sceneRect;
+  if (sceneRect && (!sceneRect.contains(position.x, position.y) || !sceneRect.contains(position.x + width - 1, position.y + height - 1))) return false;
+  return !canvas.tokens.placeables.some(token => rectanglesOverlap(
+    { x: position.x, y: position.y, width, height },
+    { x: token.document.x, y: token.document.y, width: token.w, height: token.h }
+  ));
+}
+
+function rectanglesOverlap(a, b) {
+  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
 }
 
 async function deployedActorSource(pokemonItem) {
