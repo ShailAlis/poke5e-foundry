@@ -57,7 +57,6 @@ export class Poke5eImporter extends HandlebarsApplicationMixin(ApplicationV2) {
         abilities: form.querySelector("[name='abilities']").checked,
         gear: form.querySelector("[name='gear']").checked,
         progression: form.querySelector("[name='progression']").checked,
-        trainer: form.querySelector("[name='trainer']").checked,
         reference: form.querySelector("[name='reference']").checked,
         pokemonIds: form.querySelector("[name='pokemonIds']").value
       };
@@ -91,7 +90,6 @@ export class Poke5eImporter extends HandlebarsApplicationMixin(ApplicationV2) {
         const featureUuids = await progressionFeatureUuids(pack);
         itemCount += await upsertPackItems(pack, [trainerClassSource(featureUuids)], status, 96, 98);
       }
-      if (options.trainer) await upsertTrainerTemplate();
       if (options.reference) await upsertReferenceJournal();
 
       setStatus(status, "Compendios preparados.", 100);
@@ -176,26 +174,6 @@ function selectPokemon(allPokemon, selection) {
   const missing = [...ids].filter(id => !found.has(id));
   if (missing.length) ui.notifications.warn(`No encontrados: ${missing.join(", ")}`);
   return selected;
-}
-
-async function upsertTrainerTemplate() {
-  const sourceId = "trainer-template";
-  const existing = game.actors.find(actor => actor.getFlag(MODULE_ID, "sourceId") === sourceId);
-  const source = {
-    name: "Entrenador Pokémon (Ejemplo)",
-    type: "character",
-    img: "icons/svg/mystery-man.svg",
-    system: {
-      details: {
-        biography: {
-          value: `<h2>Entrenador Pokémon</h2><p>Arrastra la clase <strong>Entrenador</strong> desde <strong>Pokémon 5e — Clases y progresión</strong> a esta ficha. Después abre <strong>Equipo Pokémon</strong> desde la cabecera para gestionar su equipo.</p><p><a href="${localizedReferenceUrl("/reference/trainer-class")}" target="_blank" rel="noopener">Consultar las reglas de la clase</a></p>`
-        }
-      }
-    },
-    flags: { [MODULE_ID]: { kind: "trainer", sourceId } }
-  };
-  if (existing) await existing.update(source);
-  else await Actor.create(source);
 }
 
 async function upsertReferenceJournal() {

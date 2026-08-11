@@ -24,8 +24,8 @@ Las versiones posteriores aparecerán al usar **Comprobar actualización** o **A
 
 ## Funciones
 
-- Panel **Equipo Pokémon** integrado en la cabecera de las fichas de personaje.
-- Franja de equipo visible dentro de la ficha: muestra los seis huecos, abre cada Pokémon con un clic y permite añadir o gestionar el equipo directamente.
+- Ficha de Entrenador Pokémon personalizada, registrada automáticamente como ficha predeterminada para los personajes.
+- Pestaña **Equipo Pokémon** dentro de la ficha: muestra los seis huecos, abre cada Pokémon con un clic y permite añadir, desplegar, retirar o gestionar el equipo sin tapar las características.
 - Buscador de especies y gestión de equipo/reserva.
 - Ficha Pokédex para cada Pokémon individual.
 - Tiradas de ataque y daño, cálculo de MOVE, CD y consumo/restauración de PP.
@@ -38,7 +38,7 @@ Las versiones posteriores aparecerán al usar **Comprobar actualización** o **A
 2. Activa **Pokémon 5e for Foundry VTT** en un mundo que use D&D 5e.
 3. Abre **Ajustes del juego → Configurar ajustes → Pokémon 5e → Importar contenido** y crea los compendios.
 4. Abre **Pokémon 5e — Clases y progresión** y arrastra **Entrenador** a una ficha de personaje.
-5. Pulsa **Equipo Pokémon** en la cabecera de esa ficha.
+5. Abre la pestaña **Equipo Pokémon** de esa ficha.
 6. Añade especies con el buscador o arrastrándolas desde **Pokémon 5e — Especies**.
 
 Los sprites de token están incluidos para que el tablero funcione sin conexión. Los retratos grandes se cargan desde `poke5e.app` para mantener pequeño el módulo; su URL base puede cambiarse en los ajustes del mundo.
@@ -60,6 +60,8 @@ La versión 0.2 deja de crear especies como actores permanentes. Los actores gen
 La versión 0.3 añade **Entrenador** como clase real de D&D 5e. Después de actualizar el módulo, vuelve a ejecutar **Gestionar compendios** con la opción **Clase de Entrenador** marcada para crear el nuevo compendio de progresión.
 
 La versión 0.4 añade un acceso permanente al equipo dentro de la ficha del personaje. No es necesario volver a importar los compendios para activar esta mejora visual.
+
+La versión 0.5 sustituye esa franja por una ficha personalizada de Entrenador con una pestaña de equipo propia. También deja de crear el personaje de ejemplo al importar: cualquier personaje nuevo usa la ficha adecuada automáticamente. Los personajes de ejemplo existentes no se borran para evitar pérdidas de datos.
 
 ## Desarrollo
 
