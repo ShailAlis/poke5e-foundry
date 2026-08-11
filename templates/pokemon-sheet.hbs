@@ -29,8 +29,38 @@
   </nav>
 
   <section>
-    <div class="poke5e-section-title"><h2>Movimientos</h2><span>{{moves.length}} conocidos</span></div>
-    {{#if canEdit}}<div class="poke5e-drop-hint"><i class="fa-solid fa-hand-pointer"></i> Arrastra movimientos desde el compendio para aprenderlos.</div>{{/if}}
+    <div class="poke5e-section-title">
+      <h2>Movimientos</h2>
+      <span>{{moves.length}} conocidos</span>
+      {{#if canEdit}}<button type="button" data-action="toggle-move-manager"><i class="fa-solid fa-list-check"></i> {{#if moveManager.open}}Cerrar gestor{{else}}Gestionar movimientos{{/if}}</button>{{/if}}
+    </div>
+    {{#if canEdit}}<div class="poke5e-drop-hint"><i class="fa-solid fa-shield-halved"></i> Solo se pueden aprender movimientos compatibles y disponibles para el nivel actual.</div>{{/if}}
+    {{#if moveManager.open}}
+      <div class="poke5e-move-manager">
+        <header>
+          <label><i class="fa-solid fa-magnifying-glass"></i><input type="search" value="{{moveManager.filters.query}}" placeholder="Buscar movimiento…" data-action="search-moves"></label>
+          <select data-action="filter-moves" aria-label="Filtrar movimientos">{{selectOptions moveManager.categoryOptions selected=moveManager.filters.category}}</select>
+          <span>{{moveManager.total}} resultados</span>
+        </header>
+        {{#if moveManager.truncated}}<div class="poke5e-callout">Se muestran los primeros 120 resultados. Usa la búsqueda para acotar la lista.</div>{{/if}}
+        <div class="poke5e-move-catalog">
+          {{#each moveManager.entries}}
+            <article class="{{#unless compatible}}incompatible{{/unless}} {{#if future}}future{{/if}}">
+              <span class="poke5e-type type-{{type}}">{{type}}</span>
+              <div><strong>{{name}}</strong><small>PP {{pp}}</small></div>
+              <div class="poke5e-learning-methods">
+                {{#each methods}}<span>{{label}}</span>{{else}}<span class="warning">No compatible</span>{{/each}}
+              </div>
+              {{#if known}}
+                <button type="button" disabled title="Ya conocido"><i class="fa-solid fa-check"></i> Conocido</button>
+              {{else}}
+                <button type="button" class="bright" data-action="learn-move" data-move-id="{{id}}" {{#unless availableNow}}disabled{{/unless}} title="{{#if future}}Disponible más adelante{{else}}{{#unless compatible}}Esta especie no puede aprenderlo{{/unless}}{{/if}}"><i class="fa-solid fa-plus"></i> Aprender</button>
+              {{/if}}
+            </article>
+          {{else}}<div class="poke5e-empty">No hay movimientos en esta categoría.</div>{{/each}}
+        </div>
+      </div>
+    {{/if}}
     <div class="poke5e-move-list">
       {{#each moves}}
         <details class="poke5e-move type-border-{{type}}">
@@ -45,6 +75,10 @@
             {{#if hasPp}}<span class="poke5e-pp">PP {{pp.value}}/{{pp.max}}</span>{{/if}}
           </summary>
           <div class="poke5e-move-body">
+            <div class="poke5e-learning-methods known-move">
+              {{#each learningMethods}}<span>{{label}}</span>{{/each}}
+              {{#if learningWarning}}<span class="warning"><i class="fa-solid fa-triangle-exclamation"></i> {{learningWarning}}</span>{{/if}}
+            </div>
             <div class="poke5e-move-meta"><span>{{time}}</span><span>{{range}}</span></div>
             <div class="poke5e-description">{{{description}}}</div>
             <div class="poke5e-actions inline">

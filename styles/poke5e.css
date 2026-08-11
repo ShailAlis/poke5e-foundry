@@ -177,6 +177,7 @@
 .poke5e-sheet-actions { display: flex; justify-content: flex-end; }
 .poke5e-section-title { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 0.45rem; border-bottom: 2px solid rgba(24, 33, 43, 0.17); }
 .poke5e-section-title > span { font-size: 0.75rem; opacity: 0.68; }
+.poke5e-section-title > button { width: auto; min-height: 1.8rem; margin: 0 0 0.25rem auto; }
 .poke5e-move-list { display: grid; gap: 0.4rem; }
 .poke5e-drop-hint { margin-bottom: 0.45rem; padding: 0.45rem 0.65rem; border: 1px dashed rgba(46, 111, 187, 0.5); border-radius: 7px; color: #244f7f; background: rgba(46, 111, 187, 0.08); font-size: 0.8rem; }
 .poke5e-move { border: 1px solid rgba(24, 33, 43, 0.18); border-left: 5px solid var(--poke-blue); border-radius: 7px; background: var(--poke-card); }
@@ -186,6 +187,20 @@
 .poke5e-pp { padding: 0.2rem 0.45rem; border-radius: 4px; background: rgba(46, 111, 187, 0.12); font-weight: 700; }
 .poke5e-move-body { padding: 0.3rem 0.75rem 0.75rem; border-top: 1px dashed rgba(24, 33, 43, 0.18); }
 .poke5e-move-meta { display: flex; gap: 1rem; color: rgba(24, 33, 43, 0.7); font-size: 0.78rem; }
+.poke5e-move-manager { display: grid; gap: 0.5rem; margin-bottom: 0.7rem; padding: 0.65rem; border: 1px solid rgba(24, 33, 43, 0.2); border-radius: 9px; background: var(--poke-card); }
+.poke5e-move-manager > header { display: grid; grid-template-columns: minmax(0, 1fr) minmax(150px, auto) auto; align-items: center; gap: 0.5rem; }
+.poke5e-move-manager > header label { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 0.4rem; }
+.poke5e-move-manager > header input { width: 100%; }
+.poke5e-move-catalog { display: grid; gap: 0.3rem; max-height: 340px; overflow-y: auto; padding-right: 0.25rem; scrollbar-gutter: stable; }
+.poke5e-move-catalog article { display: grid; grid-template-columns: 5rem minmax(0, 1fr) minmax(8rem, auto) auto; align-items: center; gap: 0.5rem; padding: 0.35rem; border: 1px solid rgba(24, 33, 43, 0.14); border-radius: 7px; background: rgba(255, 255, 255, 0.45); }
+.poke5e-move-catalog article.future,
+.poke5e-move-catalog article.incompatible { opacity: 0.68; }
+.poke5e-move-catalog article > div:nth-child(2) { display: grid; min-width: 0; }
+.poke5e-move-catalog article button { width: auto; margin: 0; white-space: nowrap; }
+.poke5e-learning-methods { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.poke5e-learning-methods > span { padding: 0.12rem 0.35rem; border-radius: 99px; color: #244f7f; background: rgba(46, 111, 187, 0.12); font-size: 0.68rem; font-weight: 800; }
+.poke5e-learning-methods > span.warning { color: #8b1d27; background: rgba(217, 54, 62, 0.13); }
+.poke5e-learning-methods.known-move { margin-bottom: 0.4rem; }
 .poke5e-description { margin-top: 0.6rem; }
 .poke5e-ability-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.55rem; }
 .poke5e-ability { padding: 0.7rem; border-radius: 8px; background: var(--poke-card); box-shadow: 0 1px 4px rgba(24, 33, 43, 0.11); }
@@ -331,6 +346,10 @@ body.poke5e-dark-mode .poke5e-species-grid article,
 body.poke5e-dark-mode .poke5e-species-filters { border-color: hsl(0, 0%, 31%); box-shadow: 0 2px 7px rgba(0, 0, 0, 0.28); }
 body.poke5e-dark-mode .poke5e-reference-grid a { color: var(--poke-ink); }
 body.poke5e-dark-mode .poke5e-species-browser-body > header { background: hsl(0, 0%, 16%); }
+body.poke5e-dark-mode .poke5e-move-manager,
+body.poke5e-dark-mode .poke5e-move-catalog article { border-color: hsl(0, 0%, 31%); background: hsl(0, 0%, 20%); }
+body.poke5e-dark-mode .poke5e-learning-methods > span { color: hsl(205, 85%, 76%); background: hsla(205, 70%, 42%, 0.24); }
+body.poke5e-dark-mode .poke5e-learning-methods > span.warning { color: hsl(355, 84%, 76%); background: hsla(355, 70%, 42%, 0.24); }
 body.poke5e-dark-mode .poke5e-team-card > img,
 body.poke5e-dark-mode .poke5e-dex-header > img { background: linear-gradient(145deg, hsl(0, 0%, 28%), hsl(0, 0%, 20%)); }
 body.poke5e-dark-mode .poke5e-sheet-team-tab { color: hsl(0, 0%, 83%); background: linear-gradient(145deg, hsl(0, 0%, 20%), hsl(251, 13%, 12%)); }
@@ -357,6 +376,9 @@ body.poke5e-dark-mode .poke5e-trainer-sheet .window-content { background-color: 
   .poke5e-vitals label { grid-column: auto; }
   .poke5e-stat-grid { grid-template-columns: repeat(3, 1fr); }
   .poke5e-move summary { grid-template-columns: auto 1fr auto; }
+  .poke5e-move-manager > header { grid-template-columns: 1fr; }
+  .poke5e-move-catalog article { grid-template-columns: 4.8rem 1fr auto; }
+  .poke5e-move-catalog article .poke5e-learning-methods { grid-column: 2 / -1; }
   .poke5e-move-rolls { grid-column: 2 / -1; }
   .poke5e-team-app .poke5e-hero.compact { grid-template-columns: 60px 1fr; }
   .poke5e-team-app .poke5e-hero.compact > button { grid-column: 1 / -1; }

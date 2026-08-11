@@ -1,5 +1,6 @@
 import { loadPoke5eData } from "./data-service.mjs";
 import { MODULE_ID, MODULE_PATH, displayPokemonName, portraitUrl } from "./model.mjs";
+import { filterMoveCatalog, moveEligibility } from "./move-learning.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -16,6 +17,9 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
   constructor({ pokemonItem, ...options } = {}) {
     super({ ...options, id: `poke5e-pokemon-${pokemonItem?.id ?? "unknown"}` });
     this.pokemonItem = pokemonItem;
+    this.moveManagerOpen = false;
+    this.moveFilters = { query: "", category: "available" };
+    this.refocusMoveSearch = false;
   }
 
   get title() {
@@ -31,6 +35,10 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       const move = data.movesById.get(entry.moveId);
       return move ? prepareMove(entry, move, species, level) : null;
     }).filter(Boolean);
+    const knownMoveIds = new Set((instance.moves ?? []).map(entry => entry.moveId));
+    const catalog = this.moveManagerOpen
+      ? filterMoveCatalog(data.moves, species, level, knownMoveIds, this.moveFilters)
+      : [];
     const abilities = (instance.abilities ?? []).map(id => data.abilitiesById.get(id)).filter(Boolean).map(ability => ({
       id: ability.id,
       name: ability.name,
@@ -48,6 +56,19 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       instance,
       level,
       moves,
+      moveManager: {
+        open: this.moveManagerOpen,
+        filters: this.moveFilters,
+        categoryOptions: {
+          available: "Disponibles ahora",
+          future: "Niveles posteriores",
+          incompatible: "No compatibles",
+          all: "Todos"
+        },
+        total: catalog.length,
+        truncated: catalog.length > 120,
+        entries: catalog.slice(0, 120)
+      },
       abilities,
       abilityScores,
       types: (species.type ?? []).map(type => ({ id: type, label: titleCase(type) })),
@@ -64,6 +85,26 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     this.element.querySelectorAll("[data-action='restore-pp']").forEach(button => button.addEventListener("click", event => this.#restorePp(event)));
     this.element.querySelectorAll("[data-action='remove-move']").forEach(button => button.addEventListener("click", event => this.#removeMove(event)));
     this.element.querySelectorAll("[data-action='remove-ability']").forEach(button => button.addEventListener("click", event => this.#removeAbility(event)));
+    this.element.querySelectorAll("[data-action='learn-move']").forEach(button => button.addEventListener("click", event => this.#learnMove(event)));
+    this.element.querySelector("[data-action='toggle-move-manager']")?.addEventListener("click", () => {
+      this.moveManagerOpen = !this.moveManagerOpen;
+      this.render({ force: true });
+    });
+    const moveSearch = this.element.querySelector("[data-action='search-moves']");
+    moveSearch?.addEventListener("input", foundry.utils.debounce(event => {
+      this.moveFilters.query = event.target.value;
+      this.refocusMoveSearch = true;
+      this.render({ force: true });
+    }, 200));
+    this.element.querySelector("[data-action='filter-moves']")?.addEventListener("change", event => {
+      this.moveFilters.category = event.target.value;
+      this.render({ force: true });
+    });
+    if (this.refocusMoveSearch && moveSearch) {
+      moveSearch.focus();
+      moveSearch.setSelectionRange(moveSearch.value.length, moveSearch.value.length);
+      this.refocusMoveSearch = false;
+    }
     this.element.querySelector("[data-action='change-level']")?.addEventListener("change", event => this.#changeLevel(event));
     this.element.querySelector("[data-action='change-hp']")?.addEventListener("change", event => this.#changeHp(event));
     this.element.querySelector("[data-action='open-trainer-sheet']")?.addEventListener("click", () => this.pokemonItem.parent?.sheet.render(true));
@@ -108,6 +149,21 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     this.render({ force: true });
   }
 
+  async #learnMove(event) {
+    const data = await loadPoke5eData();
+    const move = data.movesById.get(event.currentTarget.dataset.moveId);
+    if (!move) return ui.notifications.error("No se encontró el movimiento.");
+    const instance = this.#instance();
+    const species = this.pokemonItem.getFlag(MODULE_ID, "species") ?? {};
+    const eligibility = moveEligibility(species, move, Number(instance.level) || 1);
+    if (!eligibility.availableNow) return notifyMoveUnavailable(move, eligibility);
+    if (instance.moves.some(entry => entry.moveId === move.id)) return ui.notifications.warn("Este Pokémon ya conoce ese movimiento.");
+    if (instance.moves.length >= 6) return ui.notifications.warn("Este Pokémon ya conoce el máximo de seis movimientos. Olvida uno antes de aprender otro.");
+    instance.moves.push(moveEntry(move));
+    await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
+    this.render({ force: true });
+  }
+
   async #onDrop(event) {
     event.preventDefault();
     if (!this.pokemonItem.isOwner) return;
@@ -123,8 +179,11 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       if (instance.moves.some(entry => entry.moveId === sourceId)) return ui.notifications.warn("Este Pokémon ya conoce ese movimiento.");
       if (instance.moves.length >= 6) return ui.notifications.warn("Un Pokémon no puede conocer más de seis movimientos, incluso con las dotes correspondientes.");
       const move = document.getFlag(MODULE_ID, "move");
-      const pp = Math.max(Number(move?.pp) || 0, 0);
-      instance.moves.push({ id: foundry.utils.randomID(), moveId: sourceId, pp: { value: pp, max: pp } });
+      if (!move?.id) return ui.notifications.error("El movimiento no contiene datos válidos.");
+      const species = this.pokemonItem.getFlag(MODULE_ID, "species") ?? {};
+      const eligibility = moveEligibility(species, move, Number(instance.level) || 1);
+      if (!eligibility.availableNow) return notifyMoveUnavailable(move, eligibility);
+      instance.moves.push(moveEntry(move));
     } else if (kind === "ability") {
       if (instance.abilities.includes(sourceId)) return ui.notifications.warn("Este Pokémon ya tiene esa habilidad.");
       instance.abilities.push(sourceId);
@@ -182,6 +241,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
 function prepareMove(entry, move, species, level) {
   const modifier = getMoveModifier(species, move);
   const proficiency = 2 + Math.floor((level - 1) / 4);
+  const eligibility = moveEligibility(species, move, level);
   return {
     entryId: entry.id,
     name: move.name,
@@ -193,8 +253,22 @@ function prepareMove(entry, move, species, level) {
     hasPp: Number(entry.pp?.max) > 0,
     attackBonus: move.attack?.scope ? signed(modifier + proficiency) : null,
     saveDc: move.save ? 8 + modifier + proficiency : null,
-    damage: damageFormula(move, level, modifier, species) ?? "—"
+    damage: damageFormula(move, level, modifier, species) ?? "—",
+    learningMethods: eligibility.methods,
+    learningWarning: eligibility.compatible && !eligibility.availableNow
+      ? `Requiere nivel ${eligibility.requiredLevel}`
+      : eligibility.compatible ? "" : "No figura en los movimientos de esta especie"
   };
+}
+
+function moveEntry(move) {
+  const pp = Math.max(Number(move?.pp) || 0, 0);
+  return { id: foundry.utils.randomID(), moveId: move.id, pp: { value: pp, max: pp } };
+}
+
+function notifyMoveUnavailable(move, eligibility) {
+  if (eligibility.future) return ui.notifications.warn(`${move.name} se aprende a nivel ${eligibility.requiredLevel}.`);
+  return ui.notifications.warn(`${move.name} no puede ser aprendido por esta especie Pokémon.`);
 }
 
 function getMoveModifier(species, move) {

@@ -29,6 +29,7 @@ Las versiones posteriores aparecerán al usar **Comprobar actualización** o **A
 - Modo oscuro inspirado en poke5e.app, configurable por cada usuario desde los ajustes o la propia pestaña de equipo.
 - Buscador de especies con filtros por tipo, rango de SR/CR y nivel mínimo, además de distintas ordenaciones.
 - Ficha Pokédex para cada Pokémon individual.
+- Gestor de movimientos por especie: distingue ataques disponibles, futuros, aprendibles mediante MT o huevo e incompatibles, y bloquea aprendizajes no válidos.
 - Tiradas de ataque y daño, cálculo de MOVE, CD y consumo/restauración de PP.
 - Interfaz en español e inglés.
 - Acceso directo a todas las secciones de reglas de poke5e.app.
@@ -67,6 +68,8 @@ La versión 0.5 sustituye esa franja por una ficha personalizada de Entrenador c
 La versión 0.6 corrige la visibilidad de la pestaña de equipo para que solo aparezca al seleccionarla, incorpora el modo oscuro y amplía el buscador Pokémon con filtros y ordenación.
 
 La versión 0.6.1 corrige el desplazamiento de la lista de resultados del buscador Pokémon, manteniendo visibles la búsqueda y los filtros.
+
+La versión 0.7 añade a cada ficha Pokémon un gestor de movimientos basado en la especie y el nivel actual. También valida los movimientos arrastrados desde el compendio y conserva cualquier movimiento antiguo para evitar pérdida de datos.
 
 ## Desarrollo
 

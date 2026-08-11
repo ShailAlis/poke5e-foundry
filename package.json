@@ -1,9 +1,9 @@
 {
   "name": "poke5e-foundry",
   "private": true,
-  "version": "0.6.1",
+  "version": "0.7.0",
   "type": "module",
   "scripts": {
-    "check": "node --check scripts/main.mjs && node --check scripts/importer.mjs && node --check scripts/pokemon-sheet.mjs && node --check scripts/trainer-actor-sheet.mjs && node --check scripts/trainer-team.mjs && node --check scripts/species-browser.mjs && node --check scripts/deployment.mjs && node --check scripts/model.mjs && node --check scripts/data-service.mjs && node --check scripts/reference.mjs && node scripts/validate-data.mjs && node scripts/validate-model.mjs"
+    "check": "node --check scripts/main.mjs && node --check scripts/importer.mjs && node --check scripts/pokemon-sheet.mjs && node --check scripts/move-learning.mjs && node --check scripts/trainer-actor-sheet.mjs && node --check scripts/trainer-team.mjs && node --check scripts/species-browser.mjs && node --check scripts/deployment.mjs && node --check scripts/model.mjs && node --check scripts/data-service.mjs && node --check scripts/reference.mjs && node scripts/validate-data.mjs && node scripts/validate-model.mjs && node scripts/validate-move-learning.mjs"
   }
 }
