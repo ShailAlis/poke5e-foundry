@@ -31,6 +31,8 @@ Las versiones posteriores aparecerán al usar **Comprobar actualización** o **A
 - Ficha Pokédex para cada Pokémon individual.
 - Gestor de movimientos por especie: distingue ataques disponibles, futuros, aprendibles mediante MT o huevo e incompatibles, y bloquea aprendizajes no válidos.
 - Tiradas de ataque y daño, cálculo de MOVE, CD y consumo/restauración de PP.
+- Los 18 tipos de daño Pokémon se integran en D&D 5e sin eliminar sus tipos habituales. Las tiradas Pokémon usan el flujo de daño de D&D y aplican automáticamente resistencias, vulnerabilidades e inmunidades a los actores desplegados.
+- Cada Pokémon conserva un sexo generado según la proporción F:M de su especie y muestra sus posibles evoluciones con sus niveles y demás condiciones.
 - Interfaz en español e inglés.
 - Acceso directo a todas las secciones de reglas de poke5e.app.
 
@@ -70,6 +72,10 @@ La versión 0.6 corrige la visibilidad de la pestaña de equipo para que solo ap
 La versión 0.6.1 corrige el desplazamiento de la lista de resultados del buscador Pokémon, manteniendo visibles la búsqueda y los filtros.
 
 La versión 0.7 añade a cada ficha Pokémon un gestor de movimientos basado en la especie y el nivel actual. También valida los movimientos arrastrados desde el compendio y conserva cualquier movimiento antiguo para evitar pérdida de datos.
+
+## Actualización a 1.0
+
+La versión 1.0 incorpora el sistema de combate por tipos. Los Pokémon ya guardados que todavía no tengan sexo recibirán uno automáticamente al abrir el mundo. Los actores de combate activos actualizarán sus resistencias, vulnerabilidades e inmunidades; al volver a desplegarlos también se generarán siempre con estos datos. Para actualizar las descripciones de los compendios con evoluciones y afinidades, vuelve a ejecutar **Gestionar compendios** con la opción de especies marcada.
 
 ## Desarrollo
 

@@ -29,6 +29,7 @@ export class Poke5eReference extends HandlebarsApplicationMixin(ApplicationV2) {
         ["Caminos de Entrenador", `${base}/reference/trainer-paths`, "fa-solid fa-road"],
         ["Especializaciones", `${base}/reference/specializations`, "fa-solid fa-star"],
         ["Combate", `${base}/reference/combat`, "fa-solid fa-burst"],
+        ["Tipos de daño", `${base}/reference/damage-types`, "fa-solid fa-shield-halved"],
         ["Capturar Pokémon", `${base}/reference/catching-pokemon`, "fa-solid fa-circle-dot"],
         ["Pokédex", `${base}/pokemon`, "fa-solid fa-list"],
         ["Movimientos", `${base}/moves`, "fa-solid fa-wand-magic-sparkles"],

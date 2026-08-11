@@ -19,11 +19,16 @@ const {
   MODULE_ID,
   TRAINER_FEATURES,
   displayAssetUrl,
+  randomGenderForRatio,
   speciesItemSource,
   pokemonItemSourceFromSpecies,
   trainerFeatureSources,
   trainerClassSource
 } = await import("./model.mjs");
+
+if (randomGenderForRatio("0:0", () => 0.5) !== "none") throw new Error("Genderless species must produce no gender.");
+if (randomGenderForRatio("1:7", () => 0) !== "female") throw new Error("Female gender roll is invalid.");
+if (randomGenderForRatio("1:7", () => 0.99) !== "male") throw new Error("Male gender roll is invalid.");
 
 if (displayAssetUrl("modules/poke5e-foundry/assets/pokemon/0001/sprite.png") !== "https://poke5e.app/assets/pokemon/0001/sprite.png") {
   throw new Error("Legacy module asset URLs are not migrated to the configured asset host.");
@@ -39,6 +44,7 @@ for (const species of pokemon) {
   if (flags.kind !== "pokemon" || flags.sourceId !== species.id) throw new Error(`${species.id}: invalid individual source.`);
   if (flags.instance.moves.length > 4) throw new Error(`${species.id}: more than four starting moves.`);
   if (flags.instance.hp.value !== species.hp || flags.instance.hp.max !== species.hp) throw new Error(`${species.id}: invalid HP.`);
+  if (!["female", "male", "none"].includes(flags.instance.gender)) throw new Error(`${species.id}: invalid generated gender.`);
   for (const entry of flags.instance.moves) {
     const move = movesById.get(entry.moveId);
     if (!move || entry.pp.max !== Number(move.pp)) throw new Error(`${species.id}: invalid move PP for ${entry.moveId}.`);

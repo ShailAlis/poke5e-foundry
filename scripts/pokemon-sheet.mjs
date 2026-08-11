@@ -1,6 +1,7 @@
 import { loadPoke5eData } from "./data-service.mjs";
 import { MODULE_ID, MODULE_PATH, displayPokemonName, portraitUrl } from "./model.mjs";
 import { MAX_KNOWN_MOVES, applyLearnedMove, filterMoveCatalog, moveEligibility } from "./move-learning.mjs";
+import { normalizeMoveDamageTypes, pokemonDefenses, typeLabel } from "./combat.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -52,6 +53,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const abilityScores = Object.entries(species.attributes ?? {}).map(([key, score]) => ({
       key: key.toUpperCase(), score, modifier: signed(Math.floor((Number(score) - 10) / 2))
     }));
+    const defenses = pokemonDefenses(species.type);
     return {
       item: this.pokemonItem,
       trainer: this.pokemonItem.parent,
@@ -82,6 +84,13 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       hp: instance.hp,
       ac: instance.ac ?? species.ac,
       speeds: prepareSpeeds(species.speed),
+      gender: prepareGender(instance.gender, species.gender),
+      evolutions: prepareEvolutions(data.evolutionsByFrom.get(species.id) ?? [], data),
+      defenses: {
+        vulnerabilities: defenses.vulnerabilities.map(prepareType),
+        resistances: defenses.resistances.map(prepareType),
+        immunities: defenses.immunities.map(prepareType)
+      },
       canEdit: this.pokemonItem.isOwner
     };
   }
@@ -224,11 +233,6 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     if (Number(entry.pp.max) > 0 && Number(entry.pp.value) <= 0) {
       return ui.notifications.warn(game.i18n.format("POKE5E.Notifications.NoPP", { name: displayPokemonName(this.pokemonItem), move: move.name }));
     }
-    if (Number(entry.pp.max) > 0) {
-      entry.pp.value = Math.max(0, Number(entry.pp.value) - 1);
-      await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
-    }
-
     const species = this.pokemonItem.getFlag(MODULE_ID, "species");
     const level = Number(instance.level) || 1;
     const moveModifier = getMoveModifier(species, move);
@@ -236,6 +240,14 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const name = displayPokemonName(this.pokemonItem);
     const flavor = `${name} — ${move.name}`;
     const speaker = ChatMessage.getSpeaker({ actor: this.pokemonItem.parent, alias: name });
+    const formula = damageFormula(move, level, moveModifier, species);
+    const damageType = formula ? await chooseDamageType(move) : null;
+    if (formula && !damageType) return;
+
+    if (Number(entry.pp.max) > 0) {
+      entry.pp.value = Math.max(0, Number(entry.pp.value) - 1);
+      await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
+    }
 
     if (move.attack?.scope) {
       const attack = await new Roll("1d20 + @mod + @prof", { mod: moveModifier, prof: proficiency }).evaluate();
@@ -247,11 +259,20 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     } else {
       await ChatMessage.create({ speaker, content: `<div class="dnd5e chat-card"><header class="card-header"><h3>${escapeHtml(flavor)}</h3></header>${moveDescription(move)}</div>` });
     }
-    const formula = damageFormula(move, level, moveModifier, species);
     if (formula) {
-      const damage = await new Roll(formula).evaluate();
-      const damageType = (move.damage?.type ?? []).map(titleCase).join("/");
-      await damage.toMessage({ speaker, flavor: `${flavor} — ${damageType || "Daño"}` });
+      const DamageRoll = CONFIG.Dice?.DamageRoll;
+      if (DamageRoll) {
+        const damage = await new DamageRoll(formula, {}, { type: damageType }).evaluate();
+        const rollType = damageType === "healing" ? "healing" : "damage";
+        await damage.toMessage({
+          speaker,
+          flavor: `${flavor} — ${typeLabel(damageType)}`,
+          flags: { dnd5e: { messageType: "roll", roll: { type: rollType }, targets: targetDescriptors() } }
+        });
+      } else {
+        const damage = await new Roll(formula).evaluate();
+        await damage.toMessage({ speaker, flavor: `${flavor} — ${typeLabel(damageType)}` });
+      }
     }
     this.render({ force: true });
   }
@@ -259,6 +280,82 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
   #instance() {
     return foundry.utils.deepClone(this.pokemonItem.getFlag(MODULE_ID, "instance"));
   }
+}
+
+async function chooseDamageType(move) {
+  const types = normalizeMoveDamageTypes(move.damage?.type);
+  if (!types.length) return "typeless";
+  if (types.length === 1) return types[0];
+  const options = types.map(type => `<option value="${escapeHtml(type)}" ${type === move.type ? "selected" : ""}>${escapeHtml(typeLabel(type))}</option>`).join("");
+  try {
+    return await foundry.applications.api.DialogV2.prompt({
+      window: { title: `Tipo de daño de ${move.name}` },
+      content: `<div class="poke5e-damage-type-dialog"><p>Este movimiento puede causar varios tipos de daño. Elige el que se aplica en esta tirada.</p><label><span>Tipo de daño</span><select name="damageType">${options}</select></label></div>`,
+      modal: true,
+      rejectClose: false,
+      ok: {
+        label: "Continuar",
+        icon: "fa-solid fa-burst",
+        callback: (event, button) => button.form.elements.damageType.value
+      }
+    });
+  } catch {
+    return null;
+  }
+}
+
+function prepareType(type) {
+  return { id: type, label: typeLabel(type) };
+}
+
+function targetDescriptors() {
+  const targets = new Map();
+  for (const token of game.user.targets ?? []) {
+    const actor = token.actor;
+    if (!actor?.uuid) continue;
+    targets.set(actor.uuid, {
+      name: token.name,
+      img: actor.img,
+      uuid: actor.uuid,
+      ac: actor.statuses?.has("coverTotal") ? null : actor.system.attributes?.ac?.value ?? null
+    });
+  }
+  return [...targets.values()];
+}
+
+function prepareGender(gender, ratio) {
+  const labels = {
+    female: { label: "Hembra", icon: "fa-venus" },
+    male: { label: "Macho", icon: "fa-mars" },
+    none: { label: "Sin sexo", icon: "fa-genderless" },
+    other: { label: "Otro", icon: "fa-transgender" }
+  };
+  const value = labels[gender] ? gender : "none";
+  const [female, male] = String(ratio ?? "0:0").split(":").map(entry => Number(entry) || 0);
+  const total = female + male;
+  const probability = total ? `${Math.round((female / total) * 100)}% hembra · ${Math.round((male / total) * 100)}% macho` : "Especie sin sexo";
+  return { value, ...labels[value], probability };
+}
+
+function prepareEvolutions(evolutions, data) {
+  return evolutions.map(evolution => ({
+    id: evolution.id,
+    toId: evolution.to,
+    toName: data.pokemonById.get(evolution.to)?.name ?? evolution.to,
+    level: evolution.conditions.find(condition => condition.type === "level")?.value ?? null,
+    conditions: evolution.conditions.map(condition => evolutionConditionLabel(condition, data))
+  }));
+}
+
+function evolutionConditionLabel(condition, data) {
+  if (condition.type === "level") return `Nivel ${condition.value}`;
+  if (condition.type === "item") return `Usar ${data.itemsById.get(condition.value)?.name ?? condition.value}`;
+  if (condition.type === "loyalty") return `Vínculo +${condition.value}`;
+  if (condition.type === "move") return `Conocer ${data.movesById.get(condition.value)?.name ?? condition.value}`;
+  if (condition.type === "move-type") return `Conocer un movimiento de tipo ${typeLabel(condition.value)}`;
+  if (condition.type === "gender") return condition.value === "female" ? "Solo hembras" : "Solo machos";
+  if (condition.type === "time") return `Durante: ${titleCase(condition.value)}`;
+  return String(condition.value ?? "Condición especial");
 }
 
 function prepareMove(entry, move, species, level) {

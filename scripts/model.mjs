@@ -1,3 +1,5 @@
+import { pokemonDefenses, typeLabel } from "./combat.mjs";
+
 export const MODULE_ID = "poke5e-foundry";
 export const MODULE_PATH = `modules/${MODULE_ID}`;
 
@@ -41,13 +43,13 @@ export function getPack(key) {
   return game.packs.get(`world.${PACKS[key].name}`);
 }
 
-export function speciesItemSource(species, movesById = new Map()) {
+export function speciesItemSource(species, movesById = new Map(), evolutions = []) {
   const startingMoves = (species.moves?.start ?? []).map(id => ({ id, pp: Math.max(Number(movesById.get(id)?.pp) || 0, 0) }));
   return {
     name: species.name,
     type: "feat",
     img: remoteAssetUrl(species.media?.sprite) || "icons/svg/mystery-man.svg",
-    system: { description: { value: speciesDescription(species), chat: "" } },
+    system: { description: { value: speciesDescription(species, evolutions), chat: "" } },
     flags: { [MODULE_ID]: { kind: "species", sourceId: species.id, species, startingMoves } }
   };
 }
@@ -200,7 +202,7 @@ export function pokemonItemSourceFromSpecies(speciesDocument) {
           hp: { value: Number(species.hp) || 1, max: Number(species.hp) || 1 },
           ac: Number(species.ac) || 10,
           nature: "",
-          gender: "",
+          gender: randomGenderForRatio(species.gender),
           shiny: false,
           inTeam: true,
           status: "",
@@ -223,6 +225,13 @@ export function normalizeDroppedSpecies(item) {
 
 export function getPokemonItems(actor) {
   return actor?.items?.filter(item => item.getFlag(MODULE_ID, "kind") === "pokemon") ?? [];
+}
+
+export function randomGenderForRatio(ratio, random = Math.random) {
+  const [female, male] = String(ratio ?? "0:0").split(":").map(value => Math.max(0, Number(value) || 0));
+  const total = female + male;
+  if (!total) return "none";
+  return random() < female / total ? "female" : "male";
 }
 
 export function displayPokemonName(item) {
@@ -256,9 +265,31 @@ export function assetUrl(baseUrl, path) {
   return `${baseUrl}${path.startsWith("/") ? "" : "/"}${path}`;
 }
 
-function speciesDescription(species) {
+function speciesDescription(species, evolutions = []) {
   const types = (species.type ?? []).map(titleCase).join(" / ");
-  return `<p><strong>#${String(species.number).padStart(4, "0")} · ${escapeHtml(types)}</strong></p>${paragraphs([species.description])}<p><strong>CA:</strong> ${species.ac} · <strong>PG:</strong> ${species.hp} · <strong>SR:</strong> ${species.sr}</p>`;
+  const defenses = pokemonDefenses(species.type);
+  const evolutionText = evolutions.length
+    ? evolutions.map(evolution => `${escapeHtml(titleCase(evolution.to))} (${evolution.conditions.map(conditionShortLabel).join(", ")})`).join(" · ")
+    : "No evoluciona";
+  return `<p><strong>#${String(species.number).padStart(4, "0")} · ${escapeHtml(types)}</strong></p>${paragraphs([species.description])}
+    <p><strong>CA:</strong> ${species.ac} · <strong>PG:</strong> ${species.hp} · <strong>SR:</strong> ${species.sr} · <strong>Sexo F:M:</strong> ${escapeHtml(species.gender ?? "0:0")}</p>
+    <p><strong>Vulnerable:</strong> ${typeList(defenses.vulnerabilities)}<br><strong>Resiste:</strong> ${typeList(defenses.resistances)}<br><strong>Inmune:</strong> ${typeList(defenses.immunities)}</p>
+    <p><strong>Evolución:</strong> ${evolutionText}</p>`;
+}
+
+function typeList(types) {
+  return types.length ? types.map(type => escapeHtml(typeLabel(type))).join(", ") : "—";
+}
+
+function conditionShortLabel(condition) {
+  if (condition.type === "level") return `nivel ${condition.value}`;
+  if (condition.type === "item") return `objeto: ${escapeHtml(condition.value)}`;
+  if (condition.type === "loyalty") return `vínculo +${condition.value}`;
+  if (condition.type === "move") return `movimiento: ${escapeHtml(condition.value)}`;
+  if (condition.type === "move-type") return `movimiento ${escapeHtml(typeLabel(condition.value))}`;
+  if (condition.type === "gender") return condition.value === "female" ? "hembra" : "macho";
+  if (condition.type === "time") return `momento: ${escapeHtml(condition.value)}`;
+  return escapeHtml(condition.value);
 }
 
 function moveDescription(move) {

@@ -4,8 +4,8 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "data");
 const read = async file => JSON.parse(await readFile(resolve(root, file), "utf8"));
-const [pokemon, moves, abilities, items] = await Promise.all([
-  read("pokemon.json"), read("moves.json"), read("abilities.json"), read("items.json")
+const [pokemon, moves, abilities, items, evolutions] = await Promise.all([
+  read("pokemon.json"), read("moves.json"), read("abilities.json"), read("items.json"), read("evolution.json")
 ]);
 
 const checks = [
@@ -19,12 +19,16 @@ for (const [label, values, minimum] of checks) {
   const ids = new Set(values.map(value => value.id));
   if (ids.size !== values.length) throw new Error(`${label}: duplicate ids found.`);
 }
+if (!Array.isArray(evolutions.items) || evolutions.items.length < 500) throw new Error("Expected at least 500 evolutions.");
 const moveIds = new Set(moves.moves.map(move => move.id));
 const abilityIds = new Set(abilities.items.map(ability => ability.id));
 const missingStartMoves = new Set();
 const missingAbilities = new Set();
 const speedTypes = new Set(["walking", "flying", "swimming", "burrowing", "climbing", "hover"]);
+const pokemonTypes = new Set(["bug", "dark", "dragon", "electric", "fairy", "fighting", "fire", "flying", "ghost", "grass", "ground", "ice", "normal", "poison", "psychic", "rock", "steel", "water"]);
 for (const species of pokemon.items) {
+  if (!species.type?.length || species.type.some(type => !pokemonTypes.has(type))) throw new Error(`${species.id}: invalid Pokémon type.`);
+  if (!/^\d+:\d+$/.test(species.gender ?? "")) throw new Error(`${species.id}: invalid gender ratio ${species.gender}.`);
   for (const id of species.moves?.start ?? []) if (!moveIds.has(id)) missingStartMoves.add(id);
   for (const ability of species.abilities ?? []) if (!abilityIds.has(ability.id)) missingAbilities.add(ability.id);
   if (!species.speed?.length) throw new Error(`${species.id}: missing movement speed.`);
@@ -32,6 +36,20 @@ for (const species of pokemon.items) {
     if (!speedTypes.has(speed.type)) throw new Error(`${species.id}: unknown movement type ${speed.type}.`);
     if (!Number.isFinite(Number(speed.value)) || Number(speed.value) < 0) throw new Error(`${species.id}: invalid ${speed.type} speed.`);
   }
+}
+const pokemonIds = new Set(pokemon.items.map(species => species.id));
+const evolutionConditionTypes = new Set(["level", "item", "loyalty", "move", "move-type", "gender", "time", "special"]);
+for (const evolution of evolutions.items) {
+  if (!pokemonIds.has(evolution.from) || !pokemonIds.has(evolution.to)) throw new Error(`${evolution.id}: unknown evolution species.`);
+  if (!evolution.conditions?.length) throw new Error(`${evolution.id}: evolution has no conditions.`);
+  for (const condition of evolution.conditions) {
+    if (!evolutionConditionTypes.has(condition.type)) throw new Error(`${evolution.id}: unknown condition ${condition.type}.`);
+  }
+}
+const moveDamageTypes = new Set([...pokemonTypes, "healing", "stellar", "typeless"]);
+for (const move of moves.moves) {
+  const damageTypes = Array.isArray(move.damage?.type) ? move.damage.type : move.damage?.type ? [move.damage.type] : [];
+  for (const type of damageTypes) if (!moveDamageTypes.has(type)) throw new Error(`${move.id}: unknown damage type ${type}.`);
 }
 if (missingStartMoves.size) throw new Error(`Missing starting moves: ${[...missingStartMoves].join(", ")}`);
 if (missingAbilities.size) throw new Error(`Missing abilities: ${[...missingAbilities].join(", ")}`);

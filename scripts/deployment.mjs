@@ -1,5 +1,6 @@
 import { MODULE_ID, displayPokemonName, portraitUrl, remoteAssetUrl } from "./model.mjs";
 import { loadPoke5eData } from "./data-service.mjs";
+import { damageTraitsForPokemonTypes } from "./combat.mjs";
 
 const DEPLOY_RANGE = 10;
 const deploymentCleanup = new Map();
@@ -221,6 +222,7 @@ async function deployedActorSource(pokemonItem) {
   }
   const tokenSize = { tiny: 0.5, small: 1, medium: 1, large: 2, huge: 3, gargantuan: 4 }[species.size] ?? 1;
   const size = { tiny: "tiny", small: "sm", medium: "med", large: "lg", huge: "huge", gargantuan: "grg" }[species.size] ?? "med";
+  const damageTraits = damageTraitsForPokemonTypes(species.type);
   const moveItems = (instance.moves ?? []).map(entry => data.movesById.get(entry.moveId)).filter(Boolean).map(move => ({
     name: move.name,
     type: "feat",
@@ -251,7 +253,7 @@ async function deployedActorSource(pokemonItem) {
         type: { value: "custom", custom: `Pokémon (${(species.type ?? []).join(" / ")})` },
         biography: { value: `<p>${foundry.utils.escapeHTML(species.description ?? "")}</p>` }
       },
-      traits: { size }
+      traits: { size, ...damageTraits }
     },
     items: moveItems,
     flags: {
@@ -259,7 +261,8 @@ async function deployedActorSource(pokemonItem) {
         kind: "deployed",
         pokemonItemUuid: pokemonItem.uuid,
         trainerUuid: trainer.uuid,
-        speciesId: species.id
+        speciesId: species.id,
+        pokemonTypes: species.type ?? []
       }
     }
   };

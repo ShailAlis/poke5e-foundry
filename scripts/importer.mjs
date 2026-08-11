@@ -68,7 +68,11 @@ export class Poke5eImporter extends HandlebarsApplicationMixin(ApplicationV2) {
         setStatus(status, "Actualizando compendio de especies…", 15);
         const selected = selectPokemon(data.pokemon, options.pokemonIds);
         const pack = await ensurePack("species");
-        itemCount += await upsertPackItems(pack, selected.map(species => speciesItemSource(species, data.movesById)), status, 15, 45);
+        itemCount += await upsertPackItems(pack, selected.map(species => speciesItemSource(
+          species,
+          data.movesById,
+          data.evolutionsByFrom.get(species.id) ?? []
+        )), status, 15, 45);
       }
       if (options.moves) {
         setStatus(status, "Actualizando compendio de movimientos…", 48);
@@ -198,7 +202,7 @@ function referenceJournalHtml() {
   const links = [
     ["Reglas básicas", "/reference/core-rules"], ["Clase de Entrenador", "/reference/trainer-class"],
     ["Caminos de Entrenador", "/reference/trainer-paths"], ["Especializaciones", "/reference/specializations"],
-    ["Combate", "/reference/combat"], ["Capturar Pokémon", "/reference/catching-pokemon"],
+    ["Combate", "/reference/combat"], ["Tipos de daño", "/reference/damage-types"], ["Capturar Pokémon", "/reference/catching-pokemon"],
     ["Subir de nivel", "/reference/pokemon-leveling"], ["Estados", "/reference/status-conditions"]
   ];
   return `<h1>Pokémon 5e</h1><p>Referencia de reglas del proyecto Poke5e.</p><ul>${links.map(([label, path]) => `<li><a href="${localizedReferenceUrl(path)}" target="_blank" rel="noopener">${label}</a></li>`).join("")}</ul>`;

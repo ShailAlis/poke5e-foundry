@@ -2,11 +2,13 @@ import { Poke5eImporter } from "./importer.mjs";
 import { Poke5ePokemonSheet } from "./pokemon-sheet.mjs";
 import { Poke5eReference } from "./reference.mjs";
 import { Poke5eTrainerTeam } from "./trainer-team.mjs";
-import { MODULE_ID, displayAssetUrl, getPokemonItems, normalizeDroppedSpecies } from "./model.mjs";
+import { MODULE_ID, displayAssetUrl, getPokemonItems, normalizeDroppedSpecies, randomGenderForRatio } from "./model.mjs";
 import { cleanDeploymentActor, recallPokemon, syncDeploymentHp, syncPokemonHpToDeployment } from "./deployment.mjs";
 import { registerTrainerActorSheet } from "./trainer-actor-sheet.mjs";
+import { damageTraitsForPokemonTypes, registerPokemonDamageTypes } from "./combat.mjs";
 
 Hooks.once("init", () => {
+  registerPokemonDamageTypes();
   registerTrainerActorSheet();
   game.settings.register(MODULE_ID, "darkMode", {
     name: "POKE5E.Settings.DarkMode.Name",
@@ -45,7 +47,10 @@ Hooks.once("ready", () => {
     openTeam: actor => openTeam(actor ?? canvas?.tokens?.controlled?.[0]?.actor),
     openPokemon: document => openPokemon(document)
   };
-  if (game.user.isGM) migrateEmbeddedAssetUrls().catch(error => console.error(`${MODULE_ID} | Asset migration failed`, error));
+  if (game.user.isGM) {
+    migrateEmbeddedAssetUrls().catch(error => console.error(`${MODULE_ID} | Asset migration failed`, error));
+    migratePokemonCombatData().catch(error => console.error(`${MODULE_ID} | Combat data migration failed`, error));
+  }
 });
 
 function applyDarkMode(enabled) {
@@ -138,6 +143,31 @@ async function migrateEmbeddedAssetUrls() {
       return entries;
     }, []);
     if (updates.length) await actor.updateEmbeddedDocuments("Item", updates);
+  }
+}
+
+async function migratePokemonCombatData() {
+  for (const actor of game.actors) {
+    const updates = [];
+    for (const item of getPokemonItems(actor)) {
+      const instance = foundry.utils.deepClone(item.getFlag(MODULE_ID, "instance") ?? {});
+      if (["female", "male", "none", "other"].includes(instance.gender)) continue;
+      const species = item.getFlag(MODULE_ID, "species") ?? {};
+      instance.gender = randomGenderForRatio(species.gender);
+      updates.push({ _id: item.id, [`flags.${MODULE_ID}.instance`]: instance });
+    }
+    if (updates.length) await actor.updateEmbeddedDocuments("Item", updates);
+
+    if (actor.getFlag(MODULE_ID, "kind") !== "deployed") continue;
+    const pokemonItem = await fromUuid(actor.getFlag(MODULE_ID, "pokemonItemUuid"));
+    const species = pokemonItem?.getFlag(MODULE_ID, "species");
+    if (!species) continue;
+    const traits = damageTraitsForPokemonTypes(species.type);
+    await actor.update({
+      "system.traits.dr": traits.dr,
+      "system.traits.dv": traits.dv,
+      "system.traits.di": traits.di
+    });
   }
 }
 

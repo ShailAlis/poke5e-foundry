@@ -10,7 +10,7 @@ const websiteAssets = resolve(moduleRoot, "..", "static", "assets");
 const moduleAssets = resolve(moduleRoot, "assets");
 
 await mkdir(resolve(moduleData, "es"), { recursive: true });
-for (const file of ["pokemon.json", "moves.json", "abilities.json", "items.json"]) {
+for (const file of ["pokemon.json", "moves.json", "abilities.json", "items.json", "evolution.json"]) {
   await cp(resolve(websiteData, file), resolve(moduleData, file));
 }
 for (const file of ["moves.json", "abilities.json", "items.json"]) {

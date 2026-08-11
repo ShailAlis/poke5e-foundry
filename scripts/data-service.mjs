@@ -10,11 +10,12 @@ export async function loadPoke5eData(language = game.settings.get(MODULE_ID, "da
 }
 
 async function load(language) {
-  const [pokemon, movesEn, abilitiesEn, itemsEn] = await Promise.all([
+  const [pokemon, movesEn, abilitiesEn, itemsEn, evolutions] = await Promise.all([
     fetchJson("pokemon.json"),
     fetchJson("moves.json"),
     fetchJson("abilities.json"),
-    fetchJson("items.json")
+    fetchJson("items.json"),
+    fetchJson("evolution.json")
   ]);
   let moves = movesEn.moves;
   let abilities = abilitiesEn.items;
@@ -29,11 +30,19 @@ async function load(language) {
     abilities = mergeTranslation(abilities, abilitiesLocal.items);
     items = mergeTranslation(items, itemsLocal.items);
   }
+  const evolutionsByFrom = new Map();
+  for (const evolution of evolutions.items) {
+    const entries = evolutionsByFrom.get(evolution.from) ?? [];
+    entries.push(evolution);
+    evolutionsByFrom.set(evolution.from, entries);
+  }
   return {
     pokemon: pokemon.items,
     moves,
     abilities,
     items,
+    evolutions: evolutions.items,
+    evolutionsByFrom,
     pokemonById: new Map(pokemon.items.map(value => [value.id, value])),
     movesById: new Map(moves.map(value => [value.id, value])),
     abilitiesById: new Map(abilities.map(value => [value.id, value])),
