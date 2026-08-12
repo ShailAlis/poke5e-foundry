@@ -82,6 +82,23 @@ export async function syncPokemonHpToDeployment(item) {
   await actor.update({ "system.attributes.hp.value": Number(hp.value) || 0, "system.attributes.hp.max": Number(hp.max) || 1 });
 }
 
+export async function syncPokemonIdentityToDeployment(item) {
+  const actor = deployedActorFor(item);
+  if (!actor) return;
+  const name = displayPokemonName(item);
+  const actorName = `${name} [En combate]`;
+  const updates = {};
+  if (actor.name !== actorName) updates.name = actorName;
+  if (actor.prototypeToken.name !== name) updates["prototypeToken.name"] = name;
+  if (Object.keys(updates).length) await actor.update(updates);
+  for (const scene of game.scenes) {
+    const tokenUpdates = scene.tokens
+      .filter(token => token.actorId === actor.id && token.name !== name)
+      .map(token => ({ _id: token.id, name }));
+    if (tokenUpdates.length) await scene.updateEmbeddedDocuments("Token", tokenUpdates);
+  }
+}
+
 export async function cleanDeploymentActor(token) {
   const actor = game.actors.get(token.actorId);
   if (!actor || !["deployed", "wild"].includes(actor.getFlag(MODULE_ID, "kind"))) return;

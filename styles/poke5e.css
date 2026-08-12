@@ -409,6 +409,8 @@
 .poke5e-held-item-actions { display: grid; align-content: start; gap: 0.35rem; }
 .poke5e-held-item-actions label { display: grid; gap: 0.2rem; font-size: 0.75rem; font-weight: 800; }
 .poke5e-held-item-actions button { width: auto; margin: 0; }
+.poke5e-nickname-field { display: grid; grid-template-columns: auto minmax(110px, 1fr); align-items: center; gap: 0.4rem; margin: 0.3rem 0; font-size: 0.72rem; font-weight: 900; }
+.poke5e-nickname-field input { width: 100%; min-width: 0; height: 1.8rem; color: #18212b; background: rgba(255, 255, 255, 0.9); }
 .poke5e-base-abilities { display: grid; grid-template-columns: repeat(6, minmax(70px, 1fr)); gap: 0.45rem; }
 .poke5e-base-abilities label { display: grid; gap: 0.2rem; text-align: center; font-weight: 800; }
 .poke5e-base-abilities select, .poke5e-base-abilities input { width: 100%; text-align: center; }

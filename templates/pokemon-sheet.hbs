@@ -6,6 +6,7 @@
       <p class="eyebrow">Pokédex · Nivel {{level}}</p>
       <h1>{{name}}</h1>
       {{#if instance.nickname}}<p class="poke5e-species-name">{{species.name}}</p>{{/if}}
+      {{#if canEdit}}<label class="poke5e-nickname-field"><span>Mote</span><input type="text" maxlength="80" value="{{instance.nickname}}" placeholder="Escribe un mote…" data-action="change-nickname"></label>{{/if}}
       <div class="poke5e-types">
         {{#each types}}<span class="poke5e-type type-{{id}}">{{label}}</span>{{/each}}
       </div>

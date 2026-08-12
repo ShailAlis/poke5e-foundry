@@ -2,7 +2,7 @@ import { MODULE_ID, MODULE_PATH, displayAssetUrl, displayPokemonName, getPokemon
 import { experienceProgress } from "./progression.mjs";
 import { Poke5eSpeciesBrowser } from "./species-browser.mjs";
 import { Poke5ePokemonSheet } from "./pokemon-sheet.mjs";
-import { deployPokemon, recallPokemon, deployedActorFor } from "./deployment.mjs";
+import { deployPokemon, recallPokemon, deployedActorFor, syncPokemonIdentityToDeployment } from "./deployment.mjs";
 import { attemptCapture } from "./capture.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin, DialogV2 } = foundry.applications.api;
@@ -121,6 +121,7 @@ export class Poke5eTrainerTeam extends HandlebarsApplicationMixin(ApplicationV2)
     const update = { [`flags.${MODULE_ID}.instance`]: instance };
     if (field === "nickname") update.name = value.trim() || item.getFlag(MODULE_ID, "species").name;
     await item.update(update);
+    if (field === "nickname") await syncPokemonIdentityToDeployment(item);
     this.render({ force: true });
   }
 }

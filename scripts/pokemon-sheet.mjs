@@ -2,7 +2,7 @@ import { loadPoke5eData } from "./data-service.mjs";
 import { MODULE_ID, MODULE_PATH, displayPokemonName, gearItemSource, portraitUrl } from "./model.mjs";
 import { MAX_KNOWN_MOVES, applyLearnedMove, filterMoveCatalog, moveEligibility } from "./move-learning.mjs";
 import { normalizeMoveDamageTypes, pokemonDefenses, typeLabel } from "./combat.mjs";
-import { recallPokemon } from "./deployment.mjs";
+import { recallPokemon, syncPokemonIdentityToDeployment } from "./deployment.mjs";
 import { CONTEST_TYPES, contestAppealOutcome, contestCompatibility, contestDetailsForMove, contestTypeOptions } from "./contests.mjs";
 import {
   evolutionReadiness,
@@ -177,6 +177,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     this.element.querySelector("[data-action='add-experience']")?.addEventListener("click", () => this.#addExperience());
     this.element.querySelectorAll("[data-action='evolve-pokemon']").forEach(button => button.addEventListener("click", event => this.#evolve(event)));
     this.element.querySelector("[data-action='change-hp']")?.addEventListener("change", event => this.#changeHp(event));
+    this.element.querySelector("[data-action='change-nickname']")?.addEventListener("change", event => this.#changeNickname(event));
     this.element.querySelector("[data-action='equip-held-item']")?.addEventListener("change", event => this.#equipHeldItem(event));
     this.element.querySelector("[data-action='use-held-item']")?.addEventListener("click", () => this.#useHeldItem());
     this.element.querySelector("[data-action='restore-held-item']")?.addEventListener("click", () => this.#restoreHeldItem());
@@ -260,6 +261,19 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const instance = this.#instance();
     instance.hp.value = Math.max(0, Math.min(Number(instance.hp.max) || 1, Number(event.currentTarget.value) || 0));
     await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
+    this.render({ force: true });
+  }
+
+  async #changeNickname(event) {
+    if (!this.pokemonItem.isOwner) return;
+    const instance = this.#instance();
+    const species = this.pokemonItem.getFlag(MODULE_ID, "species") ?? {};
+    instance.nickname = String(event.currentTarget.value ?? "").trim().slice(0, 80);
+    await this.pokemonItem.update({
+      name: instance.nickname || species.name || this.pokemonItem.name,
+      [`flags.${MODULE_ID}.instance`]: instance
+    });
+    await syncPokemonIdentityToDeployment(this.pokemonItem);
     this.render({ force: true });
   }
 
