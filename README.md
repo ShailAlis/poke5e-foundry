@@ -32,6 +32,7 @@ Las versiones posteriores aparecerán al usar **Comprobar actualización** o **A
 - Buscador de especies con filtros por tipo, rango de SR/CR y nivel mínimo, además de distintas ordenaciones.
 - Ficha Pokédex para cada Pokémon individual.
 - Gestor de movimientos por especie: distingue ataques disponibles, futuros, aprendibles mediante MT o huevo e incompatibles, y bloquea aprendizajes no válidos.
+- Selector Combate/Concurso en cada ficha Pokémon, con categoría, Appeal, Jam, compatibilidad, efectos y tiradas contra la CD del juez.
 - Tiradas de ataque y daño, cálculo de MOVE, CD y consumo/restauración de PP.
 - Los 18 tipos de daño Pokémon se integran en D&D 5e sin eliminar sus tipos habituales. Las tiradas Pokémon usan el flujo de daño de D&D y aplican automáticamente resistencias, vulnerabilidades e inmunidades a los actores desplegados.
 - Cada Pokémon conserva un sexo generado según la proporción F:M de su especie y muestra sus posibles evoluciones con sus niveles y demás condiciones.
@@ -90,6 +91,10 @@ La versión 1.0 incorpora el sistema de combate por tipos. Los Pokémon ya guard
 ## Actualización a 1.1
 
 La versión 1.1 incorpora experiencia y evolución, el generador de encuentros salvajes y el sistema de captura. Para capturar, añade Poké Balls desde el compendio de objetos al inventario del entrenador, selecciona como objetivo un token salvaje y pulsa **Capturar objetivo** en la pestaña o gestor de equipo. Los actores salvajes se eliminan automáticamente después de una captura o al borrar su último token.
+
+## Actualización a 1.4
+
+La versión 1.4 añade el modo **Concurso** a las fichas Pokémon. El selector Combate/Concurso cambia la presentación de los movimientos y permite elegir la categoría actual, consultar Appeal, Jam, compatibilidad y efectos, y realizar pruebas contra la CD del juez. Los movimientos aún no definidos por las reglas originales muestran una alternativa sugerida basada en su tipo.
 
 ## Actualización a 1.2
 

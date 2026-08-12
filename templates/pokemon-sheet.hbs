@@ -21,6 +21,14 @@
     </div>
   </header>
 
+  <nav class="poke5e-sheet-mode" aria-label="Modo de la ficha">
+    <button type="button" data-action="sheet-mode" data-mode="combat" class="{{#if sheetMode.combat}}active{{/if}}"><i class="fa-solid fa-shield-halved"></i> Combate</button>
+    <button type="button" data-action="sheet-mode" data-mode="contest" class="{{#if sheetMode.contest}}active{{/if}}"><i class="fa-solid fa-star"></i> Concurso</button>
+    {{#if sheetMode.contest}}
+      <label><span>Categoría actual</span><select data-action="contest-type">{{selectOptions contest.typeOptions selected=contest.type}}</select></label>
+    {{/if}}
+  </nav>
+
   <section class="poke5e-experience-panel" aria-label="Experiencia">
     <div class="poke5e-experience-heading">
       <h2><i class="fa-solid fa-star"></i> Experiencia</h2>
@@ -55,7 +63,7 @@
     </div>
   </section>
 
-  <section class="poke5e-combat-profile" aria-label="Afinidades de daño">
+  {{#if sheetMode.combat}}<section class="poke5e-combat-profile" aria-label="Afinidades de daño">
     <div class="poke5e-defense-group vulnerable">
       <h2><i class="fa-solid fa-heart-crack"></i> Vulnerabilidades</h2>
       <div class="poke5e-types">{{#each defenses.vulnerabilities}}<span class="poke5e-type type-{{id}}">{{label}}</span>{{else}}<span class="poke5e-none">Ninguna</span>{{/each}}</div>
@@ -68,7 +76,12 @@
       <h2><i class="fa-solid fa-shield"></i> Inmunidades</h2>
       <div class="poke5e-types">{{#each defenses.immunities}}<span class="poke5e-type type-{{id}}">{{label}}</span>{{else}}<span class="poke5e-none">Ninguna</span>{{/each}}</div>
     </div>
+  </section>{{else}}
+  <section class="poke5e-contest-overview contest-{{contest.type}}" aria-label="Modo concurso">
+    <div><i class="fa-solid {{contest.icon}}"></i><span>Concurso actual</span><strong>{{contest.label}}</strong></div>
+    <p>Los movimientos muestran Appeal, Jam, compatibilidad y su efecto de concurso. La tirada permite elegir Interpretación o una característica válida, la CD del juez y ventaja o desventaja.</p>
   </section>
+  {{/if}}
 
   <section class="poke5e-evolution-panel" aria-label="Evoluciones">
     <h2><i class="fa-solid fa-dna"></i> Evolución</h2>
@@ -93,7 +106,7 @@
 
   <section>
     <div class="poke5e-section-title">
-      <h2>Movimientos</h2>
+      <h2>{{#if sheetMode.contest}}Movimientos de concurso{{else}}Movimientos de combate{{/if}}</h2>
       <span>{{moves.length}}/{{maxKnownMoves}} conocidos</span>
       {{#if canEdit}}<button type="button" data-action="toggle-move-manager"><i class="fa-solid fa-list-check"></i> {{#if moveManager.open}}Cerrar gestor{{else}}Gestionar movimientos{{/if}}</button>{{/if}}
     </div>
@@ -111,8 +124,8 @@
           {{#each moveManager.entries}}
             <details class="poke5e-move-catalog-entry {{#unless compatible}}incompatible{{/unless}} {{#if future}}future{{/if}}">
               <summary>
-                <span class="poke5e-type type-{{type}}">{{type}}</span>
-                <div class="poke5e-move-catalog-name"><strong>{{name}}</strong><small>PP {{pp}}</small></div>
+                {{#if @root.sheetMode.contest}}<span class="poke5e-contest-type contest-{{contest.contest}}"><i class="fa-solid {{contest.icon}}"></i> {{contest.label}}</span>{{else}}<span class="poke5e-type type-{{type}}">{{type}}</span>{{/if}}
+                <div class="poke5e-move-catalog-name"><strong>{{name}}</strong><small>{{#if @root.sheetMode.contest}}Appeal {{contest.appeal}} · Jam {{contest.jam}}{{else}}PP {{pp}}{{/if}}</small></div>
                 <div class="poke5e-learning-methods">
                   {{#each methods}}<span>{{label}}</span>{{else}}<span class="warning">No compatible</span>{{/each}}
                 </div>
@@ -124,6 +137,14 @@
                 <i class="fa-solid fa-chevron-down poke5e-catalog-expand" title="Mostrar información"></i>
               </summary>
               <div class="poke5e-move-catalog-effect">
+                {{#if @root.sheetMode.contest}}
+                <div class="poke5e-contest-move-summary contest-{{contest.contest}}">
+                  <span class="poke5e-contest-type"><i class="fa-solid {{contest.icon}}"></i> {{contest.label}}</span>
+                  <span>Appeal <strong>{{contest.appeal}}</strong></span><span>Jam <strong>{{contest.jam}}</strong></span>
+                  <span class="compatibility {{contest.compatibility.id}}">{{contest.compatibility.label}}</span>
+                </div>
+                <div class="poke5e-description"><strong>{{contest.effect.name}}</strong><p>{{contest.effect.effect}}</p></div>
+                {{else}}
                 <div class="poke5e-move-meta">
                   <span><strong>Activación:</strong> {{time}}</span>
                   <span><strong>Alcance:</strong> {{range}}</span>
@@ -133,6 +154,7 @@
                   <span><strong>Daño:</strong> {{damage}}</span>
                 </div>
                 <div class="poke5e-description">{{{description}}}</div>
+                {{/if}}
               </div>
             </details>
           {{else}}<div class="poke5e-empty">No hay movimientos en esta categoría.</div>{{/each}}
@@ -141,28 +163,41 @@
     {{/if}}
     <div class="poke5e-move-list">
       {{#each moves}}
-        <details class="poke5e-move type-border-{{type}}">
+        <details class="poke5e-move {{#if ../sheetMode.contest}}contest-border-{{contest.contest}}{{else}}type-border-{{type}}{{/if}}">
           <summary>
-            <span class="poke5e-type type-{{type}}">{{type}}</span>
+            {{#if ../sheetMode.contest}}<span class="poke5e-contest-type contest-{{contest.contest}}"><i class="fa-solid {{contest.icon}}"></i> {{contest.label}}</span>{{else}}<span class="poke5e-type type-{{type}}">{{type}}</span>{{/if}}
             <strong>{{name}}</strong>
+            {{#if ../sheetMode.contest}}
+            <span class="poke5e-contest-hearts" title="Appeal {{contest.appeal}} · Jam {{contest.jam}}"><span class="appeal"><i class="fa-solid fa-heart"></i> {{contest.appeal}}</span><span class="jam"><i class="fa-regular fa-heart"></i> {{contest.jam}}</span></span>
+            <span class="poke5e-contest-compatibility {{contest.compatibility.id}}">{{contest.compatibility.label}}</span>
+            {{else}}
             <span class="poke5e-move-rolls">
               {{#if attackBonus}}Ataque {{attackBonus}}{{/if}}
               {{#if saveDc}}CD {{saveDc}}{{/if}}
               · {{damage}}
             </span>
             {{#if hasPp}}<span class="poke5e-pp">PP {{pp.value}}/{{pp.max}}</span>{{/if}}
+            {{/if}}
           </summary>
           <div class="poke5e-move-body">
             <div class="poke5e-learning-methods known-move">
               {{#each learningMethods}}<span>{{label}}</span>{{/each}}
               {{#if learningWarning}}<span class="warning"><i class="fa-solid fa-triangle-exclamation"></i> {{learningWarning}}</span>{{/if}}
             </div>
-            <div class="poke5e-move-meta"><span>{{time}}</span><span>{{range}}</span></div>
-            <div class="poke5e-description">{{{description}}}</div>
+            {{#if ../sheetMode.contest}}
+              <div class="poke5e-contest-details contest-{{contest.contest}}">
+                <div><span>Appeal</span><strong>{{contest.appeal}}</strong></div><div><span>Jam</span><strong>{{contest.jam}}</strong></div><div><span>Move Power</span><strong>{{contest.power}}</strong></div>
+              </div>
+              {{#if contest.fallback}}<div class="poke5e-callout"><i class="fa-solid fa-wand-magic-sparkles"></i> Definición sugerida por el tipo del movimiento; el original aún no tiene datos propios.</div>{{/if}}
+              <div class="poke5e-description"><h3>{{contest.effect.name}}</h3><p>{{contest.effect.effect}}</p></div>
+            {{else}}
+              <div class="poke5e-move-meta"><span>{{time}}</span><span>{{range}}</span></div>
+              <div class="poke5e-description">{{{description}}}</div>
+            {{/if}}
             <div class="poke5e-actions inline">
               {{#if ../canEdit}}{{#if hasPp}}<button type="button" data-action="restore-pp" data-move-entry-id="{{entryId}}" title="Restaurar PP"><i class="fa-solid fa-rotate-left"></i></button>{{/if}}
               <button type="button" data-action="remove-move" data-move-entry-id="{{entryId}}" title="Olvidar movimiento"><i class="fa-solid fa-trash"></i></button>{{/if}}
-              <button type="button" class="bright" data-action="roll-move" data-move-entry-id="{{entryId}}"><i class="fa-solid fa-dice-d20"></i> Usar movimiento</button>
+              {{#if ../sheetMode.contest}}<button type="button" class="bright contest-roll" data-action="roll-contest-move" data-move-entry-id="{{entryId}}"><i class="fa-solid fa-star"></i> Realizar en concurso</button>{{else}}<button type="button" class="bright" data-action="roll-move" data-move-entry-id="{{entryId}}"><i class="fa-solid fa-dice-d20"></i> Usar movimiento</button>{{/if}}
             </div>
           </div>
         </details>

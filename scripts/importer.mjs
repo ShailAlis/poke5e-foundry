@@ -203,7 +203,7 @@ function referenceJournalHtml() {
     ["Reglas básicas", "/reference/core-rules"], ["Clase de Entrenador", "/reference/trainer-class"],
     ["Caminos de Entrenador", "/reference/trainer-paths"], ["Especializaciones", "/reference/specializations"],
     ["Combate", "/reference/combat"], ["Tipos de daño", "/reference/damage-types"], ["Capturar Pokémon", "/reference/catching-pokemon"],
-    ["Subir de nivel", "/reference/pokemon-leveling"], ["Estados", "/reference/status-conditions"]
+    ["Subir de nivel", "/reference/pokemon-leveling"], ["Concursos Pokémon", "/reference/contests"], ["Estados", "/reference/status-conditions"]
   ];
   return `<h1>Pokémon 5e</h1><p>Referencia de reglas del proyecto Poke5e.</p><ul>${links.map(([label, path]) => `<li><a href="${localizedReferenceUrl(path)}" target="_blank" rel="noopener">${label}</a></li>`).join("")}</ul>`;
 }

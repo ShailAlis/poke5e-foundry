@@ -10,12 +10,14 @@ export async function loadPoke5eData(language = game.settings.get(MODULE_ID, "da
 }
 
 async function load(language) {
-  const [pokemon, movesEn, abilitiesEn, itemsEn, evolutions] = await Promise.all([
+  const [pokemon, movesEn, abilitiesEn, itemsEn, evolutions, contests, contestEffects] = await Promise.all([
     fetchJson("pokemon.json"),
     fetchJson("moves.json"),
     fetchJson("abilities.json"),
     fetchJson("items.json"),
-    fetchJson("evolution.json")
+    fetchJson("evolution.json"),
+    fetchJson("contest.json"),
+    fetchJson("contest-effects.json")
   ]);
   let moves = movesEn.moves;
   let abilities = abilitiesEn.items;
@@ -30,6 +32,13 @@ async function load(language) {
     abilities = mergeTranslation(abilities, abilitiesLocal.items);
     items = mergeTranslation(items, itemsLocal.items);
   }
+  const contestById = new Map(contests.items.map(value => [value.id, value]));
+  const contestEffectsById = new Map(contestEffects.items.map(value => [String(value.id), value]));
+  moves = moves.map(move => {
+    const contest = contestById.get(move.id);
+    if (!contest) return move;
+    return { ...move, contest: { ...contest, effect: contestEffectsById.get(String(contest.effect)) ?? contest.effect } };
+  });
   const evolutionsByFrom = new Map();
   for (const evolution of evolutions.items) {
     const entries = evolutionsByFrom.get(evolution.from) ?? [];
@@ -41,12 +50,14 @@ async function load(language) {
     moves,
     abilities,
     items,
+    contestEffects: contestEffects.items,
     evolutions: evolutions.items,
     evolutionsByFrom,
     pokemonById: new Map(pokemon.items.map(value => [value.id, value])),
     movesById: new Map(moves.map(value => [value.id, value])),
     abilitiesById: new Map(abilities.map(value => [value.id, value])),
-    itemsById: new Map(items.map(value => [value.id, value]))
+    itemsById: new Map(items.map(value => [value.id, value])),
+    contestEffectsById
   };
 }
 

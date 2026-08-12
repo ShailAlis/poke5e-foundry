@@ -3,6 +3,7 @@ import { MODULE_ID, MODULE_PATH, displayPokemonName, portraitUrl } from "./model
 import { MAX_KNOWN_MOVES, applyLearnedMove, filterMoveCatalog, moveEligibility } from "./move-learning.mjs";
 import { normalizeMoveDamageTypes, pokemonDefenses, typeLabel } from "./combat.mjs";
 import { recallPokemon } from "./deployment.mjs";
+import { CONTEST_TYPES, contestAppealOutcome, contestCompatibility, contestDetailsForMove, contestTypeOptions } from "./contests.mjs";
 import {
   evolutionReadiness,
   experienceAtLevel,
@@ -35,6 +36,8 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     this.moveManagerOpen = false;
     this.moveFilters = { query: "", category: "available" };
     this.refocusMoveSearch = false;
+    this.sheetMode = "combat";
+    this.contestType = "cool";
   }
 
   get title() {
@@ -49,7 +52,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const level = Number(instance.level) || 1;
     const moves = (instance.moves ?? []).map(entry => {
       const move = data.movesById.get(entry.moveId);
-      return move ? prepareMove(entry, move, combatSpecies, level) : null;
+      return move ? prepareMove(entry, move, combatSpecies, level, data.contestEffectsById, this.contestType) : null;
     }).filter(Boolean);
     const knownMoveIds = new Set((instance.moves ?? []).map(entry => entry.moveId));
     const catalog = this.moveManagerOpen
@@ -85,6 +88,13 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
         awardLabel: formatNumber(experienceAward(level, species.sr))
       },
       moves,
+      sheetMode: { id: this.sheetMode, combat: this.sheetMode === "combat", contest: this.sheetMode === "contest" },
+      contest: {
+        type: this.contestType,
+        label: CONTEST_TYPES[this.contestType].label,
+        icon: CONTEST_TYPES[this.contestType].icon,
+        typeOptions: contestTypeOptions()
+      },
       maxKnownMoves: MAX_KNOWN_MOVES,
       moveLimitExceeded: moves.length > MAX_KNOWN_MOVES,
       moveManager: {
@@ -98,7 +108,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
         },
         total: catalog.length,
         truncated: catalog.length > 120,
-        entries: catalog.slice(0, 120).map(entry => prepareCatalogMove(entry, data.movesById.get(entry.id), combatSpecies, level))
+        entries: catalog.slice(0, 120).map(entry => prepareCatalogMove(entry, data.movesById.get(entry.id), combatSpecies, level, data.contestEffectsById, this.contestType))
       },
       abilities,
       abilityScores,
@@ -121,6 +131,15 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
   _onRender(context, options) {
     super._onRender(context, options);
     this.element.querySelectorAll("[data-action='roll-move']").forEach(button => button.addEventListener("click", event => this.#rollMove(event)));
+    this.element.querySelectorAll("[data-action='roll-contest-move']").forEach(button => button.addEventListener("click", event => this.#rollContestMove(event)));
+    this.element.querySelectorAll("[data-action='sheet-mode']").forEach(button => button.addEventListener("click", event => {
+      this.sheetMode = event.currentTarget.dataset.mode === "contest" ? "contest" : "combat";
+      this.render({ force: true });
+    }));
+    this.element.querySelector("[data-action='contest-type']")?.addEventListener("change", event => {
+      this.contestType = CONTEST_TYPES[event.currentTarget.value] ? event.currentTarget.value : "cool";
+      this.render({ force: true });
+    });
     this.element.querySelectorAll("[data-action='restore-pp']").forEach(button => button.addEventListener("click", event => this.#restorePp(event)));
     this.element.querySelectorAll("[data-action='remove-move']").forEach(button => button.addEventListener("click", event => this.#removeMove(event)));
     this.element.querySelectorAll("[data-action='remove-ability']").forEach(button => button.addEventListener("click", event => this.#removeAbility(event)));
@@ -368,10 +387,105 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     this.render({ force: true });
   }
 
+  async #rollContestMove(event) {
+    const data = await loadPoke5eData();
+    const instance = this.#instance();
+    const entry = instance.moves.find(candidate => candidate.id === event.currentTarget.dataset.moveEntryId);
+    const move = data.movesById.get(entry?.moveId);
+    if (!entry || !move) return;
+    const storedSpecies = this.pokemonItem.getFlag(MODULE_ID, "species") ?? {};
+    const species = { ...storedSpecies, attributes: instance.attributes ?? storedSpecies.attributes ?? {} };
+    const level = Number(instance.level) || 1;
+    const proficiency = 2 + Math.floor((level - 1) / 4);
+    const methods = contestRollMethods(species, move, proficiency);
+    const selection = await promptContestRoll(move, methods, this.contestType);
+    if (!selection) return;
+    const method = methods.find(candidate => candidate.id === selection.method) ?? methods[0];
+    const dice = selection.rollMode === "advantage" ? "2d20kh" : selection.rollMode === "disadvantage" ? "2d20kl" : "1d20";
+    const roll = await new Roll(`${dice} + @modifier`, { modifier: method.modifier }).evaluate();
+    const natural = roll.dice?.[0]?.results?.find(result => result.active)?.result ?? roll.dice?.[0]?.total ?? 0;
+    const details = contestDetailsForMove(move, data.contestEffectsById);
+    const compatibility = contestCompatibility(this.contestType, details.contest);
+    const outcome = contestAppealOutcome({ compatibility: compatibility.id, appeal: details.appeal, natural, total: roll.total, dc: selection.dc });
+    const name = displayPokemonName(this.pokemonItem);
+    const speaker = ChatMessage.getSpeaker({ actor: this.pokemonItem.parent, alias: name });
+    await roll.toMessage({ speaker, flavor: `${name} — ${move.name} · Concurso ${CONTEST_TYPES[this.contestType].label}` });
+    await ChatMessage.create({ speaker, content: contestChatCard({ name, move, method, selection, details, compatibility, outcome }) });
+  }
+
   #instance() {
     return foundry.utils.deepClone(this.pokemonItem.getFlag(MODULE_ID, "instance"));
   }
 }
+
+function contestRollMethods(species, move, proficiency) {
+  const attributes = species.attributes ?? {};
+  const performanceProficient = (species.skills ?? []).includes("performance");
+  const methods = [{
+    id: "performance",
+    label: `Interpretación (CAR${performanceProficient ? " + competencia" : ""})`,
+    modifier: abilityModifier(attributes.cha) + (performanceProficient ? proficiency : 0)
+  }];
+  const configured = Array.isArray(move.power) ? move.power : move.power ? [move.power] : [];
+  const allowed = !configured.length || configured.some(value => value === "any" || value === "varies")
+    ? ["str", "dex", "con", "int", "wis", "cha"]
+    : configured.filter(value => ["str", "dex", "con", "int", "wis", "cha"].includes(value));
+  for (const key of [...new Set(allowed)]) {
+    methods.push({ id: `ability-${key}`, label: `${key.toUpperCase()} + competencia`, modifier: abilityModifier(attributes[key]) + proficiency });
+  }
+  return methods;
+}
+
+async function promptContestRoll(move, methods, contestType) {
+  const methodOptions = methods.map(method => `<option value="${escapeHtml(method.id)}">${escapeHtml(method.label)} (${signed(method.modifier)})</option>`).join("");
+  try {
+    return await foundry.applications.api.DialogV2.prompt({
+      window: { title: `Concurso · ${move.name}` },
+      content: `<div class="poke5e-contest-roll-dialog">
+        <p>Realiza la prueba de talento para un concurso <strong>${escapeHtml(CONTEST_TYPES[contestType].label)}</strong>.</p>
+        <label><span>Método de la prueba</span><select name="method">${methodOptions}</select></label>
+        <label><span>CD del juez</span><input type="number" name="dc" min="1" max="40" value="11"></label>
+        <label><span>Modo de tirada</span><select name="rollMode"><option value="normal">Normal</option><option value="advantage">Ventaja</option><option value="disadvantage">Desventaja</option></select></label>
+      </div>`,
+      modal: true,
+      rejectClose: false,
+      ok: {
+        label: "Realizar movimiento",
+        icon: "fa-solid fa-star",
+        callback: (dialogEvent, button) => ({
+          method: button.form.elements.method.value,
+          dc: Math.max(1, Number(button.form.elements.dc.value) || 11),
+          rollMode: button.form.elements.rollMode.value
+        })
+      }
+    });
+  } catch {
+    return null;
+  }
+}
+
+function contestChatCard({ move, method, selection, details, compatibility, outcome }) {
+  const points = outcome.points > 0 ? `+${outcome.points}` : String(outcome.points);
+  const crowd = outcome.crowd > 0 ? `+${outcome.crowd}` : String(outcome.crowd);
+  const result = outcome.critical ? "¡Éxito crítico!" : outcome.fumble ? "Pifia" : outcome.success ? "Éxito" : "Fallo";
+  return `<div class="dnd5e chat-card poke5e-contest-chat contest-${details.contest}">
+    <header class="card-header"><h3>${escapeHtml(move.name)} · ${escapeHtml(details.label)}</h3></header>
+    <p><strong>${escapeHtml(result)}</strong> · ${escapeHtml(compatibility.label)} · CD ${selection.dc}</p>
+    <p><strong>Prueba:</strong> ${escapeHtml(method.label)} (${signed(method.modifier)})</p>
+    <div class="poke5e-contest-chat-score"><span>Appeal <strong>${points}</strong></span><span>Crowd <strong>${crowd}</strong></span><span>Jam <strong>${details.jam}</strong></span></div>
+    <h4>${escapeHtml(details.effect.name)}</h4><p>${escapeHtml(details.effect.effect)}</p>
+  </div>`;
+}
+
+function contestPowerLabel(move) {
+  const configured = Array.isArray(move.power) ? move.power : move.power ? [move.power] : [];
+  if (!configured.length || configured.includes("any")) return "Cualquier característica";
+  if (configured.includes("varies")) return "Variable";
+  if (configured.includes("none")) return "Interpretación";
+  return configured.map(value => value.toUpperCase()).join(" / ");
+}
+
+function abilityModifier(score) { return Math.floor(((Number(score) || 10) - 10) / 2); }
 
 async function chooseDamageType(move) {
   const types = normalizeMoveDamageTypes(move.damage?.type);
@@ -459,7 +573,7 @@ function evolutionConditionLabel(condition, data) {
   return String(condition.value ?? "Condición especial");
 }
 
-function prepareMove(entry, move, species, level) {
+function prepareMove(entry, move, species, level, effectsById, contestType) {
   const modifier = getMoveModifier(species, move);
   const proficiency = 2 + Math.floor((level - 1) / 4);
   const eligibility = moveEligibility(species, move, level);
@@ -475,6 +589,7 @@ function prepareMove(entry, move, species, level) {
     attackBonus: move.attack?.scope ? signed(modifier + proficiency) : null,
     saveDc: move.save ? 8 + modifier + proficiency : null,
     damage: damageFormula(move, level, modifier, species) ?? "—",
+    contest: prepareContestDisplay(move, effectsById, contestType),
     learningMethods: eligibility.methods,
     learningWarning: eligibility.compatible && !eligibility.availableNow
       ? `Requiere nivel ${eligibility.requiredLevel}`
@@ -482,7 +597,7 @@ function prepareMove(entry, move, species, level) {
   };
 }
 
-function prepareCatalogMove(entry, move, species, level) {
+function prepareCatalogMove(entry, move, species, level, effectsById, contestType) {
   if (!move) return entry;
   const modifier = getMoveModifier(species, move);
   const proficiency = 2 + Math.floor((level - 1) / 4);
@@ -494,7 +609,17 @@ function prepareCatalogMove(entry, move, species, level) {
     description: moveDescription(move),
     attackBonus: move.attack?.scope ? signed(modifier + proficiency) : null,
     saveDc: move.save ? 8 + modifier + proficiency : null,
-    damage: damageFormula(move, level, modifier, species) ?? "—"
+    damage: damageFormula(move, level, modifier, species) ?? "—",
+    contest: prepareContestDisplay(move, effectsById, contestType)
+  };
+}
+
+function prepareContestDisplay(move, effectsById, contestType) {
+  const details = contestDetailsForMove(move, effectsById);
+  return {
+    ...details,
+    compatibility: contestCompatibility(contestType, details.contest),
+    power: contestPowerLabel(move)
   };
 }
 
