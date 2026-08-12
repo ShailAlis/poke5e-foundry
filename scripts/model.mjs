@@ -3,6 +3,7 @@ import { experienceAtLevel } from "./progression.mjs";
 
 export const MODULE_ID = "poke5e-foundry";
 export const MODULE_PATH = `modules/${MODULE_ID}`;
+export const POKEMON_TOKEN_SCALE = 1.65;
 
 export const PACKS = {
   species: { name: "poke5e-species", label: "Pokémon 5e — Especies" },

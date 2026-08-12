@@ -1,4 +1,4 @@
-import { MODULE_ID, displayPokemonName, portraitUrl, remoteAssetUrl } from "./model.mjs";
+import { MODULE_ID, POKEMON_TOKEN_SCALE, displayPokemonName, portraitUrl, remoteAssetUrl } from "./model.mjs";
 import { loadPoke5eData } from "./data-service.mjs";
 import { damageTraitsForPokemonTypes } from "./combat.mjs";
 
@@ -259,7 +259,11 @@ async function deployedActorSource(pokemonItem) {
     prototypeToken: {
       name: displayPokemonName(pokemonItem), actorLink: true, disposition: Number.isFinite(Number(trainer.prototypeToken?.disposition)) ? Number(trainer.prototypeToken.disposition) : 1, displayName: 20,
       width: tokenSize, height: tokenSize,
-      texture: { src: remoteAssetUrl(instance.shiny ? species.media?.spriteShiny : species.media?.sprite) || portraitUrl(species, instance.shiny) }
+      texture: {
+        src: remoteAssetUrl(instance.shiny ? species.media?.spriteShiny : species.media?.sprite) || portraitUrl(species, instance.shiny),
+        scaleX: POKEMON_TOKEN_SCALE,
+        scaleY: POKEMON_TOKEN_SCALE
+      }
     },
     system: {
       abilities,

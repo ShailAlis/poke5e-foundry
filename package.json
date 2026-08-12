@@ -1,7 +1,7 @@
 {
   "name": "poke5e-foundry",
   "private": true,
-  "version": "1.5.0",
+  "version": "1.5.1",
   "type": "module",
   "scripts": {
     "check": "node --check scripts/main.mjs && node --check scripts/importer.mjs && node --check scripts/pokemon-sheet.mjs && node --check scripts/pokemon-actor-sheet.mjs && node --check scripts/move-learning.mjs && node --check scripts/contests.mjs && node --check scripts/trainer-actor-sheet.mjs && node --check scripts/trainer-team.mjs && node --check scripts/trainer-creator.mjs && node --check scripts/trainer-creation-data.mjs && node --check scripts/npc-trainer-generator.mjs && node --check scripts/npc-trainer-actor.mjs && node --check scripts/npc-trainer-rules.mjs && node --check scripts/species-browser.mjs && node --check scripts/encounter-builder.mjs && node --check scripts/encounter-generator.mjs && node --check scripts/wild-deployment.mjs && node --check scripts/capture.mjs && node --check scripts/capture-rules.mjs && node --check scripts/deployment.mjs && node --check scripts/model.mjs && node --check scripts/data-service.mjs && node --check scripts/combat.mjs && node --check scripts/progression.mjs && node --check scripts/reference.mjs && node scripts/validate-data.mjs && node scripts/validate-model.mjs && node scripts/validate-move-learning.mjs && node scripts/validate-deployment.mjs && node scripts/validate-combat.mjs && node scripts/validate-progression.mjs && node scripts/validate-encounters.mjs && node scripts/validate-capture.mjs && node scripts/validate-trainer-creation.mjs && node scripts/validate-npc-trainers.mjs && node scripts/validate-contests.mjs"
