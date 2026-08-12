@@ -24,7 +24,7 @@
 
   {{#if statuses.length}}<section class="poke5e-status-panel" aria-label="Estados alterados">
     <h2><i class="fa-solid fa-burst"></i> Estados alterados</h2>
-    <div>{{#each statuses}}<span title="{{description}}"><img src="{{img}}" alt=""><strong>{{name}}</strong>{{#if ../canEdit}}<button type="button" data-action="remove-status" data-status-id="{{id}}" title="Curar {{name}}"><i class="fa-solid fa-xmark"></i></button>{{/if}}</span>{{/each}}</div>
+    <div>{{#each statuses}}<span class="poke5e-status-chip" tabindex="0" aria-label="{{name}}: {{description}}"><img src="{{img}}" alt=""><strong>{{name}}</strong>{{#if ../canEdit}}<button type="button" data-action="remove-status" data-status-id="{{id}}" title="Curar {{name}}"><i class="fa-solid fa-xmark"></i></button>{{/if}}<span class="poke5e-status-tooltip" role="tooltip"><strong>{{name}}</strong><span>{{description}}</span></span></span>{{/each}}</div>
   </section>{{/if}}
 
   <nav class="poke5e-sheet-mode" aria-label="Modo de la ficha">
