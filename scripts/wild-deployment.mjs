@@ -2,6 +2,7 @@ import { damageTraitsForPokemonTypes } from "./combat.mjs";
 import { loadPoke5eData } from "./data-service.mjs";
 import { buildWildInstance } from "./encounter-generator.mjs";
 import { MODULE_ID, POKEMON_TOKEN_SCALE, portraitUrl, remoteAssetUrl } from "./model.mjs";
+import { pokemonStatusEffectSource } from "./status-effects.mjs";
 
 export async function deployWildPokemon(species, level, { encounterId = "" } = {}) {
   if (!game.user.isGM) return ui.notifications.warn("Solo el director de juego puede desplegar Pokémon salvajes.");
@@ -94,6 +95,7 @@ export function wildActorSource(species, instance, movesById, encounterId = "") 
       traits: { size, ...damageTraits }
     },
     items: [pokemonItem, ...moveItems],
+    effects: (instance.conditions ?? []).map(id => pokemonStatusEffectSource(id)).filter(Boolean),
     flags: {
       core: { sheetClass: `${MODULE_ID}.Poke5eCombatPokemonActorSheet` },
       [MODULE_ID]: {

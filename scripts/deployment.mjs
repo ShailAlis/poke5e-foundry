@@ -1,6 +1,7 @@
 import { MODULE_ID, POKEMON_TOKEN_SCALE, displayPokemonName, portraitUrl, remoteAssetUrl } from "./model.mjs";
 import { loadPoke5eData } from "./data-service.mjs";
 import { damageTraitsForPokemonTypes } from "./combat.mjs";
+import { pokemonStatusEffectSource } from "./status-effects.mjs";
 
 const DEPLOY_RANGE = 10;
 const deploymentCleanup = new Map();
@@ -287,6 +288,7 @@ async function deployedActorSource(pokemonItem) {
     system: { description: { value: `<p>${foundry.utils.escapeHTML(instance.heldItem.description ?? "")}</p>`, chat: "" } },
     flags: { [MODULE_ID]: { kind: "held-item", sourceId: instance.heldItem.sourceId } }
   } : null;
+  const statusEffects = (instance.conditions ?? []).map(id => pokemonStatusEffectSource(id)).filter(Boolean);
   return {
     name: `${displayPokemonName(pokemonItem)} [En combate]`,
     type: "npc",
@@ -319,6 +321,7 @@ async function deployedActorSource(pokemonItem) {
       traits: { size, ...damageTraits }
     },
     items: heldItem ? [...moveItems, heldItem] : moveItems,
+    effects: statusEffects,
     flags: {
       core: { sheetClass: `${MODULE_ID}.Poke5eCombatPokemonActorSheet` },
       [MODULE_ID]: {

@@ -1,3 +1,5 @@
+import { inferMoveStatusEffects } from "./status-effects.mjs";
+
 const MODULE_ID = "poke5e-foundry";
 const MODULE_PATH = `modules/${MODULE_ID}`;
 const cache = new Map();
@@ -19,7 +21,7 @@ async function load(language) {
     fetchJson("contest.json"),
     fetchJson("contest-effects.json")
   ]);
-  let moves = movesEn.moves;
+  let moves = movesEn.moves.map(move => ({ ...move, statusEffects: inferMoveStatusEffects(move) }));
   let abilities = abilitiesEn.items;
   let items = itemsEn.items;
   if (language !== "en") {

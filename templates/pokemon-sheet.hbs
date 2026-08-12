@@ -22,6 +22,11 @@
     </div>
   </header>
 
+  {{#if statuses.length}}<section class="poke5e-status-panel" aria-label="Estados alterados">
+    <h2><i class="fa-solid fa-burst"></i> Estados alterados</h2>
+    <div>{{#each statuses}}<span title="{{description}}"><img src="{{img}}" alt=""><strong>{{name}}</strong>{{#if ../canEdit}}<button type="button" data-action="remove-status" data-status-id="{{id}}" title="Curar {{name}}"><i class="fa-solid fa-xmark"></i></button>{{/if}}</span>{{/each}}</div>
+  </section>{{/if}}
+
   <nav class="poke5e-sheet-mode" aria-label="Modo de la ficha">
     <button type="button" data-action="sheet-mode" data-mode="combat" class="{{#if sheetMode.combat}}active{{/if}}"><i class="fa-solid fa-shield-halved"></i> Combate</button>
     <button type="button" data-action="sheet-mode" data-mode="contest" class="{{#if sheetMode.contest}}active{{/if}}"><i class="fa-solid fa-star"></i> Concurso</button>

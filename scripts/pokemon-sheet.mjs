@@ -2,8 +2,9 @@ import { loadPoke5eData } from "./data-service.mjs";
 import { MODULE_ID, MODULE_PATH, displayPokemonName, gearItemSource, portraitUrl } from "./model.mjs";
 import { MAX_KNOWN_MOVES, applyLearnedMove, filterMoveCatalog, moveEligibility } from "./move-learning.mjs";
 import { normalizeMoveDamageTypes, pokemonDefenses, typeLabel } from "./combat.mjs";
-import { recallPokemon, syncPokemonIdentityToDeployment } from "./deployment.mjs";
+import { deployedActorFor, recallPokemon, syncPokemonIdentityToDeployment } from "./deployment.mjs";
 import { CONTEST_TYPES, contestAppealOutcome, contestCompatibility, contestDetailsForMove, contestTypeOptions } from "./contests.mjs";
+import { applyMoveStatuses, pokemonStatusEntries, pokemonStatusId, removePokemonStatus } from "./status-effects.mjs";
 import {
   evolutionReadiness,
   experienceAtLevel,
@@ -69,6 +70,9 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const defenses = pokemonDefenses(species.type);
     const experience = experienceProgress(instance.experience, level);
     const heldItem = instance.heldItem ?? null;
+    const combatActor = this.pokemonItem.parent?.getFlag?.(MODULE_ID, "kind") === "wild" ? this.pokemonItem.parent : deployedActorFor(this.pokemonItem);
+    const activeConditions = Object.keys({ burned: 1, frozen: 1, paralyzed: 1, poisoned: 1, "badly-poisoned": 1, asleep: 1, confused: 1, flinched: 1 })
+      .filter(id => combatActor?.statuses?.has(pokemonStatusId(id)));
     const inventoryItems = this.pokemonItem.parent?.type === "character"
       ? this.pokemonItem.parent.items
         .filter(item => item.getFlag(MODULE_ID, "kind") === "gear" && Number(item.system.quantity ?? 1) > 0)
@@ -95,6 +99,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
         awardLabel: formatNumber(experienceAward(level, species.sr))
       },
       heldItem: heldItem ? { ...heldItem, hasCharges: heldItem.charges != null } : null,
+      statuses: pokemonStatusEntries({ conditions: [...new Set([...(instance.conditions ?? []), ...activeConditions])] }),
       heldItemOptions: Object.fromEntries([["", "Ninguno"], ...inventoryItems.map(entry => [entry.id, `${entry.name} ×${entry.quantity}`])]),
       moves,
       sheetMode: { id: this.sheetMode, combat: this.sheetMode === "combat", contest: this.sheetMode === "contest" },
@@ -181,6 +186,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     this.element.querySelector("[data-action='equip-held-item']")?.addEventListener("change", event => this.#equipHeldItem(event));
     this.element.querySelector("[data-action='use-held-item']")?.addEventListener("click", () => this.#useHeldItem());
     this.element.querySelector("[data-action='restore-held-item']")?.addEventListener("click", () => this.#restoreHeldItem());
+    this.element.querySelectorAll("[data-action='remove-status']").forEach(button => button.addEventListener("click", event => this.#removeStatus(event)));
     this.element.querySelector("[data-action='open-trainer-sheet']")?.addEventListener("click", () => this.pokemonItem.parent?.sheet.render(true));
     this.element.addEventListener("dragover", event => event.preventDefault());
     this.element.addEventListener("drop", event => this.#onDrop(event));
@@ -328,6 +334,12 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     this.render({ force: true });
   }
 
+  async #removeStatus(event) {
+    if (!this.pokemonItem.isOwner) return;
+    await removePokemonStatus(this.pokemonItem, event.currentTarget.dataset.statusId);
+    this.render({ force: true });
+  }
+
   async #restorePp(event) {
     const instance = this.#instance();
     const entry = instance.moves.find(move => move.id === event.currentTarget.dataset.moveEntryId);
@@ -436,9 +448,16 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
     }
 
+    let attackResult = null;
     if (move.attack?.scope) {
-      const attack = await new Roll("1d20 + @mod + @prof", { mod: moveModifier, prof: proficiency }).evaluate();
+      const combatActor = this.pokemonItem.parent?.getFlag?.(MODULE_ID, "kind") === "wild" ? this.pokemonItem.parent : deployedActorFor(this.pokemonItem);
+      const disadvantage = ["poisoned", "badly-poisoned", "flinched"].some(id => (instance.conditions ?? []).includes(id) || combatActor?.statuses?.has(pokemonStatusId(id)));
+      const attack = await new Roll(`${disadvantage ? "2d20kl" : "1d20"} + @mod + @prof`, { mod: moveModifier, prof: proficiency }).evaluate();
       await attack.toMessage({ speaker, flavor: `${flavor} (${titleCase(move.attack.scope)})` });
+      attackResult = {
+        natural: Number(attack.dice?.[0]?.results?.find(result => result.active)?.result ?? attack.dice?.[0]?.total) || 0,
+        total: Number(attack.total) || 0
+      };
     } else if (move.save) {
       const dc = 8 + moveModifier + proficiency;
       const attributes = (move.save.attribute ?? []).map(key => key.toUpperCase()).join("/");
@@ -449,18 +468,25 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     if (formula) {
       const DamageRoll = CONFIG.Dice?.DamageRoll;
       if (DamageRoll) {
-        const damage = await new DamageRoll(formula, {}, { type: damageType }).evaluate();
+        const burned = damageType !== "healing" && (instance.conditions ?? []).includes("burned");
+        const damageRolls = [await new DamageRoll(formula, {}, { type: damageType }).evaluate()];
+        if (burned) damageRolls.push(await new DamageRoll(formula, {}, { type: damageType }).evaluate());
+        const damage = damageRolls.reduce((lowest, candidate) => Number(candidate.total) < Number(lowest.total) ? candidate : lowest);
         const rollType = damageType === "healing" ? "healing" : "damage";
         await damage.toMessage({
           speaker,
-          flavor: `${flavor} — ${typeLabel(damageType)}`,
+          flavor: `${flavor} — ${typeLabel(damageType)}${burned ? ` · Quemado: menor de ${damageRolls.map(roll => roll.total).join("/")}` : ""}`,
           flags: { dnd5e: { messageType: "roll", roll: { type: rollType }, targets: targetDescriptors() } }
         });
       } else {
-        const damage = await new Roll(formula).evaluate();
-        await damage.toMessage({ speaker, flavor: `${flavor} — ${typeLabel(damageType)}` });
+        const burned = damageType !== "healing" && (instance.conditions ?? []).includes("burned");
+        const damageRolls = [await new Roll(formula).evaluate()];
+        if (burned) damageRolls.push(await new Roll(formula).evaluate());
+        const damage = damageRolls.reduce((lowest, candidate) => Number(candidate.total) < Number(lowest.total) ? candidate : lowest);
+        await damage.toMessage({ speaker, flavor: `${flavor} — ${typeLabel(damageType)}${burned ? ` · Quemado: menor de ${damageRolls.map(roll => roll.total).join("/")}` : ""}` });
       }
     }
+    await applyMoveStatuses({ move, attack: attackResult, saveDc: 8 + moveModifier + proficiency, sourceActor: this.pokemonItem.parent, sourceName: name });
     this.render({ force: true });
   }
 

@@ -11,12 +11,14 @@ import { Poke5eEncounterBuilder } from "./encounter-builder.mjs";
 import { attemptCapture, registerCaptureSocket } from "./capture.mjs";
 import { Poke5eTrainerCreator, enforceHumanActorSource, isHumanSpecies } from "./trainer-creator.mjs";
 import { Poke5eNpcTrainerGenerator } from "./npc-trainer-generator.mjs";
+import { registerPokemonStatusEffects, registerPokemonStatusSocket } from "./status-effects.mjs";
 
 Hooks.once("init", () => {
   registerPokemonDamageTypes();
   registerTrainerActorSheet();
   registerPokemonActorSheet();
   registerPokemonTokenMovement();
+  registerPokemonStatusEffects();
   game.settings.register(MODULE_ID, "darkMode", {
     name: "POKE5E.Settings.DarkMode.Name",
     hint: "POKE5E.Settings.DarkMode.Hint",
@@ -65,6 +67,7 @@ Hooks.once("init", () => {
 Hooks.once("ready", () => {
   applyDarkMode(game.settings.get(MODULE_ID, "darkMode"));
   registerCaptureSocket();
+  registerPokemonStatusSocket();
   game.poke5e = {
     openImporter: () => new Poke5eImporter().render(true),
     openReference: () => new Poke5eReference().render(true),
