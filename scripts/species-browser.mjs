@@ -1,4 +1,4 @@
-import { MODULE_ID, MODULE_PATH, displayAssetUrl, getPack, getPokemonItems, pokemonItemSourceFromSpecies } from "./model.mjs";
+import { MODULE_ID, MODULE_PATH, displayAssetUrl, getPack, getPokemonItems, pokemonItemSourceFromSpecies, trainerPokeslotLimit } from "./model.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -107,7 +107,7 @@ export class Poke5eSpeciesBrowser extends HandlebarsApplicationMixin(Application
     const speciesDocument = await pack?.getDocument(event.currentTarget.dataset.documentId);
     if (!speciesDocument) return ui.notifications.error("No se encontró la especie en el compendio.");
     const source = pokemonItemSourceFromSpecies(speciesDocument);
-    if (getPokemonItems(this.actor).filter(item => item.getFlag(MODULE_ID, "instance")?.inTeam).length >= 6) {
+    if (getPokemonItems(this.actor).filter(item => item.getFlag(MODULE_ID, "instance")?.inTeam).length >= trainerPokeslotLimit(this.actor)) {
       source.flags[MODULE_ID].instance.inTeam = false;
     }
     await this.actor.createEmbeddedDocuments("Item", [source]);

@@ -3,7 +3,7 @@ import {
   MODULE_ID, MODULE_PATH, gearItemSource, pokemonItemSourceFromSpecies, portraitUrl,
   speciesItemSource, trainerClassSource, trainerFeatureSources
 } from "./model.mjs";
-import { ABILITIES, CLASS_SKILLS, NATURES, ORIGINS, SKILLS, SPECIALIZATIONS, resolveTrainerCreation } from "./trainer-creation-data.mjs";
+import { ABILITIES, CLASS_SKILLS, NATURES, ORIGINS, POINT_BUY_COSTS, SKILLS, SPECIALIZATIONS, STANDARD_ARRAY, resolveBaseAbilities, resolveTrainerCreation } from "./trainer-creation-data.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 const CREATION_KIND_PREFIX = "trainer-creation-";
@@ -27,6 +27,13 @@ export class Poke5eTrainerCreator extends HandlebarsApplicationMixin(Application
       name: actor?.name === "New Actor" ? "" : actor?.name ?? "",
       gender: previous.gender ?? "",
       age: previous.age ?? "",
+      baseAbilityMethod: previous.baseAbilityMethod ?? "standard",
+      baseAbilityStr: previous.baseAbilityStr ?? 8,
+      baseAbilityDex: previous.baseAbilityDex ?? 12,
+      baseAbilityCon: previous.baseAbilityCon ?? 13,
+      baseAbilityInt: previous.baseAbilityInt ?? 10,
+      baseAbilityWis: previous.baseAbilityWis ?? 14,
+      baseAbilityCha: previous.baseAbilityCha ?? 15,
       origin: previous.origin ?? "",
       originAbilityOption: previous.originAbilityOption ?? 0,
       originAbilityPrimary: previous.originAbilityPrimary ?? "cha",
@@ -68,6 +75,20 @@ export class Poke5eTrainerCreator extends HandlebarsApplicationMixin(Application
       step1: this.step === 1, step2: this.step === 2, step3: this.step === 3, step4: this.step === 4,
       canBack: this.step > 1, isLast: this.step === 4, saving: this.saving,
       selection: this.selection,
+      baseAbilityStandard: this.selection.baseAbilityMethod === "standard",
+      baseAbilityPointBuy: this.selection.baseAbilityMethod === "point-buy",
+      baseAbilityManual: this.selection.baseAbilityMethod === "manual",
+      baseAbilityMethods: [
+        option("standard", "Conjunto estándar (15, 14, 13, 12, 10, 8)", this.selection.baseAbilityMethod),
+        option("point-buy", "Compra de puntos (27 puntos)", this.selection.baseAbilityMethod),
+        option("manual", "Valores manuales / tirados", this.selection.baseAbilityMethod)
+      ],
+      baseAbilityFields: Object.entries(ABILITIES).map(([key, label]) => {
+        const inputName = `baseAbility${key.charAt(0).toUpperCase()}${key.slice(1)}`;
+        return { key, label, inputName, value: this.selection[inputName], options: STANDARD_ARRAY.map(value => option(value, value, this.selection[inputName])) };
+      }),
+      pointBuySpent: pointBuySpent(this.selection),
+      pointBuyRemaining: 27 - pointBuySpent(this.selection),
       skills: SKILLS,
       origins: ORIGINS.map(entry => option(entry.id, entry.name, this.selection.origin)),
       origin,
@@ -123,13 +144,13 @@ export class Poke5eTrainerCreator extends HandlebarsApplicationMixin(Application
     if (input.name === "classSkills" || input.name === "extraSkills") {
       this.selection[input.name] = [...this.element.querySelectorAll(`[name='${input.name}']:checked`)].map(entry => entry.value);
     } else this.selection[input.name] = input.value;
-    if (["origin", "starter", "specialization"].includes(input.name)) {
+    if (["origin", "starter", "specialization", "baseAbilityMethod"].includes(input.name)) {
       this.#captureAll();
       this.selection[changedName] = changedValue;
       if (changedName === "starter") this.selection.ability = "";
       if (changedName === "specialization") this.#removeGrantedClassSkills();
       this.render({ force: true });
-    } else if (input.name === "classSkills") {
+    } else if (input.name === "classSkills" || input.name.startsWith("baseAbility")) {
       this.render({ force: true });
     }
   }
@@ -340,6 +361,7 @@ function validateStep(step, selection) {
   if (step === 1) {
     if (!String(selection.name).trim()) return "Escribe el nombre del Entrenador.";
     if (!selection.origin) return "Selecciona una región de origen.";
+    try { resolveBaseAbilities(selection); } catch (error) { return error.message; }
     const origin = ORIGINS.find(entry => entry.id === selection.origin);
     if (origin?.abilities === "any-two" && selection.originAbilityPrimary === selection.originAbilitySecondary) return "Las dos características del origen deben ser diferentes.";
     if (origin?.id === "hoennian" && !selection.environment) return "Elige el entorno de la dote de Hoenn.";
@@ -363,5 +385,11 @@ function validateStarter(selection) {
 function option(value, label, selected) { return { value, label, selected: String(value) === String(selected) }; }
 function selectEntries(entries, selected) { return Object.entries(entries).map(([value, label]) => option(value, label, selected)); }
 function abilityBonusLabel(values) { return `+2 ${ABILITIES[values[0]]}, +1 ${ABILITIES[values[1]]}`; }
+function pointBuySpent(selection) {
+  return Object.keys(ABILITIES).reduce((total, key) => {
+    const inputName = `baseAbility${key.charAt(0).toUpperCase()}${key.slice(1)}`;
+    return total + (POINT_BUY_COSTS[Number(selection[inputName])] ?? 0);
+  }, 0);
+}
 function titleCase(value) { return String(value).split("-").map(part => part.charAt(0).toLocaleUpperCase() + part.slice(1)).join(" "); }
 function escapeHtml(value) { return foundry.utils.escapeHTML(String(value ?? "")); }

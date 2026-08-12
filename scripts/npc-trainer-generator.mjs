@@ -1,5 +1,5 @@
 import { loadPoke5eData } from "./data-service.mjs";
-import { MODULE_PATH, portraitUrl } from "./model.mjs";
+import { MODULE_PATH, portraitUrl, trainerPokeslotsForLevel } from "./model.mjs";
 import { NATURES, ORIGINS, SPECIALIZATIONS } from "./trainer-creation-data.mjs";
 import { createNpcTrainerActor, ensureNpcTrainerFolder, placeNpcTrainer } from "./npc-trainer-actor.mjs";
 import { NPC_ARCHETYPES, NPC_DIFFICULTIES, NPC_TRAINER_PATHS, filterNpcTrainerSpecies, generateNpcTrainerTeam, trainerControlSr } from "./npc-trainer-rules.mjs";
@@ -35,6 +35,7 @@ export class Poke5eNpcTrainerGenerator extends HandlebarsApplicationMixin(Applic
         number: species?.number ?? "—", sr: species?.sr ?? 0, minLevel: species?.minLevel ?? 1, types: species?.type ?? []
       };
     });
+    const maxTeamSize = trainerPokeslotsForLevel(this.config.trainerLevel);
     return {
       unauthorized: false,
       config: this.config,
@@ -43,7 +44,8 @@ export class Poke5eNpcTrainerGenerator extends HandlebarsApplicationMixin(Applic
       poolTruncated: pool.length > 80,
       team: entries,
       teamCount: entries.length,
-      teamFull: entries.length >= 6,
+      teamFull: entries.length >= maxTeamSize,
+      maxTeamSize,
       canCreate: entries.length > 0 && !this.creating,
       archetypeOptions: optionMap(NPC_ARCHETYPES),
       difficultyOptions: optionMap(NPC_DIFFICULTIES),
@@ -105,6 +107,7 @@ export class Poke5eNpcTrainerGenerator extends HandlebarsApplicationMixin(Applic
   #changeConfig(event) {
     const input = event.currentTarget;
     this.config[input.dataset.config] = input.type === "checkbox" ? input.checked : input.value;
+    if (input.dataset.config === "trainerLevel") this.team = this.team.slice(0, trainerPokeslotsForLevel(this.config.trainerLevel));
     if (["quantity", "trainerLevel", "path", "respectControlLimit", "typePrimary", "typeSecondary", "typeMode", "region", "biome", "srMin", "srMax", "levelMax", "stage", "includeIds", "excludeIds"].includes(input.dataset.config)) this.render({ force: true });
   }
 
@@ -126,7 +129,8 @@ export class Poke5eNpcTrainerGenerator extends HandlebarsApplicationMixin(Applic
   }
 
   async #addSpecies(speciesId) {
-    if (this.team.length >= 6) return ui.notifications.warn("Un Entrenador no puede llevar más de seis Pokémon.");
+    const maxTeamSize = trainerPokeslotsForLevel(this.config.trainerLevel);
+    if (this.team.length >= maxTeamSize) return ui.notifications.warn(`Los Pokéslots de este Entrenador permiten un máximo de ${maxTeamSize} Pokémon.`);
     const data = await loadPoke5eData();
     const species = data.pokemonById.get(speciesId);
     if (!species) return;

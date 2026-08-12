@@ -1,5 +1,5 @@
 import { loadPoke5eData } from "./data-service.mjs";
-import { MODULE_ID, MODULE_PATH, displayPokemonName, portraitUrl } from "./model.mjs";
+import { MODULE_ID, MODULE_PATH, displayPokemonName, gearItemSource, portraitUrl } from "./model.mjs";
 import { MAX_KNOWN_MOVES, applyLearnedMove, filterMoveCatalog, moveEligibility } from "./move-learning.mjs";
 import { normalizeMoveDamageTypes, pokemonDefenses, typeLabel } from "./combat.mjs";
 import { recallPokemon } from "./deployment.mjs";
@@ -68,9 +68,16 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     }));
     const defenses = pokemonDefenses(species.type);
     const experience = experienceProgress(instance.experience, level);
+    const heldItem = instance.heldItem ?? null;
+    const inventoryItems = this.pokemonItem.parent?.type === "character"
+      ? this.pokemonItem.parent.items
+        .filter(item => item.getFlag(MODULE_ID, "kind") === "gear" && Number(item.system.quantity ?? 1) > 0)
+        .map(item => ({ id: item.id, sourceId: item.getFlag(MODULE_ID, "sourceId"), name: item.name, quantity: Number(item.system.quantity ?? 1) }))
+      : [];
     return {
       item: this.pokemonItem,
       trainer: this.pokemonItem.parent,
+      hasTrainer: this.pokemonItem.parent?.type === "character",
       name: displayPokemonName(this.pokemonItem),
       img: portraitUrl(species, instance.shiny),
       species,
@@ -87,6 +94,8 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
         award: experienceAward(level, species.sr),
         awardLabel: formatNumber(experienceAward(level, species.sr))
       },
+      heldItem: heldItem ? { ...heldItem, hasCharges: heldItem.charges != null } : null,
+      heldItemOptions: Object.fromEntries([["", "Ninguno"], ...inventoryItems.map(entry => [entry.id, `${entry.name} ×${entry.quantity}`])]),
       moves,
       sheetMode: { id: this.sheetMode, combat: this.sheetMode === "combat", contest: this.sheetMode === "contest" },
       contest: {
@@ -168,6 +177,9 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     this.element.querySelector("[data-action='add-experience']")?.addEventListener("click", () => this.#addExperience());
     this.element.querySelectorAll("[data-action='evolve-pokemon']").forEach(button => button.addEventListener("click", event => this.#evolve(event)));
     this.element.querySelector("[data-action='change-hp']")?.addEventListener("change", event => this.#changeHp(event));
+    this.element.querySelector("[data-action='equip-held-item']")?.addEventListener("change", event => this.#equipHeldItem(event));
+    this.element.querySelector("[data-action='use-held-item']")?.addEventListener("click", () => this.#useHeldItem());
+    this.element.querySelector("[data-action='restore-held-item']")?.addEventListener("click", () => this.#restoreHeldItem());
     this.element.querySelector("[data-action='open-trainer-sheet']")?.addEventListener("click", () => this.pokemonItem.parent?.sheet.render(true));
     this.element.addEventListener("dragover", event => event.preventDefault());
     this.element.addEventListener("drop", event => this.#onDrop(event));
@@ -247,6 +259,57 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
   async #changeHp(event) {
     const instance = this.#instance();
     instance.hp.value = Math.max(0, Math.min(Number(instance.hp.max) || 1, Number(event.currentTarget.value) || 0));
+    await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
+    this.render({ force: true });
+  }
+
+  async #equipHeldItem(event) {
+    const trainer = this.pokemonItem.parent;
+    if (trainer?.type !== "character" || !this.pokemonItem.isOwner) return;
+    const instance = this.#instance();
+    const selectedId = event.currentTarget.value;
+    const selected = selectedId ? trainer.items.get(selectedId) : null;
+    if (selected && selected.getFlag(MODULE_ID, "kind") !== "gear") return;
+    if (instance.heldItem?.sourceId === selected?.getFlag(MODULE_ID, "sourceId")) return;
+    const data = await loadPoke5eData();
+    if (instance.heldItem) await returnHeldItem(trainer, instance.heldItem, data);
+    if (selected) {
+      const sourceId = selected.getFlag(MODULE_ID, "sourceId");
+      const definition = data.itemsById.get(sourceId);
+      instance.heldItem = {
+        sourceId,
+        name: selected.name,
+        img: selected.img,
+        description: (definition?.description ?? []).join("\n"),
+        charges: initialHeldItemCharges(sourceId, definition)
+      };
+      await decrementInventoryItem(selected);
+    } else delete instance.heldItem;
+    await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
+    this.render({ force: true });
+  }
+
+  async #useHeldItem() {
+    const instance = this.#instance();
+    const held = instance.heldItem;
+    if (!held) return;
+    const berry = String(held.sourceId).endsWith("-berry");
+    if (held.charges != null && Number(held.charges) <= 0) return ui.notifications.warn(`${held.name} no tiene cargas.`);
+    await ChatMessage.create({
+      speaker: ChatMessage.getSpeaker({ actor: this.pokemonItem.parent, alias: displayPokemonName(this.pokemonItem) }),
+      content: `<div class="dnd5e chat-card"><header class="card-header"><h3>${escapeHtml(displayPokemonName(this.pokemonItem))} usa ${escapeHtml(held.name)}</h3></header><p>${escapeHtml(held.description || "Aplica el efecto descrito por el objeto.")}</p></div>`
+    });
+    if (berry) delete instance.heldItem;
+    else if (held.charges != null) held.charges = Math.max(0, Number(held.charges) - 1);
+    await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
+    this.render({ force: true });
+  }
+
+  async #restoreHeldItem() {
+    const instance = this.#instance();
+    if (!instance.heldItem) return;
+    const data = await loadPoke5eData();
+    instance.heldItem.charges = initialHeldItemCharges(instance.heldItem.sourceId, data.itemsById.get(instance.heldItem.sourceId));
     await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
     this.render({ force: true });
   }
@@ -797,6 +860,26 @@ function notifyLevelGain(item, previousLevel, currentLevel) {
   if (currentLevel <= previousLevel) return;
   const levels = currentLevel - previousLevel;
   ui.notifications.info(`${displayPokemonName(item)} ha alcanzado el nivel ${currentLevel}${levels > 1 ? ` (sube ${levels} niveles)` : ""}. Recuerda aplicar sus PG y beneficios de subida de nivel.`);
+}
+
+async function decrementInventoryItem(item) {
+  const quantity = Math.max(1, Number(item.system.quantity) || 1);
+  if (quantity <= 1) await item.delete();
+  else await item.update({ "system.quantity": quantity - 1 });
+}
+
+async function returnHeldItem(trainer, heldItem, data) {
+  const existing = trainer.items.find(item => item.getFlag(MODULE_ID, "kind") === "gear" && item.getFlag(MODULE_ID, "sourceId") === heldItem.sourceId);
+  if (existing) return existing.update({ "system.quantity": Math.max(0, Number(existing.system.quantity) || 0) + 1 });
+  const definition = data.itemsById.get(heldItem.sourceId);
+  if (definition) return trainer.createEmbeddedDocuments("Item", [gearItemSource(definition)]);
+}
+
+function initialHeldItemCharges(sourceId, definition) {
+  if (sourceId === "focus-sash") return 1;
+  const text = (definition?.description ?? []).join(" ");
+  const match = text.match(/(?:has|tiene)\s+(\d+)\s+(?:charges?|cargas?)/i);
+  return match ? Number(match[1]) : null;
 }
 
 function formatNumber(value) {

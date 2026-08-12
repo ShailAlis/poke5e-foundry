@@ -43,7 +43,6 @@ export function trainerControlSr(trainerLevel, path = "none") {
 }
 
 const FIRST_NAMES = ["Aina", "Alex", "Bruno", "Celia", "Dani", "Elena", "Gael", "Hana", "Iris", "Joel", "Kai", "Lara", "Leo", "Mara", "Nico", "Noa", "Omar", "Rina", "Saúl", "Vera", "Yuri", "Zoe"];
-const LAST_NAMES = ["Alba", "Bosque", "Cobalto", "Dalia", "Faro", "Lago", "Luna", "Mar", "Níveo", "Olmo", "Prisma", "Rojo", "Sol", "Valle", "Vega"];
 
 export function filterNpcTrainerSpecies(species, filters = {}, evolutions = []) {
   const query = normalized(filters.query);
@@ -81,7 +80,7 @@ export function filterNpcTrainerSpecies(species, filters = {}, evolutions = []) 
 }
 
 export function generateNpcTrainerTeam(pool, options = {}, random = Math.random) {
-  const size = Math.max(1, Math.min(6, Math.trunc(Number(options.teamSize) || 1)));
+  const size = Math.max(1, Math.min(trainerPokeslotsForLevel(options.trainerLevel), Math.trunc(Number(options.teamSize) || 1)));
   const uniqueSpecies = options.uniqueSpecies !== false;
   const difficulty = NPC_DIFFICULTIES[options.difficulty] ?? NPC_DIFFICULTIES.standard;
   const minimum = level(options.levelMin, Math.max(1, Number(options.trainerLevel) - 2));
@@ -136,7 +135,7 @@ export function randomNpcTrainerName(options = {}, random = Math.random, index =
   const custom = String(options.name ?? "").trim();
   if (custom) return Number(options.quantity) > 1 ? `${custom} ${index + 1}` : custom;
   const title = options.useTitle === false ? "" : `${NPC_ARCHETYPES[options.archetype]?.name ?? "Entrenador"} `;
-  return `${title}${pick(FIRST_NAMES, random)} ${pick(LAST_NAMES, random)}`;
+  return `${title}${pick(FIRST_NAMES, random)}`;
 }
 
 function weightedChoice(candidates, options, random) {
@@ -150,3 +149,4 @@ function normalized(value) { return String(value ?? "").trim().toLocaleLowerCase
 function idSet(value) { return new Set(normalized(value).split(/[\s,;]+/).filter(Boolean)); }
 function hasNumber(value) { return value !== "" && value != null && Number.isFinite(Number(value)); }
 function level(value, fallback) { return Math.max(1, Math.min(20, Math.trunc(Number(value) || fallback || 1))); }
+import { trainerPokeslotsForLevel } from "./model.mjs";

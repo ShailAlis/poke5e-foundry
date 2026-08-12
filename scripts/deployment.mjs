@@ -55,8 +55,17 @@ export async function syncDeploymentHp(actor) {
   const item = uuid ? await fromUuid(uuid) : actor.items.find(entry => entry.getFlag(MODULE_ID, "kind") === "pokemon");
   if (!item) return;
   const instance = foundry.utils.deepClone(item.getFlag(MODULE_ID, "instance"));
+  const actorHp = Number(actor.system.attributes.hp.value) || 0;
+  if (actorHp <= 0 && Number(instance.hp?.value) > 0 && instance.heldItem?.sourceId === "focus-sash" && Number(instance.heldItem.charges) > 0) {
+    instance.heldItem.charges = 0;
+    instance.hp = { value: 1, max: Number(actor.system.attributes.hp.max) || instance.hp.max };
+    await item.setFlag(MODULE_ID, "instance", instance);
+    await actor.update({ "system.attributes.hp.value": 1 });
+    await ChatMessage.create({ content: `<div class="dnd5e chat-card"><p><strong>${foundry.utils.escapeHTML(displayPokemonName(item))}</strong> resiste con 1 PG gracias a su Banda Focus. Su carga se ha consumido.</p></div>` });
+    return;
+  }
   instance.hp = {
-    value: Number(actor.system.attributes.hp.value) || 0,
+    value: actorHp,
     max: Number(actor.system.attributes.hp.max) || instance.hp.max
   };
   await item.setFlag(MODULE_ID, "instance", instance);
@@ -235,6 +244,13 @@ async function deployedActorSource(pokemonItem) {
     system: { description: { value: (move.description ?? []).map(text => `<p>${foundry.utils.escapeHTML(text)}</p>`).join(""), chat: "" } },
     flags: { [MODULE_ID]: { kind: "move", sourceId: move.id, move } }
   }));
+  const heldItem = instance.heldItem ? {
+    name: instance.heldItem.name,
+    type: "feat",
+    img: instance.heldItem.img || "icons/svg/item-bag.svg",
+    system: { description: { value: `<p>${foundry.utils.escapeHTML(instance.heldItem.description ?? "")}</p>`, chat: "" } },
+    flags: { [MODULE_ID]: { kind: "held-item", sourceId: instance.heldItem.sourceId } }
+  } : null;
   return {
     name: `${displayPokemonName(pokemonItem)} [En combate]`,
     type: "npc",
@@ -261,8 +277,9 @@ async function deployedActorSource(pokemonItem) {
       },
       traits: { size, ...damageTraits }
     },
-    items: moveItems,
+    items: heldItem ? [...moveItems, heldItem] : moveItems,
     flags: {
+      core: { sheetClass: `${MODULE_ID}.Poke5eCombatPokemonActorSheet` },
       [MODULE_ID]: {
         kind: "deployed",
         pokemonItemUuid: pokemonItem.uuid,

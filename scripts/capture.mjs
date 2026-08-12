@@ -1,7 +1,7 @@
 import { captureDifficulty, captureHasAdvantage, POKEBALL_IDS } from "./capture-rules.mjs";
 import { loadPoke5eData } from "./data-service.mjs";
 import { removeDeployment } from "./deployment.mjs";
-import { MODULE_ID, displayPokemonName, getPokemonItems } from "./model.mjs";
+import { MODULE_ID, displayPokemonName, getPokemonItems, trainerLevel, trainerPokeslotLimit } from "./model.mjs";
 import { experienceAtLevel, experienceAward } from "./progression.mjs";
 
 const SOCKET = `module.${MODULE_ID}`;
@@ -18,31 +18,38 @@ export function registerCaptureSocket() {
 
 export async function attemptCapture(trainer) {
   if (!trainer?.isOwner) return ui.notifications.warn("No tienes permiso para usar este entrenador.");
-  const targetToken = selectedWildTarget();
-  if (!targetToken) return ui.notifications.warn("Selecciona como objetivo exactamente un Pokémon salvaje capturable.");
+  const targetToken = selectedPokemonTarget();
+  if (!targetToken) return ui.notifications.warn("Selecciona como objetivo exactamente un Pokémon salvaje o perteneciente a un entrenador.");
   const wildActor = targetToken.actor;
-  const pokemonItem = wildPokemonItem(wildActor);
+  const capturable = wildActor.getFlag(MODULE_ID, "kind") === "wild" && wildActor.getFlag(MODULE_ID, "capturable") === true;
+  const pokemonItem = await pokemonItemForActor(wildActor);
   const species = pokemonItem?.getFlag(MODULE_ID, "species");
   const instance = pokemonItem?.getFlag(MODULE_ID, "instance");
-  if (!pokemonItem || !species || !instance) return ui.notifications.error("El Pokémon salvaje no contiene una ficha válida.");
+  if (!pokemonItem || !species || !instance) return ui.notifications.error("El objetivo no contiene una ficha Pokémon válida.");
   const hp = wildActor.system.attributes?.hp ?? {};
-  if (Number(hp.value) <= 0) return ui.notifications.warn("Un Pokémon debilitado no puede ser capturado.");
-  const trainerLevel = getTrainerLevel(trainer);
+  if (capturable && Number(hp.value) <= 0) return ui.notifications.warn("Un Pokémon debilitado no puede ser capturado.");
+  const currentTrainerLevel = trainerLevel(trainer);
   const targetLevel = Math.max(1, Number(instance.level) || 1);
-  if (targetLevel > trainerLevel) return ui.notifications.warn(`No puedes capturar un Pokémon de nivel ${targetLevel} con un entrenador de nivel ${trainerLevel}.`);
+  if (capturable && targetLevel > currentTrainerLevel) return ui.notifications.warn(`No puedes capturar un Pokémon de nivel ${targetLevel} con un entrenador de nivel ${currentTrainerLevel}.`);
   const distance = distanceFromTrainer(trainer, targetToken);
   if (distance == null) return ui.notifications.warn("Coloca un token de este entrenador en la escena para lanzar una Poké Ball.");
   if (distance > 60) return ui.notifications.warn(`El objetivo está a ${Math.round(distance)} pies. El alcance máximo es de 60 pies.`);
   const balls = availablePokeballs(trainer);
   if (!balls.length) return ui.notifications.warn("Este entrenador no tiene Poké Balls disponibles en su inventario.");
-  const choices = await promptCaptureOptions({ species, instance, hp, balls, trainerLevel });
+  const choices = await promptCaptureOptions({ species, instance, hp, balls, trainerLevel: currentTrainerLevel });
   if (!choices) return;
   const ball = balls.find(entry => entry.item.id === choices.ballItemId);
   if (!ball) return ui.notifications.warn("La Poké Ball seleccionada ya no está disponible.");
+  const ballName = ball.item.name;
+  await consumePokeball(ball.item);
+  if (!capturable) {
+    await postTrainedPokemonFailure({ trainer, species, ballName });
+    return ui.notifications.warn(`${species.name} pertenece a un entrenador: la captura falla automáticamente y la Poké Ball se ha perdido.`);
+  }
   const data = await loadPoke5eData();
   const statuses = targetStatuses(wildActor, instance);
   const context = {
-    trainerLevel,
+    trainerLevel: currentTrainerLevel,
     targetLevel,
     size: species.size,
     types: species.type ?? [],
@@ -69,7 +76,6 @@ export async function attemptCapture(trainer) {
     context
   });
   const advantage = captureHasAdvantage(statuses);
-  await consumePokeball(ball.item);
   let total = Infinity;
   if (!difficulty.automaticSuccess) {
     const modifier = skillModifier(trainer, "ani");
@@ -77,19 +83,19 @@ export async function attemptCapture(trainer) {
     total = Number(roll.total) || 0;
     await roll.toMessage({
       speaker: ChatMessage.getSpeaker({ actor: trainer }),
-      flavor: `Captura de ${species.name} con ${ball.item.name}${advantage ? " · Ventaja por estado" : ""} · CD ${difficulty.dc}`
+      flavor: `Captura de ${species.name} con ${ballName}${advantage ? " · Ventaja por estado" : ""} · CD ${difficulty.dc}`
     });
   }
   const success = difficulty.automaticSuccess || total >= difficulty.dc;
-  await postCaptureResult({ trainer, species, ballName: ball.item.name, difficulty, total, success, advantage });
-  if (!success) return ui.notifications.warn(`${species.name} ha escapado de la ${ball.item.name}.`);
+  await postCaptureResult({ trainer, species, ballName, difficulty, total, success, advantage });
+  if (!success) return ui.notifications.warn(`${species.name} ha escapado de la ${ballName}.`);
   const payload = {
     action: "completeCapture",
     userId: game.user.id,
     trainerUuid: trainer.uuid,
     wildActorUuid: wildActor.uuid,
     ballId: ball.sourceId,
-    ballName: ball.item.name,
+    ballName,
     dc: difficulty.dc,
     total: difficulty.automaticSuccess ? null : total,
     automaticSuccess: difficulty.automaticSuccess
@@ -115,7 +121,7 @@ export async function completeCapture(payload) {
   const originalInstance = pokemonItem?.getFlag(MODULE_ID, "instance");
   if (!pokemonItem || !species || !originalInstance) throw new Error("La ficha salvaje está incompleta.");
   const level = Math.max(1, Number(originalInstance.level) || 1);
-  if (level > getTrainerLevel(trainer)) throw new Error("El nivel del Pokémon supera el del entrenador.");
+  if (level > trainerLevel(trainer)) throw new Error("El nivel del Pokémon supera el del entrenador.");
   if (Number(wildActor.system.attributes?.hp?.value) <= 0) throw new Error("Un Pokémon debilitado no puede ser capturado.");
   if (!payload.automaticSuccess && Number(payload.total) < Number(payload.dc)) throw new Error("La tirada no supera la CD de captura.");
   await wildActor.setFlag(MODULE_ID, "capturePending", true);
@@ -128,7 +134,7 @@ export async function completeCapture(payload) {
       max: Math.max(1, Number(wildActor.system.attributes.hp.max) || Number(instance.hp?.max) || 1)
     };
     instance.status = instance.status || targetStatuses(wildActor, instance)[0] || "";
-    instance.inTeam = getPokemonItems(trainer).filter(item => item.getFlag(MODULE_ID, "instance")?.inTeam).length < 6;
+    instance.inTeam = getPokemonItems(trainer).filter(item => item.getFlag(MODULE_ID, "instance")?.inTeam).length < trainerPokeslotLimit(trainer);
     instance.caughtWith = payload.ballId;
     instance.notes = [instance.notes, `Capturado con ${payload.ballName}.`].filter(Boolean).join("\n");
     const source = pokemonItem.toObject();
@@ -159,13 +165,20 @@ export async function completeCapture(payload) {
   }
 }
 
-function selectedWildTarget() {
-  const targets = [...(game.user.targets ?? [])].filter(token => token.actor?.getFlag(MODULE_ID, "kind") === "wild" && token.actor.getFlag(MODULE_ID, "capturable"));
+function selectedPokemonTarget() {
+  const targets = [...(game.user.targets ?? [])].filter(token => ["wild", "deployed"].includes(token.actor?.getFlag(MODULE_ID, "kind")));
   return targets.length === 1 ? targets[0] : null;
 }
 
 function wildPokemonItem(actor) {
   return actor?.items?.find(item => item.getFlag(MODULE_ID, "kind") === "pokemon");
+}
+
+async function pokemonItemForActor(actor) {
+  const embedded = wildPokemonItem(actor);
+  if (embedded) return embedded;
+  const uuid = actor?.getFlag(MODULE_ID, "pokemonItemUuid");
+  return uuid ? fromUuid(uuid) : null;
 }
 
 function availablePokeballs(trainer) {
@@ -212,11 +225,6 @@ async function promptCaptureOptions({ species, instance, hp, balls, trainerLevel
   }
 }
 
-function getTrainerLevel(trainer) {
-  const trainerClass = trainer.items.find(item => item.type === "class" && (item.system.identifier === "trainer" || item.getFlag(MODULE_ID, "kind") === "trainer-class"));
-  return Math.max(1, Math.min(20, Number(trainerClass?.system.levels) || Number(trainer.system.details?.level) || 1));
-}
-
 function skillModifier(actor, key) {
   const skill = actor.system.skills?.[key] ?? {};
   return Number(skill.total ?? skill.mod ?? skill.value) || 0;
@@ -257,6 +265,13 @@ async function postCaptureResult({ trainer, species, ballName, difficulty, total
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor: trainer }),
     content: `<div class="dnd5e chat-card poke5e-capture-card ${success ? "success" : "failure"}"><header class="card-header"><h3>${success ? "¡Captura conseguida!" : "El Pokémon ha escapado"}</h3></header><p>${escapeHtml(trainer.name)} lanza una <strong>${escapeHtml(ballName)}</strong> a ${escapeHtml(species.name)}.</p><p>${escapeHtml(details)}</p>${ballDetails}<p><strong>${escapeHtml(result)}</strong>${advantage ? " · Ventaja por estado" : ""}</p></div>`
+  });
+}
+
+async function postTrainedPokemonFailure({ trainer, species, ballName }) {
+  await ChatMessage.create({
+    speaker: ChatMessage.getSpeaker({ actor: trainer }),
+    content: `<div class="dnd5e chat-card poke5e-capture-card failure"><header class="card-header"><h3>Captura imposible</h3></header><p>${escapeHtml(trainer.name)} lanza una <strong>${escapeHtml(ballName)}</strong> a ${escapeHtml(species.name)}, pero el Pokémon ya pertenece a otro entrenador.</p><p><strong>Fallo automático.</strong> La Poké Ball se consume.</p></div>`
   });
 }
 

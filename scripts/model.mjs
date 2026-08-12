@@ -229,6 +229,20 @@ export function getPokemonItems(actor) {
   return actor?.items?.filter(item => item.getFlag(MODULE_ID, "kind") === "pokemon") ?? [];
 }
 
+export function trainerLevel(actor) {
+  const trainerClass = actor?.items?.find(item => item.type === "class" && (item.system.identifier === "trainer" || ["trainer-class", "trainer-creation-class", "npc-trainer-class"].includes(item.getFlag(MODULE_ID, "kind"))));
+  return Math.max(1, Math.min(20, Number(trainerClass?.system.levels) || Number(actor?.system?.details?.level) || 1));
+}
+
+export function trainerPokeslotLimit(actor) {
+  return trainerPokeslotsForLevel(trainerLevel(actor));
+}
+
+export function trainerPokeslotsForLevel(level) {
+  const normalized = Math.max(1, Math.min(20, Number(level) || 1));
+  return normalized >= 15 ? 6 : normalized >= 10 ? 5 : normalized >= 5 ? 4 : 3;
+}
+
 export function randomGenderForRatio(ratio, random = Math.random) {
   const [female, male] = String(ratio ?? "0:0").split(":").map(value => Math.max(0, Number(value) || 0));
   const total = female + male;

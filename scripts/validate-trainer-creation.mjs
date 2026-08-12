@@ -1,6 +1,23 @@
 import assert from "node:assert/strict";
 import { resolveTrainerCreation } from "./trainer-creation-data.mjs";
 
+const standardBase = {
+  baseAbilityMethod: "standard", baseAbilityStr: 15, baseAbilityDex: 14, baseAbilityCon: 13,
+  baseAbilityInt: 12, baseAbilityWis: 10, baseAbilityCha: 8
+};
+const standardTrainer = resolveTrainerCreation({ ...standardBase, origin: "alolan", classSkills: ["ath", "prc"], specialization: "grass" });
+assert.equal(standardTrainer.abilities.str, 15);
+assert.equal(standardTrainer.abilities.int, 14);
+assert.equal(standardTrainer.abilities.cha, 9);
+assert.throws(() => resolveTrainerCreation({
+  ...standardBase, baseAbilityCha: 10, origin: "alolan", classSkills: ["ath", "prc"], specialization: "grass"
+}), /conjunto estándar/);
+assert.throws(() => resolveTrainerCreation({
+  baseAbilityMethod: "point-buy", baseAbilityStr: 15, baseAbilityDex: 15, baseAbilityCon: 15,
+  baseAbilityInt: 15, baseAbilityWis: 15, baseAbilityCha: 15,
+  origin: "alolan", classSkills: ["ath", "prc"], specialization: "grass"
+}), /27 puntos/);
+
 const alola = resolveTrainerCreation({
   origin: "alolan", classSkills: ["ath", "prc"], specialization: "grass"
 });

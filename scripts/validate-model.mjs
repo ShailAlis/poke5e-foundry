@@ -23,8 +23,14 @@ const {
   speciesItemSource,
   pokemonItemSourceFromSpecies,
   trainerFeatureSources,
-  trainerClassSource
+  trainerClassSource,
+  trainerPokeslotLimit
 } = await import("./model.mjs");
+
+const trainerAt = level => ({ system: { details: { level } }, items: [] });
+if (trainerPokeslotLimit(trainerAt(1)) !== 3 || trainerPokeslotLimit(trainerAt(5)) !== 4 || trainerPokeslotLimit(trainerAt(10)) !== 5 || trainerPokeslotLimit(trainerAt(15)) !== 6) {
+  throw new Error("Trainer Pokéslot progression is invalid.");
+}
 
 if (randomGenderForRatio("0:0", () => 0.5) !== "none") throw new Error("Genderless species must produce no gender.");
 if (randomGenderForRatio("1:7", () => 0) !== "female") throw new Error("Female gender roll is invalid.");

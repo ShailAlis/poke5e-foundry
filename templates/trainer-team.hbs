@@ -4,13 +4,13 @@
     <div>
       <p class="eyebrow">{{actor.name}}</p>
       <h1>Equipo Pokémon</h1>
-      <p>{{teamCount}} de 6 en el equipo · {{totalCount}} Pokémon en total</p>
+      <p>{{teamCount}} de {{maxTeamSize}} Pokéslots · {{totalCount}} Pokémon en total</p>
     </div>
     {{#if canEdit}}<div class="poke5e-team-header-actions"><button type="button" class="bright" data-action="capture-target"><i class="fa-solid fa-circle-dot"></i> Capturar objetivo</button><button type="button" data-action="browse-species"><i class="fa-solid fa-plus"></i> Añadir desde Pokédex</button></div>{{/if}}
   </header>
 
   <section>
-    <div class="poke5e-section-title"><h2>Equipo activo</h2><span>{{teamCount}} / 6</span></div>
+    <div class="poke5e-section-title"><h2>Equipo activo</h2><span>{{teamCount}} / {{maxTeamSize}}</span></div>
     <div class="poke5e-team-grid">
       {{#each team}}
         <article class="poke5e-team-card" data-item-id="{{id}}">
@@ -20,6 +20,8 @@
             <p>{{speciesName}} · Nivel <input type="number" min="1" max="20" value="{{instance.level}}" data-field="level" {{#unless ../canEdit}}disabled{{/unless}}></p>
             <div class="poke5e-types">{{#each types}}<span class="poke5e-type type-{{this}}">{{this}}</span>{{/each}}</div>
             <label>PG <input type="number" min="0" max="{{instance.hp.max}}" value="{{instance.hp.value}}" data-field="hp.value" {{#unless ../canEdit}}disabled{{/unless}}> / {{instance.hp.max}}</label>
+            <div class="pokemon-exp" title="{{experience.total}} PX totales"><span style="width: {{experience.percent}}%"></span></div>
+            <small>{{#if experience.maximumLevel}}Nivel máximo{{else}}{{experience.remaining}} PX para nivel {{experience.nextLevel}}{{/if}}</small>
           </div>
           <div class="poke5e-card-actions">
             <button type="button" data-action="open-pokemon" title="Abrir ficha"><i class="fa-solid fa-address-card"></i></button>
@@ -38,7 +40,7 @@
     <div class="poke5e-reserve-list">
       {{#each reserve}}
         <article data-item-id="{{id}}">
-          <img src="{{img}}" alt="{{name}}"><strong>{{name}}</strong><span>{{speciesName}} · Nivel {{instance.level}} · PG {{instance.hp.value}}/{{instance.hp.max}}</span>
+          <img src="{{img}}" alt="{{name}}"><strong>{{name}}</strong><span>{{speciesName}} · Nivel {{instance.level}} · PG {{instance.hp.value}}/{{instance.hp.max}} · PX {{experience.total}}{{#if overflow}} · Fuera del límite de Pokéslots{{/if}}</span>
           <button type="button" data-action="open-pokemon"><i class="fa-solid fa-address-card"></i></button>
           <button type="button" data-action="toggle-team"><i class="fa-solid fa-arrow-up"></i> Al equipo</button>
           <button type="button" data-action="remove"><i class="fa-solid fa-trash"></i></button>

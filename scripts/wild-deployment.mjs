@@ -90,6 +90,7 @@ export function wildActorSource(species, instance, movesById, encounterId = "") 
     },
     items: [pokemonItem, ...moveItems],
     flags: {
+      core: { sheetClass: `${MODULE_ID}.Poke5eCombatPokemonActorSheet` },
       [MODULE_ID]: {
         kind: "wild",
         capturable: true,

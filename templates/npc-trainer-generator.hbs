@@ -30,7 +30,7 @@
     <section class="poke5e-npc-config-section">
       <div class="poke5e-section-title"><h2><i class="fa-solid fa-circle-dot"></i> Composición del equipo</h2><button type="button" class="bright" data-action="generate-team"><i class="fa-solid fa-dice"></i> Generar equipo</button></div>
       <div class="poke5e-npc-fields team-rules">
-        <label><span>Tamaño</span><input type="number" min="1" max="6" value="{{config.teamSize}}" data-config="teamSize"></label>
+        <label><span>Tamaño (máx. {{maxTeamSize}} Pokéslots)</span><input type="number" min="1" max="{{maxTeamSize}}" value="{{config.teamSize}}" data-config="teamSize"></label>
         <label><span>Composición</span><select data-config="composition">{{selectOptions compositionOptions selected=config.composition}}</select></label>
         <label><span>Potencia</span><select data-config="powerBias">{{selectOptions powerBiasOptions selected=config.powerBias}}</select></label>
         <label><span>Niveles</span><select data-config="levelStrategy">{{selectOptions levelStrategyOptions selected=config.levelStrategy}}</select></label>
@@ -72,7 +72,7 @@
 
       <section class="poke5e-npc-roster">
         <div class="poke5e-section-title"><h2>Equipo preparado</h2><button type="button" data-action="clear-team" {{#unless teamCount}}disabled{{/unless}}><i class="fa-solid fa-trash"></i> Vaciar</button></div>
-        <div class="poke5e-npc-roster-summary"><strong>{{teamCount}}/6 Pokémon</strong><span>Editable antes de crear</span></div>
+        <div class="poke5e-npc-roster-summary"><strong>{{teamCount}}/{{maxTeamSize}} Pokémon</strong><span>Según los Pokéslots de nivel {{config.trainerLevel}}</span></div>
         <div class="poke5e-npc-roster-list">
           {{#each team}}
             <article><img src="{{img}}" alt="{{name}}"><div class="identity"><small>#{{number}} · SR {{sr}}</small><strong>{{name}}</strong><span>{{#each types}}{{this}}{{#unless @last}} / {{/unless}}{{/each}}</span></div><label><span>Nivel</span><input type="number" min="{{minLevel}}" max="20" value="{{level}}" data-action="pokemon-level" data-index="{{index}}"></label><label class="shiny"><input type="checkbox" data-action="pokemon-shiny" data-index="{{index}}" {{#if shiny}}checked{{/if}}> Shiny</label><button type="button" data-action="reroll-pokemon" data-index="{{index}}" title="Sustituir al azar"><i class="fa-solid fa-dice"></i></button><button type="button" data-action="remove-pokemon" data-index="{{index}}" title="Quitar"><i class="fa-solid fa-xmark"></i></button></article>

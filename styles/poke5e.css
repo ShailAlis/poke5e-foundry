@@ -402,6 +402,16 @@
 .poke5e-sheet-slot .pokemon-controls button { width: 2.5rem; height: 100%; min-height: 2.5rem; margin: 0; border: 0; border-radius: 0; }
 .pokemon-hp { height: 7px; overflow: hidden; border-radius: 99px; background: rgba(24, 33, 43, 0.15); }
 .pokemon-hp > span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #48a868, #7dcc72); }
+.pokemon-exp { height: 6px; overflow: hidden; border-radius: 99px; background: rgba(24, 33, 43, 0.15); }
+.pokemon-exp > span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #2e6fbb, #72b8dc); }
+.poke5e-held-item-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 0.45fr); gap: 0.8rem; padding: 0.7rem; border: 1px solid var(--poke-line); border-radius: 10px; background: var(--poke-card); }
+.poke5e-held-item-panel h2, .poke5e-held-item-panel p { margin: 0 0 0.35rem; }
+.poke5e-held-item-actions { display: grid; align-content: start; gap: 0.35rem; }
+.poke5e-held-item-actions label { display: grid; gap: 0.2rem; font-size: 0.75rem; font-weight: 800; }
+.poke5e-held-item-actions button { width: auto; margin: 0; }
+.poke5e-base-abilities { display: grid; grid-template-columns: repeat(6, minmax(70px, 1fr)); gap: 0.45rem; }
+.poke5e-base-abilities label { display: grid; gap: 0.2rem; text-align: center; font-weight: 800; }
+.poke5e-base-abilities select, .poke5e-base-abilities input { width: 100%; text-align: center; }
 .poke5e-sheet-reserve { margin-top: 1rem; }
 .poke5e-section-title { display: flex; align-items: baseline; justify-content: space-between; border-bottom: 2px solid #d9363e; }
 .poke5e-section-title h3 { margin: 0 0 0.3rem; }

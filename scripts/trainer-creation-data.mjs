@@ -20,6 +20,9 @@ export const NATURES = [
   "Mild", "Quiet", "Bashful", "Rash", "Calm", "Gentle", "Sassy", "Careful", "Quirky"
 ];
 
+export const STANDARD_ARRAY = [15, 14, 13, 12, 10, 8];
+export const POINT_BUY_COSTS = { 8: 0, 9: 1, 10: 2, 11: 3, 12: 4, 13: 5, 14: 7, 15: 9 };
+
 export const ORIGINS = [
   origin("alolan", "Alola", ["int", "cha"], "nat", "Alolano", "Un vínculo diferente", "Una vez por descanso largo, puedes lanzar Hablar con los Pokémon."),
   origin("galarian", "Galar", [["str", "dex"], ["dex", "str"]], "itm", "Galariano", "Mi madre pega más fuerte", "Cuando recibes daño, puedes usar tu reacción para tirar 1d12, sumar tu modificador de Constitución y reducir el daño en ese total. Recuperas el uso tras un descanso corto o largo."),
@@ -54,7 +57,7 @@ export function resolveTrainerCreation(selection) {
   if (classSkills.includes(originEntry.skill)) throw new Error("Una habilidad de clase coincide con la de tu origen; elige otra para no perder una competencia.");
   if (specializationEntry.skill && classSkills.includes(specializationEntry.skill)) throw new Error("Una habilidad de clase ya la concede tu especialización; elige otra.");
 
-  const abilities = Object.fromEntries(Object.keys(ABILITIES).map(key => [key, 10]));
+  const abilities = resolveBaseAbilities(selection);
   abilities[originAbilities[0]] += 2;
   abilities[originAbilities[1]] += 1;
   if (specializationEntry.ability) abilities[specializationEntry.ability] = Math.min(20, abilities[specializationEntry.ability] + 1);
@@ -82,6 +85,23 @@ export function resolveTrainerCreation(selection) {
     hp: Math.max(1, 6 + conModifier),
     featDetails: originFeatDetails(originEntry, selection)
   };
+}
+
+export function resolveBaseAbilities(selection) {
+  const method = selection.baseAbilityMethod;
+  if (!method) return Object.fromEntries(Object.keys(ABILITIES).map(key => [key, 10]));
+  const abilities = Object.fromEntries(Object.keys(ABILITIES).map(key => [key, Number(selection[`baseAbility${titleKey(key)}`])]));
+  if (method === "standard") {
+    const values = Object.values(abilities).sort((a, b) => b - a);
+    if (values.some((value, index) => value !== STANDARD_ARRAY[index])) throw new Error("Asigna una vez cada valor del conjunto estándar: 15, 14, 13, 12, 10 y 8.");
+  } else if (method === "point-buy") {
+    if (Object.values(abilities).some(value => !POINT_BUY_COSTS.hasOwnProperty(value))) throw new Error("En compra de puntos, cada característica debe estar entre 8 y 15.");
+    const spent = Object.values(abilities).reduce((total, value) => total + POINT_BUY_COSTS[value], 0);
+    if (spent !== 27) throw new Error(`Debes gastar exactamente 27 puntos; actualmente has gastado ${spent}.`);
+  } else if (method === "manual") {
+    if (Object.values(abilities).some(value => !Number.isInteger(value) || value < 3 || value > 18)) throw new Error("Las características manuales deben ser números enteros entre 3 y 18.");
+  } else throw new Error("Selecciona un método válido para las características base.");
+  return abilities;
 }
 
 function resolveOriginAbilities(originEntry, selection) {
@@ -113,4 +133,5 @@ function specialization(type, name, ability = null, skill = null) {
 }
 
 function unique(values) { return [...new Set(values.filter(Boolean))]; }
+function titleKey(value) { return value.charAt(0).toUpperCase() + value.slice(1); }
 function escapeHtml(value) { return value.replace(/[&<>"']/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[character]); }

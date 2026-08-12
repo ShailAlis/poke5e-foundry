@@ -63,6 +63,24 @@
     </div>
   </section>
 
+  <section class="poke5e-held-item-panel" aria-label="Objeto equipado">
+    <div>
+      <h2><i class="fa-solid fa-hand-holding"></i> Objeto equipado</h2>
+      {{#if heldItem}}
+        <strong>{{heldItem.name}}</strong>
+        <p>{{heldItem.description}}</p>
+        {{#if heldItem.hasCharges}}<small>Cargas: {{heldItem.charges}}</small>{{/if}}
+      {{else}}<span class="poke5e-none">Este Pokémon no lleva ningún objeto.</span>{{/if}}
+    </div>
+    {{#if canEdit}}
+      <div class="poke5e-held-item-actions">
+        <label><span>Equipar desde el inventario</span><select data-action="equip-held-item">{{selectOptions heldItemOptions}}</select></label>
+        {{#if heldItem}}<button type="button" data-action="use-held-item"><i class="fa-solid fa-bolt"></i> Usar efecto</button>
+        {{#if heldItem.hasCharges}}<button type="button" data-action="restore-held-item" title="Recuperar cargas al amanecer"><i class="fa-solid fa-sun"></i> Restaurar</button>{{/if}}{{/if}}
+      </div>
+    {{/if}}
+  </section>
+
   {{#if sheetMode.combat}}<section class="poke5e-combat-profile" aria-label="Afinidades de daño">
     <div class="poke5e-defense-group vulnerable">
       <h2><i class="fa-solid fa-heart-crack"></i> Vulnerabilidades</h2>
@@ -101,7 +119,7 @@
   </section>
 
   <nav class="poke5e-sheet-actions">
-    <button type="button" data-action="open-trainer-sheet"><i class="fa-solid fa-user-shield"></i> Abrir entrenador</button>
+    {{#if hasTrainer}}<button type="button" data-action="open-trainer-sheet"><i class="fa-solid fa-user-shield"></i> Abrir entrenador</button>{{/if}}
   </nav>
 
   <section>

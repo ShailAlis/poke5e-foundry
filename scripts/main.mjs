@@ -2,9 +2,10 @@ import { Poke5eImporter } from "./importer.mjs";
 import { Poke5ePokemonSheet } from "./pokemon-sheet.mjs";
 import { Poke5eReference } from "./reference.mjs";
 import { Poke5eTrainerTeam } from "./trainer-team.mjs";
-import { MODULE_ID, displayAssetUrl, getPokemonItems, normalizeDroppedSpecies, randomGenderForRatio } from "./model.mjs";
+import { MODULE_ID, displayAssetUrl, getPokemonItems, normalizeDroppedSpecies, randomGenderForRatio, trainerPokeslotLimit } from "./model.mjs";
 import { cleanDeploymentActor, recallPokemon, syncDeploymentHp, syncPokemonHpToDeployment } from "./deployment.mjs";
 import { registerTrainerActorSheet } from "./trainer-actor-sheet.mjs";
+import { migratePokemonActorSheets, registerPokemonActorSheet } from "./pokemon-actor-sheet.mjs";
 import { damageTraitsForPokemonTypes, registerPokemonDamageTypes } from "./combat.mjs";
 import { Poke5eEncounterBuilder } from "./encounter-builder.mjs";
 import { attemptCapture, registerCaptureSocket } from "./capture.mjs";
@@ -14,6 +15,7 @@ import { Poke5eNpcTrainerGenerator } from "./npc-trainer-generator.mjs";
 Hooks.once("init", () => {
   registerPokemonDamageTypes();
   registerTrainerActorSheet();
+  registerPokemonActorSheet();
   game.settings.register(MODULE_ID, "darkMode", {
     name: "POKE5E.Settings.DarkMode.Name",
     hint: "POKE5E.Settings.DarkMode.Hint",
@@ -73,6 +75,7 @@ Hooks.once("ready", () => {
     openPokemon: document => openPokemon(document)
   };
   if (game.user.isGM) {
+    migratePokemonActorSheets().catch(error => console.error(`${MODULE_ID} | Pokémon sheet migration failed`, error));
     migrateEmbeddedAssetUrls().catch(error => console.error(`${MODULE_ID} | Asset migration failed`, error));
     migratePokemonCombatData().catch(error => console.error(`${MODULE_ID} | Combat data migration failed`, error));
   }
@@ -89,7 +92,7 @@ Hooks.on("preCreateItem", item => {
   }
   if (!normalizeDroppedSpecies(item)) return;
   const currentTeam = getPokemonItems(item.parent).filter(entry => entry.getFlag(MODULE_ID, "instance")?.inTeam);
-  if (currentTeam.length >= 6) item.updateSource({ [`flags.${MODULE_ID}.instance.inTeam`]: false });
+  if (currentTeam.length >= trainerPokeslotLimit(item.parent)) item.updateSource({ [`flags.${MODULE_ID}.instance.inTeam`]: false });
 });
 
 Hooks.on("preCreateActor", actor => enforceHumanActorSource(actor));
@@ -280,7 +283,7 @@ function addNpcTrainerSceneControl(controls) {
 
 function teamLabel(actor) {
   const count = getPokemonItems(actor).filter(item => item.getFlag(MODULE_ID, "instance")?.inTeam).length;
-  return `Equipo Pokémon (${count}/6)`;
+  return `Equipo Pokémon (${count}/${trainerPokeslotLimit(actor)})`;
 }
 
 console.info(`${MODULE_ID} | Pokémon 5e module loaded`);

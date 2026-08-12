@@ -1,4 +1,5 @@
-import { MODULE_ID, MODULE_PATH, displayAssetUrl, displayPokemonName, getPokemonItems, portraitUrl } from "./model.mjs";
+import { MODULE_ID, MODULE_PATH, displayAssetUrl, displayPokemonName, getPokemonItems, portraitUrl, trainerPokeslotLimit } from "./model.mjs";
+import { experienceProgress } from "./progression.mjs";
 import { Poke5eSpeciesBrowser } from "./species-browser.mjs";
 import { Poke5ePokemonSheet } from "./pokemon-sheet.mjs";
 import { deployPokemon, recallPokemon, deployedActorFor } from "./deployment.mjs";
@@ -27,8 +28,10 @@ export class Poke5eTrainerTeam extends HandlebarsApplicationMixin(ApplicationV2)
 
   async _prepareContext() {
     const all = getPokemonItems(this.actor).map(item => preparePokemon(item));
-    const team = all.filter(entry => entry.instance.inTeam);
-    const reserve = all.filter(entry => !entry.instance.inTeam);
+    const maxTeamSize = trainerPokeslotLimit(this.actor);
+    const active = all.filter(entry => entry.instance.inTeam);
+    const team = active.slice(0, maxTeamSize);
+    const reserve = [...all.filter(entry => !entry.instance.inTeam), ...active.slice(maxTeamSize).map(entry => ({ ...entry, overflow: true }))];
     const gear = this.actor.items.filter(item => item.getFlag(MODULE_ID, "kind") === "gear").map(item => ({
       id: item.id, name: item.name, img: displayAssetUrl(item.img, "icons/svg/item-bag.svg"), quantity: item.system.quantity ?? 1
     }));
@@ -39,6 +42,7 @@ export class Poke5eTrainerTeam extends HandlebarsApplicationMixin(ApplicationV2)
       reserve,
       gear,
       teamCount: team.length,
+      maxTeamSize,
       totalCount: all.length
     };
   }
@@ -68,8 +72,9 @@ export class Poke5eTrainerTeam extends HandlebarsApplicationMixin(ApplicationV2)
     const item = this.#item(event);
     if (!item || !this.actor.isOwner) return;
     const instance = foundry.utils.deepClone(item.getFlag(MODULE_ID, "instance"));
-    if (!instance.inTeam && getPokemonItems(this.actor).filter(entry => entry.getFlag(MODULE_ID, "instance")?.inTeam).length >= 6) {
-      return ui.notifications.warn("El equipo activo ya tiene seis Pokémon.");
+    const limit = trainerPokeslotLimit(this.actor);
+    if (!instance.inTeam && getPokemonItems(this.actor).filter(entry => entry.getFlag(MODULE_ID, "instance")?.inTeam).length >= limit) {
+      return ui.notifications.warn(`El equipo activo ya ha alcanzado sus ${limit} Pokéslots.`);
     }
     instance.inTeam = !instance.inTeam;
     await item.setFlag(MODULE_ID, "instance", instance);
@@ -124,6 +129,7 @@ function preparePokemon(item) {
   const species = item.getFlag(MODULE_ID, "species") ?? {};
   const instance = item.getFlag(MODULE_ID, "instance") ?? {};
   const deployed = deployedActorFor(item);
+  const experience = experienceProgress(instance.experience, instance.level);
   return {
     id: item.id,
     name: displayPokemonName(item),
@@ -133,6 +139,13 @@ function preparePokemon(item) {
     instance,
     deployed: Boolean(deployed),
     deployedActorId: deployed?.id,
-    number: species.number
+    number: species.number,
+    experience: {
+      total: experience.total,
+      remaining: experience.remaining,
+      nextLevel: Math.min((Number(instance.level) || 1) + 1, 20),
+      maximumLevel: experience.maximumLevel,
+      percent: experience.maximumLevel ? 100 : Math.max(0, Math.min(100, Math.round((experience.gained / Math.max(experience.span, 1)) * 100)))
+    }
   };
 }

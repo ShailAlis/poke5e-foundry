@@ -23,6 +23,23 @@
         <div class="poke5e-callout"><i class="fa-solid fa-person"></i><div><strong>Especie: Humano</strong><br>Es la única especie de personaje jugador de esta ambientación y se aplicará automáticamente.</div></div>
       </section>
       <section>
+        <div class="poke5e-section-title"><h2><i class="fa-solid fa-dice-d20"></i> Características base</h2>{{#if baseAbilityPointBuy}}<span>{{pointBuySpent}}/27 puntos gastados</span>{{/if}}</div>
+        <label class="poke5e-wide-field"><span>Método de generación</span><select name="baseAbilityMethod">{{#each baseAbilityMethods}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+        <p>Estos son los valores antes de aplicar las bonificaciones del origen y la especialización.</p>
+        <div class="poke5e-base-abilities">
+          {{#each baseAbilityFields}}
+            <label><span>{{label}}</span>
+              {{#if ../baseAbilityStandard}}
+                <select name="{{inputName}}">{{#each options}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select>
+              {{else}}
+                <input type="number" name="{{inputName}}" value="{{value}}" min="{{#if ../baseAbilityPointBuy}}8{{else}}3{{/if}}" max="{{#if ../baseAbilityPointBuy}}15{{else}}18{{/if}}">
+              {{/if}}
+            </label>
+          {{/each}}
+        </div>
+        {{#if baseAbilityPointBuy}}<div class="poke5e-bonus-banner {{#if pointBuyRemaining}}warning{{/if}}"><strong>Puntos restantes:</strong> {{pointBuyRemaining}}. Debes gastar exactamente los 27 puntos.</div>{{/if}}
+      </section>
+      <section>
         <div class="poke5e-section-title"><h2><i class="fa-solid fa-earth-americas"></i> Origen regional</h2></div>
         <label class="poke5e-wide-field"><span>Región natal</span><select name="origin"><option value="">Elige una región…</option>{{#each origins}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
         {{#if origin}}

@@ -1,9 +1,9 @@
-import { MODULE_ID, MODULE_PATH, displayAssetUrl, displayPokemonName, getPokemonItems } from "./model.mjs";
+import { MODULE_ID, MODULE_PATH, displayAssetUrl, displayPokemonName, getPokemonItems, trainerPokeslotLimit } from "./model.mjs";
 import { Poke5ePokemonSheet } from "./pokemon-sheet.mjs";
 import { Poke5eSpeciesBrowser } from "./species-browser.mjs";
-import { Poke5eTrainerTeam } from "./trainer-team.mjs";
 import { deployPokemon, deployedActorFor, recallPokemon } from "./deployment.mjs";
 import { attemptCapture } from "./capture.mjs";
+import { experienceProgress } from "./progression.mjs";
 
 const CharacterActorSheet = dnd5e.applications.actor.CharacterActorSheet;
 
@@ -16,9 +16,7 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
       capturePokemon: Poke5eTrainerActorSheet.#capturePokemon,
       deployPokemon: Poke5eTrainerActorSheet.#deployPokemon,
       openPokemon: Poke5eTrainerActorSheet.#openPokemon,
-      openTeamManager: Poke5eTrainerActorSheet.#openTeamManager,
       recallPokemon: Poke5eTrainerActorSheet.#recallPokemon,
-      toggleDarkMode: Poke5eTrainerActorSheet.#toggleDarkMode,
       togglePokemonTeam: Poke5eTrainerActorSheet.#togglePokemonTeam
     }
   };
@@ -42,15 +40,17 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
     context = await super._preparePartContext(partId, context, options);
     if (partId !== "pokemonTeam") return context;
     const all = getPokemonItems(this.actor).map(item => preparePokemon(item));
-    const team = all.filter(entry => entry.instance.inTeam).slice(0, 6);
+    const maxTeamSize = trainerPokeslotLimit(this.actor);
+    const active = all.filter(entry => entry.instance.inTeam);
+    const team = active.slice(0, maxTeamSize);
     return {
       ...context,
       pokemon: {
         allCount: all.length,
         canEdit: this.actor.isOwner,
-        darkMode: game.settings.get(MODULE_ID, "darkMode"),
-        reserve: all.filter(entry => !entry.instance.inTeam),
-        slots: Array.from({ length: 6 }, (_, index) => team[index]
+        maxTeamSize,
+        reserve: [...all.filter(entry => !entry.instance.inTeam), ...active.slice(maxTeamSize).map(entry => ({ ...entry, overflow: true }))],
+        slots: Array.from({ length: maxTeamSize }, (_, index) => team[index]
           ? { ...team[index], position: index + 1 }
           : { empty: true, position: index + 1 }),
         teamCount: team.length
@@ -78,24 +78,16 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
     if (item) new Poke5ePokemonSheet({ pokemonItem: item }).render(true);
   }
 
-  static #openTeamManager(event, target) {
-    const sheet = this;
-    new Poke5eTrainerTeam({ actor: sheet.actor }).render(true);
-  }
-
-  static async #toggleDarkMode(event, target) {
-    const enabled = !game.settings.get(MODULE_ID, "darkMode");
-    await game.settings.set(MODULE_ID, "darkMode", enabled);
-    this.render({ force: true });
-  }
-
   static async #togglePokemonTeam(event, target) {
     const sheet = this;
     const item = Poke5eTrainerActorSheet.#item(sheet, target);
     if (!item || !sheet.actor.isOwner) return;
     const instance = foundry.utils.deepClone(item.getFlag(MODULE_ID, "instance"));
     const teamCount = getPokemonItems(sheet.actor).filter(entry => entry.getFlag(MODULE_ID, "instance")?.inTeam).length;
-    if (!instance.inTeam && teamCount >= 6) return ui.notifications.warn("El equipo activo ya tiene seis Pokémon.");
+    const maxTeamSize = trainerPokeslotLimit(sheet.actor);
+    if (!instance.inTeam && teamCount >= maxTeamSize) {
+      return ui.notifications.warn(`Los Pokéslots de este entrenador permiten un máximo de ${maxTeamSize} Pokémon activos.`);
+    }
     instance.inTeam = !instance.inTeam;
     await item.setFlag(MODULE_ID, "instance", instance);
     sheet.render({ force: true });
@@ -130,6 +122,7 @@ function preparePokemon(item) {
   const instance = item.getFlag(MODULE_ID, "instance") ?? {};
   const hpValue = Math.max(0, Number(instance.hp?.value) || 0);
   const hpMax = Math.max(1, Number(instance.hp?.max) || 1);
+  const experience = experienceProgress(instance.experience, instance.level);
   return {
     itemId: item.id,
     name: displayPokemonName(item),
@@ -139,6 +132,7 @@ function preparePokemon(item) {
     deployed: Boolean(deployedActorFor(item)),
     hpValue,
     hpMax,
-    hpPercent: Math.max(0, Math.min(100, Math.round((hpValue / hpMax) * 100)))
+    hpPercent: Math.max(0, Math.min(100, Math.round((hpValue / hpMax) * 100))),
+    experience
   };
 }

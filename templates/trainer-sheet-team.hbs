@@ -4,17 +4,13 @@
     <div>
       <p class="eyebrow">Ficha de Entrenador</p>
       <h2>Equipo Pokémon</h2>
-      <p>{{pokemon.teamCount}} de 6 activos · {{pokemon.allCount}} Pokémon en total</p>
+      <p>{{pokemon.teamCount}} de {{pokemon.maxTeamSize}} Pokéslots ocupados · {{pokemon.allCount}} Pokémon en total</p>
     </div>
     <div class="poke5e-sheet-team-actions">
-      <button type="button" data-action="toggleDarkMode" title="Cambiar entre modo claro y oscuro">
-        {{#if pokemon.darkMode}}<i class="fa-solid fa-sun"></i> Modo claro{{else}}<i class="fa-solid fa-moon"></i> Modo oscuro{{/if}}
-      </button>
       {{#if pokemon.canEdit}}
         <button type="button" class="bright" data-action="capturePokemon"><i class="fa-solid fa-circle-dot"></i> Capturar objetivo</button>
         <button type="button" class="bright" data-action="browsePokemon"><i class="fa-solid fa-plus"></i> Añadir Pokémon</button>
       {{/if}}
-      <button type="button" data-action="openTeamManager"><i class="fa-solid fa-sliders"></i> Gestión completa</button>
     </div>
   </header>
 
@@ -41,6 +37,10 @@
               <span style="width: {{hpPercent}}%"></span>
             </div>
             <small>PG {{hpValue}}/{{hpMax}}</small>
+            <div class="pokemon-exp" title="{{experience.total}} PX · faltan {{experience.remaining}} para el siguiente nivel">
+              <span style="width: {{experience.percent}}%"></span>
+            </div>
+            <small>PX {{experience.total}}/{{experience.ceiling}}</small>
           </div>
           {{#if ../pokemon.canEdit}}
             <div class="pokemon-controls">
@@ -68,7 +68,7 @@
           <article data-item-id="{{itemId}}">
             <button type="button" class="reserve-portrait" data-action="openPokemon"><img src="{{img}}" alt="{{name}}"></button>
             <button type="button" class="reserve-name" data-action="openPokemon"><strong>{{name}}</strong><small>{{speciesName}} · Nivel {{instance.level}}</small></button>
-            <span>PG {{hpValue}}/{{hpMax}}</span>
+            <span>PG {{hpValue}}/{{hpMax}} · PX {{experience.total}}{{#if overflow}} · Sin Pokéslot{{/if}}</span>
             {{#if ../pokemon.canEdit}}<button type="button" data-action="togglePokemonTeam" title="Añadir al equipo"><i class="fa-solid fa-arrow-up"></i></button>{{/if}}
           </article>
         {{/each}}
