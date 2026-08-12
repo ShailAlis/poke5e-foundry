@@ -65,6 +65,7 @@ export function wildActorSource(species, instance, movesById, encounterId = "") 
     prototypeToken: {
       name: `${species.name} salvaje`,
       actorLink: true,
+      rotation: 0,
       disposition: -1,
       displayName: 20,
       displayBars: 20,

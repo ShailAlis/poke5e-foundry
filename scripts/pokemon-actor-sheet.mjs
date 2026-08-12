@@ -34,13 +34,14 @@ export async function migratePokemonActorSheets() {
     if (actor.getFlag("core", "sheetClass") !== sheetClass) updates["flags.core.sheetClass"] = sheetClass;
     if (Number(actor.prototypeToken.texture.scaleX) !== POKEMON_TOKEN_SCALE) updates["prototypeToken.texture.scaleX"] = POKEMON_TOKEN_SCALE;
     if (Number(actor.prototypeToken.texture.scaleY) !== POKEMON_TOKEN_SCALE) updates["prototypeToken.texture.scaleY"] = POKEMON_TOKEN_SCALE;
+    if (Number(actor.prototypeToken.rotation) !== 0) updates["prototypeToken.rotation"] = 0;
     if (Object.keys(updates).length) await actor.update(updates);
   }
   const actorIds = new Set(actors.map(actor => actor.id));
   for (const scene of game.scenes) {
     const updates = scene.tokens
-      .filter(token => actorIds.has(token.actorId) && (Number(token.texture.scaleX) !== POKEMON_TOKEN_SCALE || Number(token.texture.scaleY) !== POKEMON_TOKEN_SCALE))
-      .map(token => ({ _id: token.id, "texture.scaleX": POKEMON_TOKEN_SCALE, "texture.scaleY": POKEMON_TOKEN_SCALE }));
+      .filter(token => actorIds.has(token.actorId) && (Number(token.texture.scaleX) !== POKEMON_TOKEN_SCALE || Number(token.texture.scaleY) !== POKEMON_TOKEN_SCALE || Number(token.rotation) !== 0))
+      .map(token => ({ _id: token.id, "texture.scaleX": POKEMON_TOKEN_SCALE, "texture.scaleY": POKEMON_TOKEN_SCALE, rotation: 0 }));
     if (updates.length) await scene.updateEmbeddedDocuments("Token", updates);
   }
 }

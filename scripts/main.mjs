@@ -3,7 +3,7 @@ import { Poke5ePokemonSheet } from "./pokemon-sheet.mjs";
 import { Poke5eReference } from "./reference.mjs";
 import { Poke5eTrainerTeam } from "./trainer-team.mjs";
 import { MODULE_ID, displayAssetUrl, getPokemonItems, normalizeDroppedSpecies, randomGenderForRatio, trainerPokeslotLimit } from "./model.mjs";
-import { cleanDeploymentActor, recallPokemon, syncDeploymentHp, syncPokemonHpToDeployment } from "./deployment.mjs";
+import { cleanDeploymentActor, recallPokemon, registerPokemonTokenMovement, syncDeploymentHp, syncPokemonHpToDeployment } from "./deployment.mjs";
 import { registerTrainerActorSheet } from "./trainer-actor-sheet.mjs";
 import { migratePokemonActorSheets, registerPokemonActorSheet } from "./pokemon-actor-sheet.mjs";
 import { damageTraitsForPokemonTypes, registerPokemonDamageTypes } from "./combat.mjs";
@@ -16,6 +16,7 @@ Hooks.once("init", () => {
   registerPokemonDamageTypes();
   registerTrainerActorSheet();
   registerPokemonActorSheet();
+  registerPokemonTokenMovement();
   game.settings.register(MODULE_ID, "darkMode", {
     name: "POKE5E.Settings.DarkMode.Name",
     hint: "POKE5E.Settings.DarkMode.Hint",

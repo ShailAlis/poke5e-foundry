@@ -4,6 +4,25 @@ import { damageTraitsForPokemonTypes } from "./combat.mjs";
 
 const DEPLOY_RANGE = 10;
 const deploymentCleanup = new Map();
+const uprightMovements = new Map();
+
+export function registerPokemonTokenMovement() {
+  Hooks.on("moveToken", (token, movement, operation, user) => {
+    if (user?.id !== game.user.id || !["deployed", "wild"].includes(token.actor?.getFlag(MODULE_ID, "kind"))) return;
+    const marker = foundry.utils.randomID();
+    uprightMovements.set(token.uuid, marker);
+    Promise.resolve().then(async () => {
+      try {
+        await token.object?.movementAnimationPromise;
+      } catch {
+        // An interrupted movement is superseded by the next movement marker.
+      }
+      if (uprightMovements.get(token.uuid) !== marker) return;
+      uprightMovements.delete(token.uuid);
+      if (Number(token.rotation) !== 0) await token.update({ rotation: 0 }, { animate: true, poke5eReturnUpright: true });
+    });
+  });
+}
 
 export function deployedActorFor(pokemonItem) {
   return game.actors.find(actor => actor.getFlag(MODULE_ID, "kind") === "deployed" && actor.getFlag(MODULE_ID, "pokemonItemUuid") === pokemonItem.uuid);
@@ -275,6 +294,7 @@ async function deployedActorSource(pokemonItem) {
     ownership: foundry.utils.deepClone(trainer.ownership),
     prototypeToken: {
       name: displayPokemonName(pokemonItem), actorLink: true, disposition: Number.isFinite(Number(trainer.prototypeToken?.disposition)) ? Number(trainer.prototypeToken.disposition) : 1, displayName: 20,
+      rotation: 0,
       width: tokenSize, height: tokenSize,
       texture: {
         src: remoteAssetUrl(instance.shiny ? species.media?.spriteShiny : species.media?.sprite) || portraitUrl(species, instance.shiny),
