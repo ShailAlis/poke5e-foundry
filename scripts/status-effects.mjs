@@ -41,6 +41,7 @@ export function registerPokemonStatusSocket() {
     if (!isResponsibleGm() || !prior?.combatantId) return;
     applyEndTurnStatusDamage(combat.combatants.get(prior.combatantId)?.actor).catch(error => console.error(`${MODULE_ID} | End-turn status damage failed`, error));
   });
+  synchronizePokemonStatusEffects().catch(error => console.error(`${MODULE_ID} | Status icon synchronization failed`, error));
 }
 
 export function inferMoveStatusEffects(move) {
@@ -122,6 +123,7 @@ export function pokemonStatusEffectSource(id, { sourceName = "", moveName = "" }
   const effectId = statusId(id);
   return {
     name: definition.name,
+    icon: definition.img,
     img: definition.img,
     description: definition.description,
     statuses: [effectId, ...definition.linked],
@@ -134,6 +136,26 @@ export function pokemonStatusEffectSource(id, { sourceName = "", moveName = "" }
     duration: definition.rounds ? { rounds: definition.rounds, startRound: game.combat?.round ?? 0, startTurn: game.combat?.turn ?? 0 } : {},
     flags: { [MODULE_ID]: { kind: "pokemon-status", status: id, sourceName, moveName } }
   };
+}
+
+export async function synchronizePokemonStatusEffects() {
+  if (!isResponsibleGm()) return;
+  for (const actor of game.actors.filter(candidate => ["deployed", "wild"].includes(candidate.getFlag(MODULE_ID, "kind")))) {
+    const updates = [];
+    const existing = new Set();
+    for (const effect of actor.effects) {
+      const id = effect.getFlag(MODULE_ID, "status");
+      const definition = POKEMON_STATUS_EFFECTS[id];
+      if (!definition) continue;
+      existing.add(id);
+      if (effect.icon !== definition.img) updates.push({ _id: effect.id, icon: definition.img, img: definition.img });
+    }
+    if (updates.length) await actor.updateEmbeddedDocuments("ActiveEffect", updates);
+    const pokemonItem = await pokemonItemForActor(actor);
+    const conditions = pokemonItem?.getFlag(MODULE_ID, "instance")?.conditions ?? [];
+    const missing = conditions.filter(id => POKEMON_STATUS_EFFECTS[id] && !existing.has(id)).map(id => pokemonStatusEffectSource(id));
+    if (missing.length) await actor.createEmbeddedDocuments("ActiveEffect", missing);
+  }
 }
 
 export function pokemonStatusEntries(instance) {
