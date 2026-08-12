@@ -1,4 +1,5 @@
-import { MODULE_ID, MODULE_PATH, displayAssetUrl, getPack, getPokemonItems, pokemonItemSourceFromSpecies, trainerPokeslotLimit } from "./model.mjs";
+import { loadPoke5eData } from "./data-service.mjs";
+import { MODULE_ID, MODULE_PATH, displayAssetUrl, getPack, getPokemonItems, pokemonItemSourceFromSpecies, speciesItemSource, trainerPokeslotLimit } from "./model.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -26,28 +27,33 @@ export class Poke5eSpeciesBrowser extends HandlebarsApplicationMixin(Application
   async _prepareContext() {
     const pack = getPack("species");
     if (!pack) return { missingPack: true, entries: [], total: 0, filters: this.filters };
+    const data = await loadPoke5eData();
     const speciesPath = `flags.${MODULE_ID}.species`;
     const index = await pack.getIndex({ fields: [
       "img", `flags.${MODULE_ID}.sourceId`, `${speciesPath}.number`, `${speciesPath}.type`,
       `${speciesPath}.sr`, `${speciesPath}.minLevel`
     ] });
+    const indexed = [...index.values()];
+    const bySourceId = new Map(indexed.map(entry => [sourceId(entry), entry]).filter(([id]) => id));
+    const bundledIds = new Set(data.pokemon.map(species => species.id));
+    const catalog = data.pokemon.map(species => catalogEntry(bySourceId.get(species.id), species));
+    for (const entry of indexed) {
+      const id = sourceId(entry);
+      if (id && !bundledIds.has(id)) catalog.push(catalogEntry(entry));
+    }
+
     const query = this.filters.query.trim().toLocaleLowerCase();
-    const number = entry => Number(foundry.utils.getProperty(entry, `${speciesPath}.number`)) || 0;
-    const sr = entry => Number(foundry.utils.getProperty(entry, `${speciesPath}.sr`)) || 0;
-    const minLevel = entry => Number(foundry.utils.getProperty(entry, `${speciesPath}.minLevel`)) || 1;
-    const types = entry => foundry.utils.getProperty(entry, `${speciesPath}.type`) ?? [];
-    const all = [...index.values()].filter(entry => {
-      const sourceId = String(foundry.utils.getProperty(entry, `flags.${MODULE_ID}.sourceId`) ?? "").toLocaleLowerCase();
-      if (query && !entry.name.toLocaleLowerCase().includes(query) && !sourceId.includes(query) && !String(number(entry)).includes(query)) return false;
-      if (this.filters.type && !types(entry).includes(this.filters.type)) return false;
-      if (this.filters.srMin !== "" && sr(entry) < Number(this.filters.srMin)) return false;
-      if (this.filters.srMax !== "" && sr(entry) > Number(this.filters.srMax)) return false;
-      if (this.filters.levelMin !== "" && minLevel(entry) < Number(this.filters.levelMin)) return false;
-      if (this.filters.levelMax !== "" && minLevel(entry) > Number(this.filters.levelMax)) return false;
+    const all = catalog.filter(entry => {
+      if (query && !entry.name.toLocaleLowerCase().includes(query) && !entry.sourceId.includes(query) && !String(entry.number).includes(query)) return false;
+      if (this.filters.type && !entry.types.includes(this.filters.type)) return false;
+      if (this.filters.srMin !== "" && entry.sr < Number(this.filters.srMin)) return false;
+      if (this.filters.srMax !== "" && entry.sr > Number(this.filters.srMax)) return false;
+      if (this.filters.levelMin !== "" && entry.minLevel < Number(this.filters.levelMin)) return false;
+      if (this.filters.levelMax !== "" && entry.minLevel > Number(this.filters.levelMax)) return false;
       return true;
     });
-    all.sort(sortSpecies(this.filters.sort, { number, sr, minLevel }));
-    const typeOptions = [...new Set([...index.values()].flatMap(types))]
+    all.sort(sortSpecies(this.filters.sort));
+    const typeOptions = [...new Set(catalog.flatMap(entry => entry.types))]
       .sort((a, b) => a.localeCompare(b))
       .reduce((options, type) => ({ ...options, [type]: capitalize(type) }), {});
     return {
@@ -63,15 +69,7 @@ export class Poke5eSpeciesBrowser extends HandlebarsApplicationMixin(Application
       },
       total: all.length,
       truncated: all.length > 80,
-      entries: all.slice(0, 80).map(entry => ({
-        id: entry._id,
-        name: entry.name,
-        img: displayAssetUrl(entry.img, "icons/svg/mystery-man.svg"),
-        number: number(entry),
-        types: types(entry),
-        sr: sr(entry),
-        minLevel: minLevel(entry)
-      }))
+      entries: all.slice(0, 80)
     };
   }
 
@@ -104,14 +102,21 @@ export class Poke5eSpeciesBrowser extends HandlebarsApplicationMixin(Application
   async #add(event) {
     if (!this.actor.isOwner) return ui.notifications.warn("No tienes permiso para modificar este entrenador.");
     const pack = getPack("species");
-    const speciesDocument = await pack?.getDocument(event.currentTarget.dataset.documentId);
-    if (!speciesDocument) return ui.notifications.error("No se encontró la especie en el compendio.");
-    const source = pokemonItemSourceFromSpecies(speciesDocument);
+    const documentId = event.currentTarget.dataset.documentId;
+    const speciesDocument = documentId ? await pack?.getDocument(documentId) : null;
+    let catalogSource = speciesDocument;
+    if (!catalogSource) {
+      const data = await loadPoke5eData();
+      const species = data.pokemonById.get(event.currentTarget.dataset.sourceId);
+      if (!species) return ui.notifications.error("No se encontró la especie en la Pokédex.");
+      catalogSource = speciesItemSource(species, data.movesById, data.evolutionsByFrom.get(species.id) ?? []);
+    }
+    const source = pokemonItemSourceFromSpecies(catalogSource);
     if (getPokemonItems(this.actor).filter(item => item.getFlag(MODULE_ID, "instance")?.inTeam).length >= trainerPokeslotLimit(this.actor)) {
       source.flags[MODULE_ID].instance.inTeam = false;
     }
     await this.actor.createEmbeddedDocuments("Item", [source]);
-    ui.notifications.info(`${speciesDocument.name} se ha añadido a ${this.actor.name}.`);
+    ui.notifications.info(`${source.name} se ha añadido a ${this.actor.name}.`);
     this.render({ force: true });
   }
 }
@@ -120,14 +125,34 @@ function defaultFilters() {
   return { query: "", type: "", srMin: "", srMax: "", levelMin: "", levelMax: "", sort: "number" };
 }
 
-function sortSpecies(sort, accessors) {
+function sortSpecies(sort) {
   switch (sort) {
     case "name": return (a, b) => a.name.localeCompare(b.name, game.i18n.lang);
-    case "sr-asc": return (a, b) => accessors.sr(a) - accessors.sr(b) || accessors.number(a) - accessors.number(b);
-    case "sr-desc": return (a, b) => accessors.sr(b) - accessors.sr(a) || accessors.number(a) - accessors.number(b);
-    case "level": return (a, b) => accessors.minLevel(a) - accessors.minLevel(b) || accessors.number(a) - accessors.number(b);
-    default: return (a, b) => accessors.number(a) - accessors.number(b);
+    case "sr-asc": return (a, b) => a.sr - b.sr || a.number - b.number;
+    case "sr-desc": return (a, b) => b.sr - a.sr || a.number - b.number;
+    case "level": return (a, b) => a.minLevel - b.minLevel || a.number - b.number;
+    default: return (a, b) => a.number - b.number;
   }
+}
+
+function catalogEntry(entry, fallback = {}) {
+  const speciesPath = `flags.${MODULE_ID}.species`;
+  const value = key => foundry.utils.getProperty(entry, `${speciesPath}.${key}`);
+  const types = value("type");
+  return {
+    id: entry?._id ?? "",
+    sourceId: String(sourceId(entry) || fallback.id || "").toLocaleLowerCase(),
+    name: entry?.name || fallback.name || "Pokémon",
+    img: displayAssetUrl(entry?.img || fallback.media?.sprite, "icons/svg/mystery-man.svg"),
+    number: Number(value("number") ?? fallback.number) || 0,
+    types: Array.isArray(types) ? types : fallback.type ?? [],
+    sr: Number(value("sr") ?? fallback.sr) || 0,
+    minLevel: Number(value("minLevel") ?? fallback.minLevel) || 1
+  };
+}
+
+function sourceId(entry) {
+  return String(foundry.utils.getProperty(entry, `flags.${MODULE_ID}.sourceId`) ?? "").toLocaleLowerCase();
 }
 
 function capitalize(value) {

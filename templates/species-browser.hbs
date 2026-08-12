@@ -29,7 +29,7 @@
         <article>
           <img src="{{img}}" alt="{{name}}">
           <div><small>#{{number}}</small><strong>{{name}}</strong><span>{{#each types}}{{this}}{{#unless @last}} / {{/unless}}{{/each}}</span><span class="species-rating">SR {{sr}} · Nivel mín. {{minLevel}}</span></div>
-          <button type="button" class="bright" data-action="add-species" data-document-id="{{id}}"><i class="fa-solid fa-plus"></i></button>
+          <button type="button" class="bright" data-action="add-species" data-document-id="{{id}}" data-source-id="{{sourceId}}"><i class="fa-solid fa-plus"></i></button>
         </article>
       {{else}}<div class="poke5e-empty">No se encontraron especies.</div>{{/each}}
     </div>
