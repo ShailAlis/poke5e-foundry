@@ -69,7 +69,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       item: this.pokemonItem,
       trainer: this.pokemonItem.parent,
       name: displayPokemonName(this.pokemonItem),
-      img: portraitUrl(species),
+      img: portraitUrl(species, instance.shiny),
       species,
       instance,
       level,

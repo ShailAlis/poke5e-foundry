@@ -37,6 +37,7 @@ Las versiones posteriores aparecerán al usar **Comprobar actualización** o **A
 - Cada Pokémon conserva un sexo generado según la proporción F:M de su especie y muestra sus posibles evoluciones con sus niveles y demás condiciones.
 - Contador de experiencia acumulada, subida automática de nivel, recompensa por derrota y evolución guiada desde la ficha Pokémon.
 - Generador de encuentros exclusivo del director con filtros por bioma, región, tipo, SR y nivel, generación por objetivo de PX y despliegue de salvajes temporales.
+- Generador de Entrenadores NPC exclusivo del director: crea rivales o aliados humanos con nivel, origen, especialización, arquetipo, dificultad, inventario, permisos, token y equipos Pokémon totalmente configurables o aleatorios.
 - Sistema de captura con alcance, límite de nivel, CD por SR/nivel/PG, ventaja por estados y efectos de las distintas Poké Balls. Al capturarlo, el salvaje conserva sus datos y pasa al equipo o a la reserva.
 - Interfaz en español e inglés.
 - Acceso directo a todas las secciones de reglas de poke5e.app.
@@ -59,6 +60,7 @@ game.poke5e.openTeam(canvas.tokens.controlled[0]?.actor)
 game.poke5e.openImporter()
 game.poke5e.openReference()
 game.poke5e.openEncounterBuilder()
+game.poke5e.openNpcTrainerGenerator()
 game.poke5e.captureTarget(canvas.tokens.controlled[0]?.actor)
 game.poke5e.createTrainer(canvas.tokens.controlled[0]?.actor)
 ```

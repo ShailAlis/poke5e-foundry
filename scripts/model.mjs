@@ -257,7 +257,8 @@ export function displayAssetUrl(path, fallback = "") {
   return original;
 }
 
-export function portraitUrl(species) {
+export function portraitUrl(species, shiny = false) {
+  if (shiny) return remoteAssetUrl(species.media?.mainShiny) || remoteAssetUrl(species.media?.spriteShiny) || remoteAssetUrl(species.media?.main) || remoteAssetUrl(species.media?.sprite) || "icons/svg/mystery-man.svg";
   return remoteAssetUrl(species.media?.main) || remoteAssetUrl(species.media?.sprite) || "icons/svg/mystery-man.svg";
 }
 

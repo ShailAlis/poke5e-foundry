@@ -132,6 +132,10 @@ function chooseWildPosition(tokenData, pokemonName) {
   });
 }
 
+export function chooseTokenPosition(tokenData, label) {
+  return chooseWildPosition(tokenData, label);
+}
+
 function tokenPosition(point, tokenData) {
   const width = Number(tokenData.width ?? 1) * canvas.grid.sizeX;
   const height = Number(tokenData.height ?? 1) * canvas.grid.sizeY;

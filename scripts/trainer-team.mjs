@@ -128,7 +128,7 @@ function preparePokemon(item) {
     id: item.id,
     name: displayPokemonName(item),
     speciesName: species.name,
-    img: portraitUrl(species),
+    img: portraitUrl(species, instance.shiny),
     types: species.type ?? [],
     instance,
     deployed: Boolean(deployed),

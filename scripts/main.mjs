@@ -9,6 +9,7 @@ import { damageTraitsForPokemonTypes, registerPokemonDamageTypes } from "./comba
 import { Poke5eEncounterBuilder } from "./encounter-builder.mjs";
 import { attemptCapture, registerCaptureSocket } from "./capture.mjs";
 import { Poke5eTrainerCreator, enforceHumanActorSource, isHumanSpecies } from "./trainer-creator.mjs";
+import { Poke5eNpcTrainerGenerator } from "./npc-trainer-generator.mjs";
 
 Hooks.once("init", () => {
   registerPokemonDamageTypes();
@@ -48,6 +49,14 @@ Hooks.once("init", () => {
     type: Poke5eEncounterBuilder,
     restricted: true
   });
+  game.settings.registerMenu(MODULE_ID, "npcTrainerGenerator", {
+    name: "Generador de Entrenadores NPC",
+    label: "Abrir generador de Entrenadores",
+    hint: "Crea Entrenadores NPC completos con equipos Pokémon configurables.",
+    icon: "fa-solid fa-users-gear",
+    type: Poke5eNpcTrainerGenerator,
+    restricted: true
+  });
 });
 
 Hooks.once("ready", () => {
@@ -57,6 +66,7 @@ Hooks.once("ready", () => {
     openImporter: () => new Poke5eImporter().render(true),
     openReference: () => new Poke5eReference().render(true),
     openEncounterBuilder: () => game.user.isGM ? new Poke5eEncounterBuilder().render(true) : ui.notifications.warn("Solo el director de juego puede abrir esta herramienta."),
+    openNpcTrainerGenerator: () => game.user.isGM ? new Poke5eNpcTrainerGenerator().render(true) : ui.notifications.warn("Solo el director de juego puede abrir esta herramienta."),
     captureTarget: actor => attemptCapture(actor ?? canvas?.tokens?.controlled?.[0]?.actor),
     createTrainer: actor => openTrainerCreator(actor ?? canvas?.tokens?.controlled?.[0]?.actor),
     openTeam: actor => openTeam(actor ?? canvas?.tokens?.controlled?.[0]?.actor),
@@ -90,7 +100,10 @@ Hooks.on("createActor", (actor, options, userId) => {
 
 Hooks.on("getActorSheetHeaderButtons", (sheet, buttons) => addLegacyHeaderControl(sheet, buttons));
 Hooks.on("getApplicationV1HeaderButtons", (application, buttons) => addLegacyHeaderControl(application, buttons));
-Hooks.on("getSceneControlButtons", controls => addEncounterSceneControl(controls));
+Hooks.on("getSceneControlButtons", controls => {
+  addEncounterSceneControl(controls);
+  addNpcTrainerSceneControl(controls);
+});
 Hooks.on("getHeaderControlsApplicationV2", (application, controls) => {
   if (application instanceof Poke5ePokemonSheet || application instanceof Poke5eTrainerTeam) return;
   const actor = application.actor ?? application.document;
@@ -240,6 +253,29 @@ function addEncounterSceneControl(controls) {
   } else if (!tokenControls.tools[tool.name]) {
     tokenControls.tools[tool.name] = tool;
   }
+}
+
+function addNpcTrainerSceneControl(controls) {
+  if (!game.user.isGM) return;
+  const open = () => new Poke5eNpcTrainerGenerator().render(true);
+  const tool = {
+    name: "poke5e-npc-trainer-generator",
+    title: "Generador de Entrenadores NPC",
+    icon: "fa-solid fa-users-gear",
+    button: true,
+    visible: true,
+    onChange: (event, active) => { if (active !== false) open(); }
+  };
+  if (Array.isArray(controls)) {
+    const tokenControls = controls.find(control => control.name === "token" || control.name === "tokens");
+    if (tokenControls && !tokenControls.tools.some(entry => entry.name === tool.name)) tokenControls.tools.push(tool);
+    return;
+  }
+  const tokenControls = controls.tokens ?? controls.token;
+  if (!tokenControls?.tools) return;
+  if (Array.isArray(tokenControls.tools)) {
+    if (!tokenControls.tools.some(entry => entry.name === tool.name)) tokenControls.tools.push(tool);
+  } else if (!tokenControls.tools[tool.name]) tokenControls.tools[tool.name] = tool;
 }
 
 function teamLabel(actor) {

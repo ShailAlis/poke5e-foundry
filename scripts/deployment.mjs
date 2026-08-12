@@ -238,12 +238,12 @@ async function deployedActorSource(pokemonItem) {
   return {
     name: `${displayPokemonName(pokemonItem)} [En combate]`,
     type: "npc",
-    img: portraitUrl(species),
+    img: portraitUrl(species, instance.shiny),
     ownership: foundry.utils.deepClone(trainer.ownership),
     prototypeToken: {
-      name: displayPokemonName(pokemonItem), actorLink: true, disposition: 1, displayName: 20,
+      name: displayPokemonName(pokemonItem), actorLink: true, disposition: Number.isFinite(Number(trainer.prototypeToken?.disposition)) ? Number(trainer.prototypeToken.disposition) : 1, displayName: 20,
       width: tokenSize, height: tokenSize,
-      texture: { src: remoteAssetUrl(species.media?.sprite) || portraitUrl(species) }
+      texture: { src: remoteAssetUrl(instance.shiny ? species.media?.spriteShiny : species.media?.sprite) || portraitUrl(species, instance.shiny) }
     },
     system: {
       abilities,

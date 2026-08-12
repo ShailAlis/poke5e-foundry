@@ -41,16 +41,26 @@
 
     {{#if step2}}
       <section>
-        <div class="poke5e-section-title"><h2><i class="fa-solid fa-list-check"></i> Competencias de Entrenador</h2><span>Carisma y Trato con Animales ya están incluidos</span></div>
-        <p>Elige exactamente dos habilidades. No repitas la competencia concedida por tu origen.</p>
-        <div class="poke5e-choice-grid">{{#each classSkillOptions}}<label><input type="checkbox" name="classSkills" value="{{value}}" {{#if selected}}checked{{/if}}> {{label}}</label>{{/each}}</div>
-        {{#if isUnova}}<div class="poke5e-callout"><i class="fa-solid fa-star"></i><div><strong>Muchos talentos</strong><br>Elige dos competencias adicionales por tu dote de Teselia.</div></div><div class="poke5e-choice-grid">{{#each extraSkillOptions}}<label><input type="checkbox" name="extraSkills" value="{{value}}" {{#if selected}}checked{{/if}}> {{label}}</label>{{/each}}</div>{{/if}}
-      </section>
-      <section>
         <div class="poke5e-section-title"><h2><i class="fa-solid fa-medal"></i> Especialización de nivel 1</h2></div>
-        <p>Además del efecto personal, tus Pokémon del tipo elegido reciben +1 a todas sus pruebas de habilidad.</p>
+        <p>Elige primero tu especialización. Además del efecto personal, tus Pokémon del tipo elegido reciben +1 a todas sus pruebas de habilidad.</p>
         <div class="poke5e-specialization-grid">{{#each specializations}}<label class="{{#if selected}}selected{{/if}}"><input type="radio" name="specialization" value="{{value}}" {{#if selected}}checked{{/if}}><strong>{{label}}</strong><span>{{effect}}</span></label>{{/each}}</div>
       </section>
+      {{#if hasSpecialization}}
+        <section>
+          <div class="poke5e-section-title"><h2><i class="fa-solid fa-list-check"></i> Competencias de Entrenador</h2><span>{{selectedClassSkillCount}}/2 elegidas</span></div>
+          <div class="poke5e-granted-skills">
+            <strong>Ya concedidas</strong>
+            {{#each grantedSkills}}<span><small>{{source}}</small>{{label}}</span>{{/each}}
+            {{#if specializationAbilityBonus}}<p>{{specializationAbilityBonus}}</p>{{/if}}
+          </div>
+          <p>Elige exactamente dos habilidades adicionales. Las concedidas por el origen o la especialización ya no aparecen entre las opciones.</p>
+          <div class="poke5e-choice-grid">{{#each classSkillOptions}}<label><input type="checkbox" name="classSkills" value="{{value}}" {{#if selected}}checked{{/if}}> {{label}}</label>{{/each}}</div>
+          <div class="poke5e-selected-skills"><strong>Seleccionadas:</strong>{{#each selectedClassSkills}}<span>{{this}}</span>{{else}}<em>Todavía ninguna</em>{{/each}}</div>
+          {{#if isUnova}}<div class="poke5e-callout"><i class="fa-solid fa-star"></i><div><strong>Muchos talentos</strong><br>Elige dos competencias adicionales por tu dote de Teselia.</div></div><div class="poke5e-choice-grid">{{#each extraSkillOptions}}<label><input type="checkbox" name="extraSkills" value="{{value}}" {{#if selected}}checked{{/if}}> {{label}}</label>{{/each}}</div>{{/if}}
+        </section>
+      {{else}}
+        <div class="poke5e-callout warning"><i class="fa-solid fa-arrow-up"></i><div>Selecciona una especialización para mostrar las habilidades disponibles.</div></div>
+      {{/if}}
     {{/if}}
 
     {{#if step3}}

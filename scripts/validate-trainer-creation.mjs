@@ -39,4 +39,8 @@ assert.throws(() => resolveTrainerCreation({
   origin: "unovan", classSkills: ["ath", "prc"], extraSkills: ["ath", "med"], specialization: "normal"
 }), /competencias nuevas/);
 
+assert.throws(() => resolveTrainerCreation({
+  origin: "alolan", classSkills: ["ath", "prc"], specialization: "fighting"
+}), /especialización/);
+
 console.log("Trainer creation validation passed.");

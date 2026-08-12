@@ -46,6 +46,8 @@ export class Poke5eTrainerCreator extends HandlebarsApplicationMixin(Application
   async _prepareContext() {
     const data = await loadPoke5eData();
     const origin = ORIGINS.find(entry => entry.id === this.selection.origin);
+    const specialization = SPECIALIZATIONS.find(entry => entry.type === this.selection.specialization);
+    const unavailableClassSkills = new Set([origin?.skill, specialization?.skill].filter(Boolean));
     const evolvedSpecies = new Set(data.evolutions.map(entry => entry.to));
     const starters = data.pokemon
       .filter(species => Number(species.sr) <= 0.5 && !evolvedSpecies.has(species.id))
@@ -76,7 +78,16 @@ export class Poke5eTrainerCreator extends HandlebarsApplicationMixin(Application
       originAnyTwo: origin?.abilities === "any-two",
       abilityOptionsPrimary: selectEntries(ABILITIES, this.selection.originAbilityPrimary),
       abilityOptionsSecondary: selectEntries(ABILITIES, this.selection.originAbilitySecondary),
-      classSkillOptions: CLASS_SKILLS.map(key => ({ value: key, label: SKILLS[key], selected: this.selection.classSkills.includes(key) })),
+      classSkillOptions: CLASS_SKILLS.filter(key => !unavailableClassSkills.has(key)).map(key => ({ value: key, label: SKILLS[key], selected: this.selection.classSkills.includes(key) })),
+      selectedClassSkills: this.selection.classSkills.map(key => SKILLS[key]).filter(Boolean),
+      selectedClassSkillCount: this.selection.classSkills.length,
+      hasSpecialization: Boolean(specialization),
+      grantedSkills: [
+        { source: "Clase", label: SKILLS.ani },
+        origin?.skill ? { source: `Origen · ${origin.name}`, label: SKILLS[origin.skill] } : null,
+        specialization?.skill ? { source: `Especialización · ${specialization.name}`, label: SKILLS[specialization.skill] } : null
+      ].filter(Boolean),
+      specializationAbilityBonus: specialization?.ability ? `La especialización concede +1 a ${ABILITIES[specialization.ability]}; no elimina ninguna habilidad de la lista.` : "",
       extraSkillOptions: Object.entries(SKILLS).map(([value, label]) => ({ value, label, selected: this.selection.extraSkills.includes(value) })),
       specializations: SPECIALIZATIONS.map(entry => ({
         ...option(entry.type, `${entry.name} · tipo ${titleCase(entry.type)}`, this.selection.specialization),
@@ -107,11 +118,18 @@ export class Poke5eTrainerCreator extends HandlebarsApplicationMixin(Application
 
   #capture(event) {
     const input = event.currentTarget;
+    const changedName = input.name;
+    const changedValue = input.value;
     if (input.name === "classSkills" || input.name === "extraSkills") {
       this.selection[input.name] = [...this.element.querySelectorAll(`[name='${input.name}']:checked`)].map(entry => entry.value);
     } else this.selection[input.name] = input.value;
     if (["origin", "starter", "specialization"].includes(input.name)) {
-      if (input.name === "starter") this.selection.ability = "";
+      this.#captureAll();
+      this.selection[changedName] = changedValue;
+      if (changedName === "starter") this.selection.ability = "";
+      if (changedName === "specialization") this.#removeGrantedClassSkills();
+      this.render({ force: true });
+    } else if (input.name === "classSkills") {
       this.render({ force: true });
     }
   }
@@ -121,8 +139,16 @@ export class Poke5eTrainerCreator extends HandlebarsApplicationMixin(Application
       if (input.name) this.selection[input.name] = input.value;
     }
     for (const name of ["classSkills", "extraSkills"]) {
-      this.selection[name] = [...this.element.querySelectorAll(`[name='${name}']:checked`)].map(entry => entry.value);
+      const fields = [...this.element.querySelectorAll(`[name='${name}']`)];
+      if (fields.length) this.selection[name] = fields.filter(entry => entry.checked).map(entry => entry.value);
     }
+  }
+
+  #removeGrantedClassSkills() {
+    const origin = ORIGINS.find(entry => entry.id === this.selection.origin);
+    const specialization = SPECIALIZATIONS.find(entry => entry.type === this.selection.specialization);
+    const granted = new Set([origin?.skill, specialization?.skill].filter(Boolean));
+    this.selection.classSkills = this.selection.classSkills.filter(skill => !granted.has(skill));
   }
 
   #next() {

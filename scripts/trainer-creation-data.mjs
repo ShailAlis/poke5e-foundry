@@ -52,6 +52,7 @@ export function resolveTrainerCreation(selection) {
   const classSkills = unique(selection.classSkills ?? []);
   if (classSkills.length !== 2 || classSkills.some(skill => !CLASS_SKILLS.includes(skill))) throw new Error("Elige dos habilidades de Entrenador distintas.");
   if (classSkills.includes(originEntry.skill)) throw new Error("Una habilidad de clase coincide con la de tu origen; elige otra para no perder una competencia.");
+  if (specializationEntry.skill && classSkills.includes(specializationEntry.skill)) throw new Error("Una habilidad de clase ya la concede tu especialización; elige otra.");
 
   const abilities = Object.fromEntries(Object.keys(ABILITIES).map(key => [key, 10]));
   abilities[originAbilities[0]] += 2;
