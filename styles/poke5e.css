@@ -160,13 +160,12 @@
 .poke5e-dex-identity { align-self: center; padding: 1rem; }
 .poke5e-dex-identity .eyebrow { color: #ffe59a; }
 .poke5e-dex-identity h1 { font-size: 2rem; }
-.poke5e-vitals { display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem; align-content: center; padding: 1rem; background: rgba(24, 33, 43, 0.27); }
+.poke5e-vitals { display: grid; grid-template-columns: repeat(3, minmax(76px, 1fr)); gap: 0.45rem; align-content: center; padding: 1rem; background: rgba(24, 33, 43, 0.27); }
 .poke5e-vitals > div,
-.poke5e-vitals > label { display: grid; min-width: 70px; text-align: center; }
+.poke5e-vitals > label { display: grid; align-content: center; justify-items: center; min-width: 0; text-align: center; }
 .poke5e-vitals span { font-size: 0.68rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
 .poke5e-vitals strong { font-size: 1.25rem; }
-.poke5e-vitals label { grid-column: 1 / -1; }
-.poke5e-vitals input { width: 5rem; margin: auto; text-align: center; }
+.poke5e-vitals input { width: 4.75rem; max-width: 100%; margin: auto; text-align: center; }
 .poke5e-vitals label small { color: rgba(255, 255, 255, 0.8); }
 .poke5e-species-name { margin: -0.15rem 0 0.35rem; opacity: 0.8; font-style: italic; }
 .poke5e-pokemon-meta { display: flex; gap: 0.4rem; margin-top: 0.5rem; }
@@ -705,8 +704,7 @@ body.poke5e-dark-mode .poke5e-contest-compatibility.incompatible { color: #f1b8b
   .poke5e-ability-grid { grid-template-columns: 1fr; }
   .poke5e-dex-header { grid-template-columns: 110px 1fr; }
   .poke5e-dex-header > img { width: 110px; }
-  .poke5e-vitals { grid-column: 1 / -1; grid-template-columns: repeat(3, 1fr); }
-  .poke5e-vitals label { grid-column: auto; }
+  .poke5e-vitals { grid-column: 1 / -1; }
   .poke5e-experience-panel { grid-template-columns: 1fr; }
   .poke5e-experience-controls { grid-column: 1; grid-row: auto; }
   .poke5e-experience-heading { align-items: flex-start; flex-direction: column; }
