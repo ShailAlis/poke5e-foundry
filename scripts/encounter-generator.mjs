@@ -96,6 +96,7 @@ export function buildWildInstance(species, movesById, options = {}) {
     nickname: "",
     level,
     experience: experienceAtLevel(level),
+    advancement: { appliedLevel: level, history: [] },
     hp: { value: hp, max: hp },
     ac: Number(species.ac) || 10,
     attributes: structuredCloneSafe(species.attributes ?? {}),

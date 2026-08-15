@@ -41,6 +41,7 @@ import {
   levelForExperience,
   normalizedExperience
 } from "./progression.mjs";
+import { applyPendingPokemonAdvancements, hasPendingPokemonAdvancements, initializePokemonAdvancement } from "./pokemon-advancement.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -127,6 +128,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     }));
     const defenses = pokemonDefenses(effectiveTypes);
     const experience = experienceProgress(instance.experience, level);
+    const pendingAdvancements = hasPendingPokemonAdvancements(instance);
     const heldActor = heldItemActorAdjustments({ sourceId: heldItem?.sourceId, speciesId: species.id, charges: heldItem?.charges, state: heldItem?.state });
     const combatActor = this.pokemonItem.parent?.getFlag?.(MODULE_ID, "kind") === "wild" ? this.pokemonItem.parent : deployedActorFor(this.pokemonItem);
     const activeConditions = Object.keys({ burned: 1, frozen: 1, paralyzed: 1, poisoned: 1, "badly-poisoned": 1, asleep: 1, confused: 1, flinched: 1 })
@@ -156,6 +158,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
         award: experienceAward(level, species.sr),
         awardLabel: formatNumber(experienceAward(level, species.sr))
       },
+      pendingAdvancements,
       heldItem: heldItem ? { ...heldItem, hasCharges: heldItem.charges != null } : null,
       statuses: pokemonStatusEntries({ conditions: [...new Set([...(instance.conditions ?? []), ...activeConditions])] }),
       ongoingEffects: [...ongoingEffectEntries(combatActor), ...moveModifierEntries(combatActor)],
@@ -247,6 +250,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     this.element.querySelector("[data-action='change-level']")?.addEventListener("change", event => this.#changeLevel(event));
     this.element.querySelector("[data-action='change-experience']")?.addEventListener("change", event => this.#changeExperience(event));
     this.element.querySelector("[data-action='add-experience']")?.addEventListener("click", () => this.#addExperience());
+    this.element.querySelector("[data-action='apply-advancements']")?.addEventListener("click", () => this.#applyAdvancements());
     this.element.querySelectorAll("[data-action='evolve-pokemon']").forEach(button => button.addEventListener("click", event => this.#evolve(event)));
     this.element.querySelector("[data-action='change-hp']")?.addEventListener("change", event => this.#changeHp(event));
     this.element.querySelector("[data-action='change-nickname']")?.addEventListener("change", event => this.#changeNickname(event));
@@ -265,9 +269,12 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
    */
   async #changeLevel(event) {
     const instance = this.#instance();
+    const oldLevel = Math.max(1, Math.min(20, Number(instance.level) || 1));
+    initializePokemonAdvancement(instance);
     instance.level = Math.max(1, Math.min(20, Number(event.currentTarget.value) || 1));
     instance.experience = experienceAtLevel(instance.level);
     await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
+    if (instance.level > oldLevel) await applyPendingPokemonAdvancements(this.pokemonItem);
     this.render({ force: true });
   }
 
@@ -279,10 +286,11 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
   async #changeExperience(event) {
     const instance = this.#instance();
     const oldLevel = Math.max(1, Math.min(20, Number(instance.level) || 1));
+    initializePokemonAdvancement(instance);
     instance.experience = normalizedExperience(event.currentTarget.value, oldLevel);
     instance.level = Math.max(oldLevel, levelForExperience(instance.experience));
     await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
-    notifyLevelGain(this.pokemonItem, oldLevel, instance.level);
+    if (instance.level > oldLevel) await applyPendingPokemonAdvancements(this.pokemonItem);
     this.render({ force: true });
   }
 
@@ -293,12 +301,19 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
   async #addExperience() {
     const instance = this.#instance();
     const oldLevel = Math.max(1, Math.min(20, Number(instance.level) || 1));
+    initializePokemonAdvancement(instance);
     const amount = await promptExperienceAmount();
     if (!amount) return;
     instance.experience = normalizedExperience(instance.experience, oldLevel) + amount;
     instance.level = Math.max(oldLevel, levelForExperience(instance.experience));
     await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
-    notifyLevelGain(this.pokemonItem, oldLevel, instance.level);
+    if (instance.level > oldLevel) await applyPendingPokemonAdvancements(this.pokemonItem);
+    this.render({ force: true });
+  }
+
+  /** Retoma un avance que se canceló al subir de nivel. */
+  async #applyAdvancements() {
+    await applyPendingPokemonAdvancements(this.pokemonItem);
     this.render({ force: true });
   }
 
@@ -1252,16 +1267,6 @@ function evolvedAbilities(current = [], target) {
   const available = (target.abilities ?? []).filter(entry => !entry.hidden).map(entry => entry.id);
   const retained = current.filter(id => available.includes(id));
   return retained.length ? retained : available.slice(0, 1);
-}
-
-/**
- * Avisa de la subida de nivel indicando cuántos se han ganado de golpe.
- * La usan #changeExperience() y #addExperience().
- */
-function notifyLevelGain(item, previousLevel, currentLevel) {
-  if (currentLevel <= previousLevel) return;
-  const levels = currentLevel - previousLevel;
-  ui.notifications.info(`${displayPokemonName(item)} ha alcanzado el nivel ${currentLevel}${levels > 1 ? ` (sube ${levels} niveles)` : ""}. Recuerda aplicar sus PG y beneficios de subida de nivel.`);
 }
 
 /**

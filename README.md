@@ -40,7 +40,7 @@ Las versiones posteriores aparecerán al usar **Comprobar actualización** o **A
 - Iconos personalizados opcionales para estados, mejoras y debilitaciones: basta con copiar los PNG en `assets/icons/effects/`; el módulo los detecta al iniciar y conserva los iconos de Foundry como respaldo.
 - Motor de modificadores de movimientos: aplica sobre los tokens bonificadores y penalizadores de ataque, CA, daño, salvaciones, características y velocidad, con duración, concentración y acumulación según cada movimiento.
 - Cada Pokémon conserva un sexo generado según la proporción F:M de su especie y muestra sus posibles evoluciones con sus niveles y demás condiciones.
-- Contador de experiencia acumulada, subida automática de nivel, recompensa por derrota y evolución guiada desde la ficha Pokémon.
+- Contador de experiencia acumulada, subida automática de nivel y avances guiados de Pokémon: PG, mejoras de característica o dotes, nuevos tramos de movimientos, aumentos de daño y Poder Máximo.
 - Generador de encuentros exclusivo del director con filtros por bioma, región, tipo, SR y nivel, generación por objetivo de PX y despliegue de salvajes temporales.
 - Generador de Entrenadores NPC exclusivo del director: crea rivales o aliados humanos con nivel, origen, especialización, 20 arquetipos, dificultad, inventario, permisos, token y equipos Pokémon totalmente configurables o aleatorios.
 - Sistema de captura con alcance, límite de nivel, CD por SR/nivel/PG, ventaja por estados y efectos de las distintas Poké Balls. Al capturarlo, el salvaje conserva sus datos y pasa al equipo o a la reserva.
@@ -137,7 +137,8 @@ La arquitectura tiene cuatro capas, de abajo arriba:
 | `data-service.mjs` | Carga y cachea el catálogo JSON por idioma, con traducciones y datos de concurso ya fusionados. | `loadPoke5eData` |
 | `main.mjs` | Hooks de Foundry, ajustes del mundo, menús y la API `game.poke5e`. | hooks `init`/`ready`/`preCreateItem`/`updateActor`/`updateItem` |
 | `combat.mjs` | Tabla de tipos Pokémon y su integración como tipos de daño de D&D 5e. | `pokemonDefenses`, `damageTraitsForPokemonTypes`, `typeLabel`, `registerPokemonDamageTypes` |
-| `progression.mjs` | Experiencia por nivel, recompensa por derrota y disponibilidad de evolución. | `experienceAtLevel`, `levelForExperience`, `experienceAward`, `evolutionReadiness` |
+| `progression.mjs` | Experiencia, beneficios por nivel, recompensa por derrota y disponibilidad de evolución. | `experienceAtLevel`, `pokemonAdvancementsBetween`, `evolutionStageCount`, `experienceAward`, `evolutionReadiness` |
+| `pokemon-advancement.mjs` | Diálogo y persistencia de los avances pendientes al subir un Pokémon de nivel. | `applyPendingPokemonAdvancements`, `hasPendingPokemonAdvancements` |
 | `capture-rules.mjs` | Cálculo de la CD de captura y efecto de cada Poké Ball. | `captureDifficulty`, `pokeballAdjustment`, `captureHasAdvantage` |
 | `move-learning.mjs` | Qué movimientos puede aprender una especie, por qué vía y cuándo. | `moveEligibility`, `filterMoveCatalog`, `applyLearnedMove` |
 | `contests.mjs` | Categorías de concurso, compatibilidad y puntuación de una prueba de Appeal. | `contestDetailsForMove`, `contestCompatibility`, `contestAppealOutcome` |

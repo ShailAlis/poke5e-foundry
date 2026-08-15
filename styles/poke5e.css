@@ -228,8 +228,11 @@
 .poke5e-damage-type-dialog { display: grid; gap: 0.65rem; }
 .poke5e-damage-type-dialog label { display: grid; gap: 0.3rem; }
 .poke5e-experience-dialog,
-.poke5e-evolution-dialog { display: grid; gap: 0.65rem; }
+.poke5e-evolution-dialog,
+.poke5e-advancement-dialog { display: grid; gap: 0.65rem; }
 .poke5e-experience-dialog label { display: grid; gap: 0.25rem; }
+.poke5e-advancement-dialog > label { display: grid; gap: 0.25rem; }
+.poke5e-advancement-dialog ul { margin: 0; }
 .poke5e-manual-confirmation { display: flex; align-items: flex-start; gap: 0.45rem; padding: 0.55rem; border: 1px solid rgba(239, 199, 47, 0.45); border-radius: 7px; background: rgba(239, 199, 47, 0.1); }
 .poke5e-manual-confirmation input { flex: 0 0 auto; }
 .poke5e-asi-allocation { display: grid; gap: 0.4rem; }

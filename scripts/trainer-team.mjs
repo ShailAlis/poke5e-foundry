@@ -8,7 +8,8 @@
  * que añade main.mjs. Su plantilla es `templates/trainer-team.hbs`.
  */
 import { MODULE_ID, MODULE_PATH, displayAssetUrl, displayPokemonName, getPokemonItems, portraitUrl, trainerPokeslotLimit } from "./model.mjs";
-import { experienceProgress } from "./progression.mjs";
+import { experienceAtLevel, experienceProgress } from "./progression.mjs";
+import { applyPendingPokemonAdvancements, initializePokemonAdvancement } from "./pokemon-advancement.mjs";
 import { Poke5eSpeciesBrowser } from "./species-browser.mjs";
 import { Poke5ePokemonSheet } from "./pokemon-sheet.mjs";
 import { deployPokemon, recallPokemon, deployedActorFor, syncPokemonIdentityToDeployment } from "./deployment.mjs";
@@ -157,12 +158,18 @@ export class Poke5eTrainerTeam extends HandlebarsApplicationMixin(ApplicationV2)
     const field = event.currentTarget.dataset.field;
     let value = event.currentTarget.type === "number" ? Number(event.currentTarget.value) : event.currentTarget.value;
     const instance = foundry.utils.deepClone(item.getFlag(MODULE_ID, "instance"));
+    const oldLevel = Math.max(1, Math.min(20, Number(instance.level) || 1));
+    if (field === "level") initializePokemonAdvancement(instance);
     foundry.utils.setProperty(instance, field, value);
     if (field === "hp.value") instance.hp.value = Math.max(0, Math.min(Number(instance.hp.max) || 1, value));
-    if (field === "level") instance.level = Math.max(1, Math.min(20, value));
+    if (field === "level") {
+      instance.level = Math.max(1, Math.min(20, value));
+      instance.experience = experienceAtLevel(instance.level);
+    }
     const update = { [`flags.${MODULE_ID}.instance`]: instance };
     if (field === "nickname") update.name = value.trim() || item.getFlag(MODULE_ID, "species").name;
     await item.update(update);
+    if (field === "level" && instance.level > oldLevel) await applyPendingPokemonAdvancements(item);
     if (field === "nickname") await syncPokemonIdentityToDeployment(item);
     this.render({ force: true });
   }

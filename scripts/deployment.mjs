@@ -196,19 +196,27 @@ export async function syncDeploymentHp(actor) {
 }
 
 /**
- * Lleva al actor desplegado (o al propio salvaje que contiene el Item) los PG
- * editados en la ficha, saliendo pronto si ya coinciden para no reactivar el
- * hook contrario. La dispara el hook `updateItem` de main.mjs.
+ * Lleva al actor desplegado (o al propio salvaje que contiene el Item) los PG y
+ * características editados en la ficha, incluidos los obtenidos mediante un
+ * avance de nivel. Sale pronto si ya coinciden para no reactivar el hook
+ * contrario. La dispara el hook `updateItem` de main.mjs.
  */
 export async function syncPokemonHpToDeployment(item) {
   const actor = item.parent?.documentName === "Actor" && item.parent.getFlag(MODULE_ID, "kind") === "wild"
     ? item.parent : deployedActorFor(item);
   if (!actor) return;
-  const hp = item.getFlag(MODULE_ID, "instance")?.hp;
+  const instance = item.getFlag(MODULE_ID, "instance") ?? {};
+  const hp = instance.hp;
   if (!hp) return;
+  const updates = {};
   const current = actor.system.attributes.hp;
-  if (Number(current.value) === Number(hp.value) && Number(current.max) === Number(hp.max)) return;
-  await actor.update({ "system.attributes.hp.value": Number(hp.value) || 0, "system.attributes.hp.max": Number(hp.max) || 1 });
+  if (Number(current.value) !== Number(hp.value)) updates["system.attributes.hp.value"] = Number(hp.value) || 0;
+  if (Number(current.max) !== Number(hp.max)) updates["system.attributes.hp.max"] = Number(hp.max) || 1;
+  for (const key of ["str", "dex", "con", "int", "wis", "cha"]) {
+    const value = Number(instance.attributes?.[key]);
+    if (Number.isFinite(value) && Number(actor.system.abilities?.[key]?.value) !== value) updates[`system.abilities.${key}.value`] = value;
+  }
+  if (Object.keys(updates).length) await actor.update(updates);
 }
 
 /**

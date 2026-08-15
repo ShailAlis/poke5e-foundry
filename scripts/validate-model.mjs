@@ -71,8 +71,11 @@ const featureUuids = new Map(trainerFeatures.map((source, index) => [source.flag
 const trainerClass = trainerClassSource(featureUuids);
 if (trainerClass.type !== "class" || trainerClass.system.identifier !== "trainer") throw new Error("Invalid Trainer class source.");
 if (trainerClass.system.hd.denomination !== "d6") throw new Error("Invalid Trainer hit die.");
+if (Object.values(trainerClass.system.advancement).some(entry => entry._id.length !== 16)) throw new Error("Trainer advancement IDs must be 16 characters.");
 if (!Object.values(trainerClass.system.advancement).some(entry => entry.type === "HitPoints")) throw new Error("Trainer class has no Hit Points advancement.");
 if (!Object.values(trainerClass.system.advancement).some(entry => entry.type === "Trait" && entry.configuration.grants.includes("saves:cha"))) throw new Error("Trainer class has no proficiency advancement.");
+if (!Object.values(trainerClass.system.advancement).some(entry => entry.type === "Trait" && entry.level === 10 && entry.configuration.grants.includes("conditionImmunities:frightened"))) throw new Error("Trainer class has no Resolve advancement.");
+if (!Object.values(trainerClass.system.advancement).some(entry => entry.type === "Trait" && entry.level === 13 && entry.configuration.mode === "expertise" && entry.configuration.grants.includes("skills:ani"))) throw new Error("Trainer class has no Pokémon Tracker expertise advancement.");
 for (const feature of TRAINER_FEATURES) {
   if (!feature.grant) {
     if (!Object.values(trainerClass.system.advancement).some(entry => entry.type === "AbilityScoreImprovement" && entry.level === feature.level)) throw new Error(`Trainer ASI not configured at level ${feature.level}.`);

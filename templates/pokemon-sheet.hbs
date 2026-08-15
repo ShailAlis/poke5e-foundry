@@ -48,6 +48,7 @@
     <div class="poke5e-experience-controls">
       <label><span>PX totales</span><input type="number" min="0" max="450000" step="1" value="{{experience.total}}" data-action="change-experience" {{#unless canEdit}}disabled{{/unless}}></label>
       {{#if canEdit}}<button type="button" class="bright" data-action="add-experience"><i class="fa-solid fa-plus"></i> Añadir PX</button>{{/if}}
+      {{#if canEdit}}{{#if pendingAdvancements}}<button type="button" class="bright" data-action="apply-advancements"><i class="fa-solid fa-arrow-up"></i> Aplicar avances</button>{{/if}}{{/if}}
     </div>
     <div class="poke5e-experience-progress">
       <progress min="0" max="{{experience.progressMax}}" value="{{experience.progressValue}}"></progress>

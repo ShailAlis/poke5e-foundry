@@ -186,6 +186,32 @@ export function trainerClassSource(featureUuids = new Map()) {
         mode: "default"
       },
       value: {}
+    },
+    P5eResolve000010: {
+      _id: "P5eResolve000010",
+      type: "Trait",
+      level: 10,
+      title: "Determinación del Entrenador",
+      configuration: {
+        allowReplacements: false,
+        grants: ["conditionImmunities:frightened"],
+        choices: [{ count: 1, pool: ["saves:str", "saves:dex", "saves:con", "saves:int", "saves:wis"] }],
+        mode: "default"
+      },
+      value: {}
+    },
+    P5eExpertise0013: {
+      _id: "P5eExpertise0013",
+      type: "Trait",
+      level: 13,
+      title: "Pericia en Trato con Animales",
+      configuration: {
+        allowReplacements: false,
+        grants: ["skills:ani"],
+        choices: [],
+        mode: "expertise"
+      },
+      value: {}
     }
   };
   const byLevel = groupFeaturesByLevel();
@@ -212,7 +238,7 @@ export function trainerClassSource(featureUuids = new Map()) {
       type: "AbilityScoreImprovement",
       level,
       title: level === 19 ? "Don épico" : "Mejora de característica",
-      configuration: { cap: 2, fixed: {}, locked: [], points: 2 },
+      configuration: { cap: 2, fixed: {}, locked: [], max: null, points: 2, recommendation: null },
       value: {}
     };
   }
@@ -266,6 +292,7 @@ export function pokemonItemSourceFromSpecies(speciesDocument) {
           nickname: "",
           level: Math.max(1, Number(species.minLevel) || 1),
           experience: experienceAtLevel(Math.max(1, Number(species.minLevel) || 1)),
+          advancement: { appliedLevel: Math.max(1, Number(species.minLevel) || 1), history: [] },
           hp: { value: Number(species.hp) || 1, max: Number(species.hp) || 1 },
           ac: Number(species.ac) || 10,
           attributes: foundry.utils.deepClone(species.attributes ?? {}),

@@ -14,7 +14,7 @@
  */
 import { loadPoke5eData } from "./data-service.mjs";
 import {
-  MODULE_ID, MODULE_PATH, gearItemSource, pokemonItemSourceFromSpecies, portraitUrl,
+  MODULE_ID, MODULE_PATH, gearItemSource, getPack, pokemonItemSourceFromSpecies, portraitUrl,
   speciesItemSource, trainerClassSource, trainerFeatureSources
 } from "./model.mjs";
 import { ABILITIES, CLASS_SKILLS, NATURES, ORIGINS, POINT_BUY_COSTS, SKILLS, SPECIALIZATIONS, STANDARD_ARRAY, resolveBaseAbilities, resolveTrainerCreation } from "./trainer-creation-data.mjs";
@@ -298,12 +298,14 @@ export async function applyTrainerCreation(actor, selection, rules) {
   for (const skill of Object.keys(SKILLS)) updates[`system.skills.${skill}.value`] = rules.proficiencyRanks[skill] ?? 0;
   updates["system.traits.languages.value"] = [];
   updates["system.traits.languages.custom"] = rules.languages.join("; ");
-  await actor.update(updates);
 
   const oldIds = actor.items.filter(item => item.getFlag(MODULE_ID, "creationManaged") || String(item.getFlag(MODULE_ID, "kind") ?? "").startsWith(CREATION_KIND_PREFIX)).map(item => item.id);
   if (oldIds.length) await actor.deleteEmbeddedDocuments("Item", oldIds);
   const nonHumanRaceIds = actor.items.filter(item => item.type === "race" && !isHumanSpecies(item)).map(item => item.id);
   if (nonHumanRaceIds.length) await actor.deleteEmbeddedDocuments("Item", nonHumanRaceIds);
+  // Borrar una clase con avances puede revertir PG y competencias; se reaplica
+  // el resultado del asistente después para que una segunda ejecución sea estable.
+  await actor.update(updates);
 
   const sourceSpecies = speciesItemSource(species, data.movesById, data.evolutionsByFrom.get(species.id) ?? []);
   const pokemon = pokemonItemSourceFromSpecies(sourceSpecies);
@@ -313,9 +315,10 @@ export async function applyTrainerCreation(actor, selection, rules) {
   pokemon.flags[MODULE_ID].creationManaged = true;
   const gear = startingGearSources(data);
   const originFeat = await originFeatSource(rules, selection);
+  const trainerClass = await trainerClassCreationSource(selection);
   const sources = [
     humanSpeciesSource(), originSource(rules), originFeat, specializationSource(rules),
-    trainerClassCreationSource(), ...levelOneFeatureSources(), ...gear, pokemon
+    trainerClass, ...levelOneFeatureSources(), ...gear, pokemon
   ];
   await actor.createEmbeddedDocuments("Item", sources, { poke5eTrainerCreation: true });
 }
@@ -386,15 +389,39 @@ function specializationSource(rules) {
 }
 
 /**
- * Clase Entrenador para el asistente: parte de trainerClassSource() (model.mjs)
- * y le vacía los avances, porque los rasgos de nivel 1 se entregan ya hechos en
- * levelOneFeatureSources() en lugar de dejar que D&D 5e los pida.
+ * Clase Entrenador para el asistente: enlaza los rasgos del compendio y conserva
+ * todos los avances nativos futuros. Los PG y competencias de nivel 1 se marcan
+ * como ya aplicados, y se omite solo el ItemGrant de nivel 1 porque esos rasgos
+ * los entrega levelOneFeatureSources() dentro del mismo asistente.
  */
-function trainerClassCreationSource() {
-  const source = trainerClassSource();
-  source.system.advancement = {};
+async function trainerClassCreationSource(selection) {
+  const source = trainerClassSource(await trainerFeatureUuids());
+  for (const [id, advancement] of Object.entries(source.system.advancement)) {
+    if (advancement.type === "ItemGrant" && advancement.level === 1) delete source.system.advancement[id];
+    else if (advancement.type === "HitPoints") advancement.value = { 1: "max" };
+    else if (advancement.type === "Trait" && advancement.level === 1) {
+      advancement.value = { chosen: ["saves:cha", "skills:ani", ...(selection.classSkills ?? []).map(skill => `skills:${skill}`)] };
+    }
+  }
   source.flags[MODULE_ID].kind = `${CREATION_KIND_PREFIX}class`;
   return source;
+}
+
+/** UUID de los rasgos importados que usarán los ItemGrant de niveles futuros. */
+async function trainerFeatureUuids() {
+  const pack = getPack("progression");
+  if (!pack) {
+    ui.notifications.warn("Importa el compendio de progresión para enlazar automáticamente los rasgos futuros de Entrenador.");
+    return new Map();
+  }
+  const index = await pack.getIndex({ fields: [`flags.${MODULE_ID}.sourceId`, `flags.${MODULE_ID}.kind`] });
+  const uuids = new Map();
+  for (const entry of index.values()) {
+    if (foundry.utils.getProperty(entry, `flags.${MODULE_ID}.kind`) !== "trainer-feature") continue;
+    const sourceId = foundry.utils.getProperty(entry, `flags.${MODULE_ID}.sourceId`);
+    if (sourceId) uuids.set(sourceId, `Compendium.${pack.collection}.Item.${entry._id}`);
+  }
+  return uuids;
 }
 
 /**
