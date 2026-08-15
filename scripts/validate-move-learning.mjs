@@ -5,7 +5,7 @@
  * iniciales estén disponibles al nivel 1 y los de cada tramo, en su nivel.
  */
 import fs from "node:fs";
-import { MAX_KNOWN_MOVES, applyLearnedMove, moveEligibility } from "./move-learning.mjs";
+import { MAX_KNOWN_MOVES, applyLearnedMove, moveEligibility, moveMachine } from "./move-learning.mjs";
 
 const pokemon = JSON.parse(fs.readFileSync(new URL("../data/pokemon.json", import.meta.url))).items;
 const moves = JSON.parse(fs.readFileSync(new URL("../data/moves.json", import.meta.url))).moves;
@@ -38,5 +38,15 @@ for (const species of pokemon) {
     }
   }
 }
+
+const machineCase = pokemon.flatMap(species => (species.moves?.tm ?? []).map(machineId => ({ species, machineId })))
+  .map(entry => ({ ...entry, move: moves.find(move => String(move.tm?.id) === String(entry.machineId)) }))
+  .find(({ species, move }) => move && !Object.entries(species.moves ?? {}).some(([key, ids]) => key !== "tm" && (ids ?? []).includes(move.id)));
+if (!machineCase) throw new Error("No se encontró un caso de aprendizaje exclusivo mediante MT para validar.");
+const machine = moveMachine(machineCase.move);
+const withoutMachine = moveEligibility(machineCase.species, machineCase.move, 20);
+if (withoutMachine.availableNow || !withoutMachine.requiresMachine) throw new Error(`${machineCase.move.id}: una MT ausente no debe aparecer como disponible.`);
+const withMachine = moveEligibility(machineCase.species, machineCase.move, 20, { machineIds: new Set([machine.key]) });
+if (!withMachine.availableNow || withMachine.requiresMachine) throw new Error(`${machineCase.move.id}: la MT del inventario no habilita el movimiento.`);
 
 console.log(`Validated move learning for ${pokemon.length} Pokémon and ${moves.length} moves.`);

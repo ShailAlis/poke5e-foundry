@@ -44,27 +44,40 @@ export function applyLearnedMove(knownMoves, newEntry, replacedEntryId = null) {
  * permiten (nivel, MT o huevo). Núcleo de filterMoveCatalog() y de la validación
  * que hace pokemon-sheet.mjs antes de aprender.
  */
-export function moveEligibility(species, move, level = 1) {
+export function moveEligibility(species, move, level = 1, { machineIds = new Set() } = {}) {
   const pool = species.moves ?? {};
   const levelRequirements = LEVEL_GROUPS
     .filter(([, key]) => (pool[key] ?? []).includes(move.id))
     .map(([required]) => required);
   const requiredLevel = levelRequirements.length ? Math.min(...levelRequirements) : null;
-  const viaTm = move.tm?.id != null && (pool.tm ?? []).includes(move.tm.id);
+  const machine = moveMachine(move);
+  const machinePool = machine?.kind === "hm" ? (pool.hm ?? pool.tm ?? []) : (pool.tm ?? []);
+  const viaMachine = machine != null && machinePool.map(String).includes(String(machine.id));
+  const machineOwned = viaMachine && machineIds.has(machine.key);
   const viaEgg = (pool.egg ?? []).includes(move.id);
   const methods = [];
   if (requiredLevel != null) methods.push({ id: "level", label: requiredLevel <= 1 ? "Inicial" : `Nivel ${requiredLevel}` });
-  if (viaTm) methods.push({ id: "tm", label: `MT ${move.tm.id}` });
+  if (viaMachine) methods.push({ id: machine.kind, label: `${machine.label} ${machine.id}${machineOwned ? "" : " · no disponible"}`, available: machineOwned });
   if (viaEgg) methods.push({ id: "egg", label: "Huevo" });
   const compatible = methods.length > 0;
-  const availableNow = viaTm || viaEgg || (requiredLevel != null && Number(level) >= requiredLevel);
+  const availableNow = machineOwned || viaEgg || (requiredLevel != null && Number(level) >= requiredLevel);
   return {
     availableNow,
     compatible,
-    future: compatible && !availableNow,
+    future: !availableNow && requiredLevel != null && Number(level) < requiredLevel,
     methods,
-    requiredLevel
+    requiredLevel,
+    requiresMachine: !availableNow && viaMachine && !machineOwned,
+    machine
   };
+}
+
+/** Devuelve la identidad estable de la MT/MO asociada a un movimiento. */
+export function moveMachine(move) {
+  const definition = move?.hm?.id != null
+    ? { kind: "hm", label: "MO", ...move.hm }
+    : move?.tm?.id != null ? { kind: "tm", label: "MT", ...move.tm } : null;
+  return definition ? { ...definition, key: `${definition.kind}:${definition.id}` } : null;
 }
 
 /**
@@ -77,7 +90,7 @@ export function filterMoveCatalog(moves, species, level, knownIds, filters = {})
   const query = String(filters.query ?? "").trim().toLocaleLowerCase();
   const category = filters.category ?? "available";
   const entries = moves.map(move => {
-    const eligibility = moveEligibility(species, move, level);
+    const eligibility = moveEligibility(species, move, level, { machineIds: filters.machineIds });
     return {
       id: move.id,
       name: move.name,

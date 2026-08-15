@@ -31,10 +31,16 @@ const {
   randomGenderForRatio,
   speciesItemSource,
   pokemonItemSourceFromSpecies,
+  moveMachineItemSource,
   trainerFeatureSources,
   trainerClassSource,
   trainerPokeslotLimit
 } = await import("./model.mjs");
+
+const machineSources = moves.filter(move => move.tm?.id != null || move.hm?.id != null).map(moveMachineItemSource);
+if (machineSources.length !== 256) throw new Error(`Expected 256 move machines, found ${machineSources.length}.`);
+if (new Set(machineSources.map(source => source.flags[MODULE_ID].sourceId)).size !== machineSources.length) throw new Error("Move-machine source IDs must be unique.");
+if (machineSources.some(source => source.flags[MODULE_ID].kind !== "move-machine" || !source.flags[MODULE_ID].machine?.moveId)) throw new Error("Invalid move-machine item source.");
 
 const trainerAt = level => ({ system: { details: { level } }, items: [] });
 if (trainerPokeslotLimit(trainerAt(1)) !== 3 || trainerPokeslotLimit(trainerAt(5)) !== 4 || trainerPokeslotLimit(trainerAt(10)) !== 5 || trainerPokeslotLimit(trainerAt(15)) !== 6) {

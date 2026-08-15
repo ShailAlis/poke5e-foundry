@@ -115,8 +115,9 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       return move ? prepareMove(entry, move, combatSpecies, level, data.contestEffectsById, this.contestType, heldItem) : null;
     }).filter(Boolean);
     const knownMoveIds = new Set((instance.moves ?? []).map(entry => entry.moveId));
+    const machineIds = trainerMoveMachineIds(this.pokemonItem.parent);
     const catalog = this.moveManagerOpen
-      ? filterMoveCatalog(data.moves, species, level, knownMoveIds, this.moveFilters)
+      ? filterMoveCatalog(data.moves, species, level, knownMoveIds, { ...this.moveFilters, machineIds })
       : [];
     const abilities = (instance.abilities ?? []).map(id => data.abilitiesById.get(id)).filter(Boolean).map(ability => ({
       id: ability.id,
@@ -522,7 +523,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     if (!move) return ui.notifications.error("No se encontró el movimiento.");
     const instance = this.#instance();
     const species = this.pokemonItem.getFlag(MODULE_ID, "species") ?? {};
-    const eligibility = moveEligibility(species, move, Number(instance.level) || 1);
+    const eligibility = moveEligibility(species, move, Number(instance.level) || 1, { machineIds: trainerMoveMachineIds(this.pokemonItem.parent) });
     if (!eligibility.availableNow) return notifyMoveUnavailable(move, eligibility);
     if (instance.moves.some(entry => entry.moveId === move.id)) return ui.notifications.warn("Este Pokémon ya conoce ese movimiento.");
     if (!await this.#addMove(instance, move, data.movesById)) return;
@@ -551,7 +552,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       const move = document.getFlag(MODULE_ID, "move");
       if (!move?.id) return ui.notifications.error("El movimiento no contiene datos válidos.");
       const species = this.pokemonItem.getFlag(MODULE_ID, "species") ?? {};
-      const eligibility = moveEligibility(species, move, Number(instance.level) || 1);
+      const eligibility = moveEligibility(species, move, Number(instance.level) || 1, { machineIds: trainerMoveMachineIds(this.pokemonItem.parent) });
       if (!eligibility.availableNow) return notifyMoveUnavailable(move, eligibility);
       const data = await loadPoke5eData();
       if (!await this.#addMove(instance, move, data.movesById)) return;
@@ -1081,8 +1082,21 @@ function moveEntry(move) {
  * La usan #learnMove() y #onDrop() con el resultado de moveEligibility().
  */
 function notifyMoveUnavailable(move, eligibility) {
+  if (eligibility.requiresMachine) return ui.notifications.warn(`${move.name} requiere que el entrenador tenga la ${eligibility.machine.label} ${eligibility.machine.id} en su inventario.`);
   if (eligibility.future) return ui.notifications.warn(`${move.name} se aprende a nivel ${eligibility.requiredLevel}.`);
   return ui.notifications.warn(`${move.name} no puede ser aprendido por esta especie Pokémon.`);
+}
+
+/** Recoge las MT/MO con cantidad disponible en el inventario del entrenador. */
+function trainerMoveMachineIds(actor) {
+  const result = new Set();
+  if (actor?.type !== "character") return result;
+  for (const item of actor.items ?? []) {
+    if (Number(item.system?.quantity ?? 1) <= 0) continue;
+    const machine = item.getFlag?.(MODULE_ID, "machine");
+    if (machine?.kind && machine.id != null) result.add(`${machine.kind}:${machine.id}`);
+  }
+  return result;
 }
 
 /**

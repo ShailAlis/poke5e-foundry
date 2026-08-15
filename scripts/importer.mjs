@@ -19,6 +19,7 @@ import {
   moveItemSource,
   abilityItemSource,
   gearItemSource,
+  moveMachineItemSource,
   trainerFeatureSources,
   trainerClassSource
 } from "./model.mjs";
@@ -112,7 +113,11 @@ export class Poke5eImporter extends HandlebarsApplicationMixin(ApplicationV2) {
       }
       if (options.gear) {
         setStatus(status, "Actualizando compendio de objetos…", 80);
-        itemCount += await upsertPackItems(await ensurePack("gear"), data.items.map(gearItemSource), status, 80, 88);
+        const gear = [
+          ...data.items.map(gearItemSource),
+          ...data.moves.filter(move => move.tm?.id != null || move.hm?.id != null).map(moveMachineItemSource)
+        ];
+        itemCount += await upsertPackItems(await ensurePack("gear"), gear, status, 80, 88);
       }
       if (options.progression) {
         setStatus(status, "Creando la clase de Entrenador…", 90);

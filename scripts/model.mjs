@@ -137,6 +137,26 @@ export function gearItemSource(item) {
   };
 }
 
+/** Crea una MT/MO que el entrenador puede guardar en su inventario. */
+export function moveMachineItemSource(move) {
+  const definition = move?.hm?.id != null
+    ? { kind: "hm", label: "MO", ...move.hm }
+    : move?.tm?.id != null ? { kind: "tm", label: "MT", ...move.tm } : null;
+  if (!definition) throw new Error(`${move?.id ?? "unknown"}: el movimiento no define una MT o MO.`);
+  const sourceId = `${definition.kind}-${definition.id}`;
+  return {
+    name: `${definition.label} ${definition.id} — ${move.name}`,
+    type: "loot",
+    img: "icons/svg/book.svg",
+    system: {
+      description: { value: `<p>Permite enseñar <strong>${escapeHtml(move.name)}</strong> a un Pokémon compatible.</p>`, chat: "" },
+      quantity: 1,
+      price: { value: Number(definition.cost) || 0, denomination: "gp" }
+    },
+    flags: { [MODULE_ID]: { kind: "move-machine", sourceId, category: "machine", machine: { kind: definition.kind, id: definition.id, moveId: move.id } } }
+  };
+}
+
 /**
  * Convierte los rasgos otorgables de TRAINER_FEATURES en Items de compendio.
  * importer.mjs los crea primero y pasa sus UUID a trainerClassSource(), que los

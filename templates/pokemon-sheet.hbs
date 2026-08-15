@@ -162,7 +162,7 @@
                 {{#if known}}
                   <button type="button" disabled title="Ya conocido"><i class="fa-solid fa-check"></i> Conocido</button>
                 {{else}}
-                  <button type="button" class="bright" data-action="learn-move" data-move-id="{{id}}" {{#unless availableNow}}disabled{{/unless}} title="{{#if future}}Disponible más adelante{{else}}{{#unless compatible}}Esta especie no puede aprenderlo{{/unless}}{{/if}}"><i class="fa-solid fa-plus"></i> Aprender</button>
+                  <button type="button" class="bright" data-action="learn-move" data-move-id="{{id}}" {{#unless availableNow}}disabled{{/unless}} title="{{#if requiresMachine}}La MT o MO necesaria no está en el inventario del entrenador{{else}}{{#if future}}Disponible más adelante{{else}}{{#unless compatible}}Esta especie no puede aprenderlo{{/unless}}{{/if}}{{/if}}"><i class="fa-solid fa-plus"></i> Aprender</button>
                 {{/if}}
                 <i class="fa-solid fa-chevron-down poke5e-catalog-expand" title="Mostrar información"></i>
               </summary>
