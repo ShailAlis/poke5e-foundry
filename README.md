@@ -112,6 +112,8 @@ La versión 1.7.2 prepara carpetas separadas para iconos de estados, mejoras y d
 
 La versión 1.8 audita los 830 movimientos e incorpora 115 reglas explícitas de modificadores, además de ampliar los casos de estado que no podían deducirse con seguridad desde el texto. Growl, Leer, Tail Whip, Mud-Slap y efectos equivalentes respetan ahora sus acumulaciones; los buffs, debuffs, cargas y áreas persistentes aparecen sobre el token y en la ficha Pokédex. Las carpetas documentan 146 iconos PNG opcionales.
 
+La versión 1.8.1 incorpora avances para Entrenadores y Pokémon, reacciones y efectos de objetos equipados, cambio de idioma con recarga coherente, aprendizaje mediante MT/MO condicionado por el inventario y una economía unificada en Pokédólares.
+
 ## Actualización a 1.2
 
 La versión 1.2 incorpora el asistente guiado de creación de Entrenadores. Los personajes nuevos quedan limitados a la especie Humano y reciben automáticamente su origen regional, bonificaciones, competencias, dote, especialización, equipo inicial y Pokémon inicial. Los personajes existentes no se modifican automáticamente.
