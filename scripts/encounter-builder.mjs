@@ -237,7 +237,7 @@ export class Poke5eEncounterBuilder extends HandlebarsApplicationMixin(Applicati
  * constructor y el botón de limpiar.
  */
 function defaultFilters() {
-  return { query: "", type: "", biome: "", region: "", srMin: "", srMax: "", levelMin: 1, levelMax: 5, count: 3, targetExperience: "" };
+  return { query: "", type: "", biome: "", region: "", srMin: "", srMax: "", levelMin: 1, levelMax: 20, count: 3, targetExperience: "" };
 }
 
 /**
