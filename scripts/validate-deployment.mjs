@@ -10,6 +10,7 @@
  * único borrado de token y de actor.
  */
 const actors = new Map();
+actors.find = predicate => [...actors.values()].find(predicate);
 const scene = {
   tokens: [],
   tokenDeletionCalls: 0,
@@ -21,6 +22,14 @@ const scene = {
 };
 
 globalThis.game = { actors, scenes: [scene] };
+globalThis.foundry = {
+  utils: {
+    deepClone: value => structuredClone(value),
+    escapeHTML: value => String(value)
+  }
+};
+const notifications = [];
+globalThis.ui = { notifications: { info: message => notifications.push(message), warn: message => notifications.push(message) } };
 const sceneRect = { contains: (x, y) => x >= 0 && y >= 0 && x < 1000 && y < 1000 };
 globalThis.canvas = {
   dimensions: { sceneRect },
@@ -34,7 +43,7 @@ globalThis.canvas = {
   },
   tokens: { placeables: [] }
 };
-const { cleanDeploymentActor, deploymentPosition, isAllowedDeployment, removeDeployment } = await import("./deployment.mjs");
+const { cleanDeploymentActor, deployPokemon, deploymentPosition, isAllowedDeployment, removeDeployment, syncDeploymentHp } = await import("./deployment.mjs");
 
 const trainerToken = { center: { x: 50, y: 50 }, document: { x: 0, y: 0 }, w: 100, h: 100 };
 canvas.tokens.placeables = [trainerToken];
@@ -68,6 +77,38 @@ await cleanDeploymentActor({ actorId: actor.id });
 if (scene.tokenDeletionCalls !== 1) throw new Error(`Expected one token deletion, got ${scene.tokenDeletionCalls}.`);
 if (actorDeletionCalls !== 1) throw new Error(`Expected one actor deletion, got ${actorDeletionCalls}.`);
 if (actors.has(actor.id)) throw new Error("The deployed actor still exists after recall.");
+
+const trainer = { isOwner: true };
+const faintedInstance = { hp: { value: 4, max: 12 } };
+const pokemonItem = {
+  name: "Pikachu",
+  uuid: "Actor.trainer.Item.pokemon",
+  parent: trainer,
+  getFlag: (scope, key) => key === "instance" ? faintedInstance : key === "species" ? { name: "Pikachu" } : key === "kind" ? "pokemon" : null,
+  async setFlag(scope, key, value) {
+    Object.assign(faintedInstance, value);
+  }
+};
+const faintedActor = {
+  id: "fainted-pokemon",
+  system: { attributes: { hp: { value: 0, max: 12 } } },
+  getFlag: (scope, key) => key === "kind" ? "deployed" : key === "pokemonItemUuid" ? pokemonItem.uuid : null,
+  async delete() {
+    actors.delete(this.id);
+  }
+};
+globalThis.fromUuid = async uuid => uuid === pokemonItem.uuid ? pokemonItem : null;
+actors.set(faintedActor.id, faintedActor);
+scene.tokens = [{ id: "fainted-token", actorId: faintedActor.id }];
+await syncDeploymentHp(faintedActor);
+if (faintedInstance.hp.value !== 0) throw new Error("Fainted HP was not saved on the trainer's Pokémon.");
+if (actors.has(faintedActor.id) || scene.tokens.some(token => token.actorId === faintedActor.id)) throw new Error("A fainted deployed Pokémon was not recalled.");
+if (!notifications.some(message => message.includes("debilitado"))) throw new Error("The fainted recall notification was not shown.");
+
+canvas.ready = true;
+canvas.scene = scene;
+await deployPokemon(pokemonItem);
+if (!notifications.some(message => message.includes("no puede salir"))) throw new Error("A fainted Pokémon was allowed to deploy.");
 
 let wildDeletionCalls = 0;
 const wildActor = {

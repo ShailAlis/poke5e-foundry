@@ -55,8 +55,8 @@ export function deployedActorFor(pokemonItem) {
 }
 
 /**
- * Saca un Pokémon al mapa. Exige escena abierta, permisos y token del entrenador
- * presente; si ya estaba desplegado se limita a seleccionarlo y centrar la vista.
+ * Saca un Pokémon al mapa. Exige escena abierta, permisos, que conserve PG y
+ * que el token del entrenador esté presente; si ya estaba desplegado se limita a seleccionarlo y centrar la vista.
  * Si no, crea el actor con deployedActorSource(), pide la casilla con
  * chooseDeploymentPosition() y coloca el token, deshaciendo el actor recién
  * creado ante cualquier error. Su inversa es recallPokemon().
@@ -65,6 +65,8 @@ export async function deployPokemon(pokemonItem) {
   if (!canvas?.ready || !canvas.scene) return ui.notifications.warn("Abre una escena antes de desplegar un Pokémon.");
   const trainer = pokemonItem.parent;
   if (!trainer?.isOwner) return ui.notifications.warn("No tienes permiso para desplegar este Pokémon.");
+  const instance = pokemonItem.getFlag(MODULE_ID, "instance");
+  if (Number(instance?.hp?.value) <= 0) return ui.notifications.warn(`${displayPokemonName(pokemonItem)} está debilitado y no puede salir al combate.`);
   const trainerToken = trainerTokenFor(trainer);
   if (!trainerToken) return ui.notifications.warn("Coloca el token del entrenador en la escena antes de sacar un Pokémon.");
   let actor = deployedActorFor(pokemonItem);
@@ -98,18 +100,21 @@ export async function deployPokemon(pokemonItem) {
  * removeDeployment(). Inversa de deployPokemon(); la llaman las fichas y el hook
  * `deleteItem` de main.mjs.
  */
-export async function recallPokemon(pokemonItem) {
+export async function recallPokemon(pokemonItem, { fainted = false } = {}) {
   const actor = deployedActorFor(pokemonItem);
   if (!actor) return;
   await removeDeployment(actor, { deleteTokens: true });
-  ui.notifications.info(`${displayPokemonName(pokemonItem)} ha vuelto con su entrenador.`);
+  ui.notifications.info(fainted
+    ? `${displayPokemonName(pokemonItem)} ha caído debilitado y ha vuelto con su entrenador.`
+    : `${displayPokemonName(pokemonItem)} ha vuelto con su entrenador.`);
 }
 
 /**
  * Copia los PG del actor desplegado o salvaje al Item del Pokémon. Antes aplica
  * la Banda Focus: si el golpe lo dejaría a 0 PG y le queda carga, lo deja en 1 y
- * gasta el objeto. La dispara el hook `updateActor` de main.mjs; el sentido
- * contrario lo cubre syncPokemonHpToDeployment().
+ * gasta el objeto. Si un Pokémon desplegado queda a 0 PG, guarda ese estado y lo
+ * devuelve a su entrenador. La dispara el hook `updateActor` de main.mjs; el
+ * sentido contrario lo cubre syncPokemonHpToDeployment().
  */
 export async function syncDeploymentHp(actor) {
   const kind = actor.getFlag(MODULE_ID, "kind");
@@ -132,6 +137,7 @@ export async function syncDeploymentHp(actor) {
     max: Number(actor.system.attributes.hp.max) || instance.hp.max
   };
   await item.setFlag(MODULE_ID, "instance", instance);
+  if (kind === "deployed" && actorHp <= 0) await recallPokemon(item, { fainted: true });
 }
 
 /**
