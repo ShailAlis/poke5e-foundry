@@ -100,6 +100,71 @@ La versión 1.4 añade el modo **Concurso** a las fichas Pokémon. El selector C
 
 La versión 1.2 incorpora el asistente guiado de creación de Entrenadores. Los personajes nuevos quedan limitados a la especie Humano y reciben automáticamente su origen regional, bonificaciones, competencias, dote, especialización, equipo inicial y Pokémon inicial. Los personajes existentes no se modifican automáticamente.
 
+## Estructura del código
+
+Todo el código vive en `scripts/`, en módulos ES sin paso de build. Cada archivo lleva un comentario de cabecera con su rol y con qué otros archivos se relaciona, y cada función (exportada o privada) tiene su propio comentario JSDoc — abre el archivo y usa el buscador del editor si necesitas más detalle que el de esta tabla.
+
+La arquitectura tiene cuatro capas, de abajo arriba:
+
+1. **Núcleo** (`model.mjs`, `data-service.mjs`) — convierte los JSON de `data/` en documentos de Foundry y los cachea.
+2. **Reglas** (`combat.mjs`, `progression.mjs`, `capture-rules.mjs`, `move-learning.mjs`, `contests.mjs`, `status-effects.mjs`, `encounter-generator.mjs`, `npc-trainer-rules.mjs`, `trainer-creation-data.mjs`) — cálculos puros, casi sin depender de los globales de Foundry; son los que verifican los `validate-*.mjs` en Node.
+3. **Documentos y mapa** (`deployment.mjs`, `wild-deployment.mjs`, `capture.mjs`) — traducen Pokémon entre Item embebido, actor temporal y token.
+4. **Interfaz** (fichas, generadores, asistente, importador) — presenta las reglas y escribe el resultado en `flags.<módulo>.instance`.
+
+`main.mjs` no está en ninguna capa: es el punto de entrada que engancha los hooks de Foundry y conecta unas con otras.
+
+### Índice por archivo
+
+| Archivo | Qué hace | Funciones/clases clave |
+|---|---|---|
+| `model.mjs` | Fuentes de Item para el compendio y para un Pokémon individual; clase Entrenador; utilidades de URL de recursos. | `speciesItemSource`, `pokemonItemSourceFromSpecies`, `trainerClassSource`, `getPokemonItems`, `trainerPokeslotLimit`, `displayPokemonName`, `portraitUrl` |
+| `data-service.mjs` | Carga y cachea el catálogo JSON por idioma, con traducciones y datos de concurso ya fusionados. | `loadPoke5eData` |
+| `main.mjs` | Hooks de Foundry, ajustes del mundo, menús y la API `game.poke5e`. | hooks `init`/`ready`/`preCreateItem`/`updateActor`/`updateItem` |
+| `combat.mjs` | Tabla de tipos Pokémon y su integración como tipos de daño de D&D 5e. | `pokemonDefenses`, `damageTraitsForPokemonTypes`, `typeLabel`, `registerPokemonDamageTypes` |
+| `progression.mjs` | Experiencia por nivel, recompensa por derrota y disponibilidad de evolución. | `experienceAtLevel`, `levelForExperience`, `experienceAward`, `evolutionReadiness` |
+| `capture-rules.mjs` | Cálculo de la CD de captura y efecto de cada Poké Ball. | `captureDifficulty`, `pokeballAdjustment`, `captureHasAdvantage` |
+| `move-learning.mjs` | Qué movimientos puede aprender una especie, por qué vía y cuándo. | `moveEligibility`, `filterMoveCatalog`, `applyLearnedMove` |
+| `contests.mjs` | Categorías de concurso, compatibilidad y puntuación de una prueba de Appeal. | `contestDetailsForMove`, `contestCompatibility`, `contestAppealOutcome` |
+| `status-effects.mjs` | Catálogo de estados alterados, deducción desde el texto de un movimiento y su aplicación vía socket. | `POKEMON_STATUS_EFFECTS`, `inferMoveStatusEffects`, `applyMoveStatuses`, `pokemonStatusEffectSource` |
+| `deployment.mjs` | Saca al mapa un Pokémon del equipo (actor temporal + token) y sincroniza sus PG. | `deployPokemon`, `recallPokemon`, `syncDeploymentHp`, `isAllowedDeployment` |
+| `wild-deployment.mjs` | Igual que `deployment.mjs` pero para Pokémon salvajes, sin entrenador detrás. | `deployWildPokemon`, `wildActorSource` |
+| `capture.mjs` | Flujo completo de captura: alcance, inventario, tirada y traspaso al entrenador. | `attemptCapture`, `completeCapture` |
+| `pokemon-sheet.mjs` | Ficha Pokédex: movimientos, tiradas de ataque/daño, modo Concurso, experiencia, evolución, objeto equipado. Es el archivo más grande del módulo. | `Poke5ePokemonSheet`, `damageFormula`, `getMoveModifier` |
+| `pokemon-actor-sheet.mjs` | Redirige la ficha de los actores del mapa a `pokemon-sheet.mjs`. | `Poke5eCombatPokemonActorSheet`, `migratePokemonActorSheets` |
+| `trainer-actor-sheet.mjs` | Ficha de personaje con la pestaña "Equipo Pokémon" añadida. | `Poke5eTrainerActorSheet` |
+| `trainer-team.mjs` | Ventana independiente de gestión de equipo (misma función que la pestaña, en un diálogo aparte). | `Poke5eTrainerTeam` |
+| `species-browser.mjs` | Buscador de especies para añadir Pokémon a un entrenador. | `Poke5eSpeciesBrowser` |
+| `reference.mjs` | Ventana de enlaces a las reglas de poke5e.app. | `Poke5eReference` |
+| `encounter-generator.mjs` | Filtrado, sorteo y construcción de instancia de un encuentro salvaje. | `generateEncounter`, `buildWildInstance`, `adjustedHitPoints` |
+| `encounter-builder.mjs` | Interfaz del generador de encuentros. | `Poke5eEncounterBuilder` |
+| `npc-trainer-rules.mjs` | Arquetipos, dificultades, caminos y sorteo del equipo de un NPC. | `NPC_ARCHETYPES`, `NPC_DIFFICULTIES`, `generateNpcTrainerTeam`, `filterNpcTrainerSpecies`, `trainerControlSr` |
+| `npc-trainer-actor.mjs` | Convierte la configuración del generador en el actor completo de un NPC. | `createNpcTrainerActor`, `placeNpcTrainer` |
+| `npc-trainer-generator.mjs` | Interfaz del generador de Entrenadores NPC. | `Poke5eNpcTrainerGenerator` |
+| `trainer-creator.mjs` | Asistente guiado de creación de Entrenador (jugador). | `Poke5eTrainerCreator`, `applyTrainerCreation`, `isHumanSpecies` |
+| `trainer-creation-data.mjs` | Catálogos y validación compartidos por el asistente y el generador de NPC: características, orígenes, especializaciones. | `ORIGINS`, `SPECIALIZATIONS`, `resolveTrainerCreation`, `resolveBaseAbilities` |
+| `importer.mjs` | Crea/actualiza los compendios de mundo de forma idempotente. | `Poke5eImporter`, `upsertPackItems` |
+| `sync-data.mjs` | Script de desarrollo: copia los datos de `../static` a `data/`. No se ejecuta en Foundry. | — |
+| `validate-*.mjs` (12 archivos) | Uno por cada módulo de reglas; los ejecuta `npm run check` en Node, sin necesidad de Foundry. | — |
+
+### Cómo encontrar...
+
+| Quiero cambiar... | Empieza en |
+|---|---|
+| La tabla de efectividad de tipos | `combat.mjs` → `TYPE_CHART`, `pokemonDefenses` |
+| Cómo se calcula el daño o el MOVE de un movimiento | `pokemon-sheet.mjs` → `damageFormula`, `getMoveModifier` |
+| Los niveles de experiencia o la recompensa por derrota | `progression.mjs` → `EXPERIENCE_BY_LEVEL`, `experienceAward` |
+| La dificultad o el efecto de una Poké Ball | `capture-rules.mjs` → `pokeballAdjustment`, `captureDifficulty` |
+| Qué estados provoca un movimiento y cómo se detectan | `status-effects.mjs` → `inferMoveStatusEffects`, `MANUAL_STATUS_MOVES` |
+| Cuándo puede aprenderse un movimiento | `move-learning.mjs` → `moveEligibility` |
+| La puntuación de una prueba de concurso | `contests.mjs` → `contestAppealOutcome` |
+| Los Pokéslots por nivel de Entrenador | `model.mjs` → `trainerPokeslotsForLevel` |
+| Los rasgos de la clase Entrenador por nivel | `model.mjs` → `TRAINER_FEATURES`, `trainerClassSource` |
+| Los arquetipos, dificultades o composición de equipo de un NPC | `npc-trainer-rules.mjs` |
+| Los orígenes regionales o especializaciones de Entrenador | `trainer-creation-data.mjs` → `ORIGINS`, `SPECIALIZATIONS` |
+| Dónde y cómo puede desplegarse un Pokémon en el mapa | `deployment.mjs` → `isAllowedDeployment`, `chooseDeploymentPosition` |
+| Un ajuste nuevo del módulo o un hook de Foundry | `main.mjs` → `Hooks.once("init", …)` |
+| Una plantilla Handlebars | `templates/<nombre>.hbs`, referenciada en `static PARTS` de la clase de la ficha correspondiente |
+
 ## Desarrollo
 
 Los JSON de `data/` se generan a partir de `../static/data`. Ejecuta `node scripts/sync-data.mjs` desde esta carpeta después de actualizar los datos del sitio. Después ejecuta `npm run check`.
