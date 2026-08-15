@@ -8,7 +8,8 @@
  */
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { filterNpcTrainerSpecies, generateNpcTrainerTeam, npcTrainerAbilities, npcTrainerHitPoints, randomNpcTrainerName, trainerControlSr } from "./npc-trainer-rules.mjs";
+import { NPC_ARCHETYPES, filterNpcTrainerSpecies, generateNpcTrainerTeam, npcTrainerAbilities, npcTrainerHitPoints, randomNpcTrainerName, trainerControlSr } from "./npc-trainer-rules.mjs";
+import { SKILLS } from "./trainer-creation-data.mjs";
 
 const pokemon = JSON.parse(fs.readFileSync(new URL("../data/pokemon.json", import.meta.url))).items;
 const evolutions = JSON.parse(fs.readFileSync(new URL("../data/evolution.json", import.meta.url))).items;
@@ -41,6 +42,16 @@ assert.ok(team.every(entry => pokemon.find(species => species.id === entry.speci
 
 const abilities = npcTrainerAbilities("tactical", "elite");
 assert.ok(abilities.int > abilities.str);
+assert.equal(Object.keys(NPC_ARCHETYPES).length, 20);
+for (const [id, archetype] of Object.entries(NPC_ARCHETYPES)) {
+  assert.equal(new Set(archetype.abilities).size, 6, `${id} must prioritize all six abilities exactly once.`);
+  assert.deepEqual([...archetype.abilities].sort(), ["cha", "con", "dex", "int", "str", "wis"]);
+  assert.ok(archetype.skills.length >= 3, `${id} must grant at least three skills.`);
+  assert.equal(new Set(archetype.skills).size, archetype.skills.length, `${id} must not repeat skills.`);
+  assert.ok(archetype.skills.every(skill => SKILLS[skill]), `${id} contains an unknown skill.`);
+}
+assert.ok(npcTrainerAbilities("ranger", "standard").wis > npcTrainerAbilities("ranger", "standard").str);
+assert.ok(npcTrainerAbilities("engineer", "standard").int > npcTrainerAbilities("engineer", "standard").cha);
 assert.ok(npcTrainerHitPoints(10, 14, "boss") > npcTrainerHitPoints(10, 14, "standard"));
 assert.equal(randomNpcTrainerName({ name: "Recluta", quantity: 3 }, () => 0, 1), "Recluta 2");
 assert.equal(randomNpcTrainerName({ useTitle: false }, () => 0), "Aina");

@@ -21,9 +21,13 @@ import { chooseTokenPosition } from "./wild-deployment.mjs";
  * cuando no se indica uno propio.
  */
 const ARCHETYPE_ICONS = {
-  balanced: "icons/svg/people.svg", ace: "icons/svg/crown.svg", tactical: "icons/svg/eye.svg",
-  athletic: "icons/svg/fist.svg", agile: "icons/svg/wing.svg", researcher: "icons/svg/book.svg",
-  medic: "icons/svg/heal.svg", performer: "icons/svg/sound.svg", villain: "icons/svg/hazard.svg", boss: "icons/svg/crown.svg"
+  balanced: "icons/svg/people.svg", ace: "icons/svg/crown.svg", rival: "icons/svg/fist.svg",
+  gymLeader: "icons/svg/crown.svg", tactical: "icons/svg/eye.svg", athletic: "icons/svg/fist.svg",
+  agile: "icons/svg/wing.svg", ranger: "icons/svg/eye.svg", mountaineer: "icons/svg/fist.svg",
+  sailor: "icons/svg/wing.svg", researcher: "icons/svg/book.svg", engineer: "icons/svg/book.svg",
+  detective: "icons/svg/eye.svg", medic: "icons/svg/heal.svg", breeder: "icons/svg/heal.svg",
+  collector: "icons/svg/book.svg", mystic: "icons/svg/eye.svg", performer: "icons/svg/sound.svg",
+  villain: "icons/svg/hazard.svg", boss: "icons/svg/crown.svg"
 };
 
 /**
