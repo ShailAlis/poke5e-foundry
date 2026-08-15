@@ -1,12 +1,31 @@
+/**
+ * Despliegue de los Pokémon del equipo en el mapa. Traduce un Item Pokémon a un
+ * actor NPC temporal con su token, controla dónde puede aparecer, mantiene
+ * sincronizados PG y nombre en ambos sentidos y borra el actor al retirarlo.
+ *
+ * Sus funciones de sincronización las disparan los hooks de main.mjs; las de
+ * desplegar y retirar, los botones de trainer-team.mjs, trainer-actor-sheet.mjs
+ * y pokemon-sheet.mjs. wild-deployment.mjs hace lo propio con los salvajes, que
+ * no proceden de ningún entrenador.
+ */
 import { MODULE_ID, POKEMON_TOKEN_SCALE, displayPokemonName, portraitUrl, remoteAssetUrl } from "./model.mjs";
 import { loadPoke5eData } from "./data-service.mjs";
 import { damageTraitsForPokemonTypes } from "./combat.mjs";
 import { pokemonStatusEffectSource } from "./status-effects.mjs";
 
+/** Distancia máxima, en pies, entre el entrenador y la casilla de salida. */
 const DEPLOY_RANGE = 10;
+/** Borrados en curso por id de actor; evita que removeDeployment() se solape consigo mismo. */
 const deploymentCleanup = new Map();
+/** Último movimiento registrado por token; permite descartar los enderezados obsoletos. */
 const uprightMovements = new Map();
 
+/**
+ * Devuelve a la vertical los tokens Pokémon que Foundry rota al moverlos,
+ * esperando a que termine la animación y descartando el ajuste si entretanto ha
+ * empezado otro movimiento (marcador en uprightMovements).
+ * La llama el hook `init` de main.mjs.
+ */
 export function registerPokemonTokenMovement() {
   Hooks.on("moveToken", (token, movement, operation, user) => {
     if (user?.id !== game.user.id || !["deployed", "wild"].includes(token.actor?.getFlag(MODULE_ID, "kind"))) return;
@@ -16,7 +35,7 @@ export function registerPokemonTokenMovement() {
       try {
         await token.object?.movementAnimationPromise;
       } catch {
-        // An interrupted movement is superseded by the next movement marker.
+        // Un movimiento interrumpido queda anulado por el marcador del siguiente.
       }
       if (uprightMovements.get(token.uuid) !== marker) return;
       uprightMovements.delete(token.uuid);
@@ -25,10 +44,23 @@ export function registerPokemonTokenMovement() {
   });
 }
 
+/**
+ * Busca el actor temporal de un Pokémon desplegado por el UUID de su Item.
+ * Vínculo entre ficha y mapa: lo usan casi todas las funciones del archivo,
+ * además de pokemon-sheet.mjs, trainer-team.mjs y trainer-actor-sheet.mjs para
+ * saber si ya está en el mapa.
+ */
 export function deployedActorFor(pokemonItem) {
   return game.actors.find(actor => actor.getFlag(MODULE_ID, "kind") === "deployed" && actor.getFlag(MODULE_ID, "pokemonItemUuid") === pokemonItem.uuid);
 }
 
+/**
+ * Saca un Pokémon al mapa. Exige escena abierta, permisos y token del entrenador
+ * presente; si ya estaba desplegado se limita a seleccionarlo y centrar la vista.
+ * Si no, crea el actor con deployedActorSource(), pide la casilla con
+ * chooseDeploymentPosition() y coloca el token, deshaciendo el actor recién
+ * creado ante cualquier error. Su inversa es recallPokemon().
+ */
 export async function deployPokemon(pokemonItem) {
   if (!canvas?.ready || !canvas.scene) return ui.notifications.warn("Abre una escena antes de desplegar un Pokémon.");
   const trainer = pokemonItem.parent;
@@ -61,6 +93,11 @@ export async function deployPokemon(pokemonItem) {
   }
 }
 
+/**
+ * Retira del mapa a un Pokémon: borra sus tokens y su actor temporal mediante
+ * removeDeployment(). Inversa de deployPokemon(); la llaman las fichas y el hook
+ * `deleteItem` de main.mjs.
+ */
 export async function recallPokemon(pokemonItem) {
   const actor = deployedActorFor(pokemonItem);
   if (!actor) return;
@@ -68,6 +105,12 @@ export async function recallPokemon(pokemonItem) {
   ui.notifications.info(`${displayPokemonName(pokemonItem)} ha vuelto con su entrenador.`);
 }
 
+/**
+ * Copia los PG del actor desplegado o salvaje al Item del Pokémon. Antes aplica
+ * la Banda Focus: si el golpe lo dejaría a 0 PG y le queda carga, lo deja en 1 y
+ * gasta el objeto. La dispara el hook `updateActor` de main.mjs; el sentido
+ * contrario lo cubre syncPokemonHpToDeployment().
+ */
 export async function syncDeploymentHp(actor) {
   const kind = actor.getFlag(MODULE_ID, "kind");
   if (!["deployed", "wild"].includes(kind)) return;
@@ -91,6 +134,11 @@ export async function syncDeploymentHp(actor) {
   await item.setFlag(MODULE_ID, "instance", instance);
 }
 
+/**
+ * Lleva al actor desplegado (o al propio salvaje que contiene el Item) los PG
+ * editados en la ficha, saliendo pronto si ya coinciden para no reactivar el
+ * hook contrario. La dispara el hook `updateItem` de main.mjs.
+ */
 export async function syncPokemonHpToDeployment(item) {
   const actor = item.parent?.documentName === "Actor" && item.parent.getFlag(MODULE_ID, "kind") === "wild"
     ? item.parent : deployedActorFor(item);
@@ -102,6 +150,11 @@ export async function syncPokemonHpToDeployment(item) {
   await actor.update({ "system.attributes.hp.value": Number(hp.value) || 0, "system.attributes.hp.max": Number(hp.max) || 1 });
 }
 
+/**
+ * Propaga el apodo al actor desplegado, a su token prototipo y a los tokens ya
+ * colocados en cualquier escena. La llaman pokemon-sheet.mjs y trainer-team.mjs
+ * al renombrar un Pokémon.
+ */
 export async function syncPokemonIdentityToDeployment(item) {
   const actor = deployedActorFor(item);
   if (!actor) return;
@@ -119,6 +172,11 @@ export async function syncPokemonIdentityToDeployment(item) {
   }
 }
 
+/**
+ * Borra el actor temporal que queda sin uso al eliminar un token, comprobando
+ * antes que no le quede ninguno en ninguna escena. La dispara el hook
+ * `deleteToken` de main.mjs.
+ */
 export async function cleanDeploymentActor(token) {
   const actor = game.actors.get(token.actorId);
   if (!actor || !["deployed", "wild"].includes(actor.getFlag(MODULE_ID, "kind"))) return;
@@ -127,6 +185,12 @@ export async function cleanDeploymentActor(token) {
   if (!stillUsed) await removeDeployment(actor, { deleteTokens: false });
 }
 
+/**
+ * Elimina un actor temporal y, si se pide, sus tokens. Guarda la promesa en
+ * deploymentCleanup para que las llamadas simultáneas —retirar, borrar el token
+ * y capturar pueden coincidir— compartan un único borrado. La usan
+ * recallPokemon(), cleanDeploymentActor() y capture.mjs.
+ */
 export async function removeDeployment(actor, { deleteTokens }) {
   const current = deploymentCleanup.get(actor.id);
   if (current) return current;
@@ -147,11 +211,19 @@ export async function removeDeployment(actor, { deleteTokens }) {
   }
 }
 
+/**
+ * Token del entrenador en la escena activa, dando preferencia al seleccionado.
+ * Es el origen desde el que deployPokemon() mide el alcance de despliegue.
+ */
 function trainerTokenFor(trainer) {
   const tokens = canvas.tokens?.placeables?.filter(token => token.actor?.id === trainer.id) ?? [];
   return tokens.find(token => token.controlled) ?? tokens[0] ?? null;
 }
 
+/**
+ * Primer token de un actor temporal en cualquier escena. deployPokemon() lo usa
+ * para detectar que el Pokémon ya está en el mapa, aunque sea en otra escena.
+ */
 function deployedTokenFor(actor) {
   for (const scene of game.scenes) {
     const token = scene.tokens.find(candidate => candidate.actorId === actor.id);
@@ -160,6 +232,12 @@ function deployedTokenFor(actor) {
   return null;
 }
 
+/**
+ * Pide al usuario la casilla de salida: resalta el área válida con
+ * highlightDeploymentArea() y devuelve una promesa que se resuelve con la
+ * posición elegida, o con null si cancela (Escape, clic derecho o cambio de
+ * escena). Limpia siempre resaltado y escuchas. Solo la usa deployPokemon().
+ */
 function chooseDeploymentPosition(trainerToken, tokenData, pokemonName) {
   const highlightName = `${MODULE_ID}-deploy-${foundry.utils.randomID()}`;
   const gridLayer = canvas.interface?.grid;
@@ -203,6 +281,11 @@ function chooseDeploymentPosition(trainerToken, tokenData, pokemonName) {
   });
 }
 
+/**
+ * Pinta en la rejilla las casillas donde cabe el Pokémon, recorriendo el entorno
+ * del entrenador y filtrando con isAllowedDeployment().
+ * Auxiliar visual de chooseDeploymentPosition().
+ */
 function highlightDeploymentArea(name, trainerToken, tokenData) {
   const gridLayer = canvas.interface?.grid;
   if (!gridLayer?.highlightPosition) return;
@@ -220,6 +303,12 @@ function highlightDeploymentArea(name, trainerToken, tokenData) {
   }
 }
 
+/**
+ * Convierte un punto del lienzo en la esquina superior izquierda del token,
+ * ajustándolo a la rejilla o centrándolo si la escena no tiene.
+ * La usan chooseDeploymentPosition(), highlightDeploymentArea() y
+ * validate-deployment.mjs.
+ */
 export function deploymentPosition(point, tokenData) {
   if (canvas.grid.isGridless) {
     const width = Number(tokenData.width ?? 1) * canvas.grid.sizeX;
@@ -230,6 +319,11 @@ export function deploymentPosition(point, tokenData) {
   return { x: Math.round(topLeft.x), y: Math.round(topLeft.y) };
 }
 
+/**
+ * Comprueba las tres condiciones de una casilla de salida: estar dentro de
+ * DEPLOY_RANGE, caber entera en la escena y no solaparse con otro token
+ * (rectanglesOverlap()). La comparten el resaltado y la validación del clic.
+ */
 export function isAllowedDeployment(position, trainerToken, tokenData) {
   const width = Number(tokenData.width ?? 1) * canvas.grid.sizeX;
   const height = Number(tokenData.height ?? 1) * canvas.grid.sizeY;
@@ -244,10 +338,21 @@ export function isAllowedDeployment(position, trainerToken, tokenData) {
   ));
 }
 
+/** Intersección de dos rectángulos. Auxiliar geométrico de isAllowedDeployment(). */
 function rectanglesOverlap(a, b) {
   return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
 }
 
+/**
+ * Traduce un Item Pokémon al actor NPC de D&D 5e que se usará en combate:
+ * características y salvaciones, velocidades y sentidos, CA y PG de la
+ * instancia, tamaño y escala del token, afinidades de
+ * damageTraitsForPokemonTypes(), sprite (shiny incluido), movimientos y objeto
+ * equipado como Items, estados activos vía pokemonStatusEffectSource(), permisos
+ * heredados del entrenador y el bono por especialización de tipo. Deja en los
+ * flags el enlace de vuelta al Item y al entrenador. Solo la usa deployPokemon();
+ * wild-deployment.mjs tiene su equivalente para los salvajes.
+ */
 async function deployedActorSource(pokemonItem) {
   const data = await loadPoke5eData();
   const trainer = pokemonItem.parent;

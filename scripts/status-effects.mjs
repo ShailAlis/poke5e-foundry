@@ -1,15 +1,37 @@
+/**
+ * Estados alterados Pokémon: los define como efectos de Foundry, deduce del
+ * texto de cada movimiento cuáles aplica, los reparte entre los objetivos
+ * seleccionados y resuelve el daño de fin de turno.
+ *
+ * Los jugadores no pueden modificar actores ajenos, así que las peticiones
+ * viajan por socket hasta el director responsable (isResponsibleGm()), que las
+ * ejecuta en completeStatusApplication(). Lo arranca main.mjs, lo consultan
+ * data-service.mjs (al cargar los movimientos), pokemon-sheet.mjs (al atacar y
+ * al mostrar los estados) y deployment.mjs y wild-deployment.mjs (al crear el
+ * token con sus estados previos).
+ */
 import { MODULE_ID } from "./model.mjs";
 
+/** Acción del socket con la que un jugador pide al director aplicar estados. */
 const STATUS_SOCKET_ACTION = "applyMoveStatuses";
-// These moves mention a condition, but do not apply it directly to the selected
-// target after the normal move roll (delayed effects, reactions, multiattacks,
-// battlefield hazards, cures, or conditional upgrades).
+/**
+ * Movimientos que mencionan un estado pero no lo aplican directamente al
+ * objetivo tras la tirada normal (efectos retardados, reacciones, multiataques,
+ * trampas de campo, curaciones o mejoras condicionales). inferMoveStatusEffects()
+ * los marca con `trigger: "manual"` para que los resuelva el director.
+ */
 const MANUAL_STATUS_MOVES = new Set([
   "beak-blast", "glaciate", "incinerate", "sing", "smelling-salts",
   "sparkling-aria", "spore", "toxic-spikes", "triple-arrows", "twineedle",
   "uproar", "venom-drench", "yawn"
 ]);
 
+/**
+ * Catálogo de estados construido con status(): nombre, icono, descripción,
+ * inmunidades por tipo, condiciones de D&D 5e enlazadas y duración. Los estados
+ * no volátiles son excluyentes entre sí y se guardan en el Item del Pokémon.
+ * Es la referencia de todo el archivo y de la ficha Pokémon.
+ */
 export const POKEMON_STATUS_EFFECTS = Object.freeze({
   burned: status("Quemado", "icons/svg/fire.svg", "Tira el daño dos veces y usa el resultado menor. Recibe daño igual a su competencia al final de cada turno.", { nonVolatile: true, immuneTypes: ["fire"] }),
   frozen: status("Congelado", "icons/svg/frozen.svg", "Incapacitado y apresado hasta liberarse. El daño de Fuego elimina el estado.", { nonVolatile: true, immuneTypes: ["ice"], linked: ["incapacitated", "restrained"] }),
@@ -21,8 +43,19 @@ export const POKEMON_STATUS_EFFECTS = Object.freeze({
   flinched: status("Amedrentado", "icons/svg/terror.svg", "Desventaja en ataques, pruebas y salvaciones hasta el final de su siguiente turno.", { rounds: 1 })
 });
 
+/**
+ * Identificadores de los estados no volátiles, precalculados a partir de
+ * POKEMON_STATUS_EFFECTS. applyPokemonStatus() los usa para impedir que se
+ * acumule más de uno.
+ */
 const NON_VOLATILE = new Set(Object.entries(POKEMON_STATUS_EFFECTS).filter(([, value]) => value.nonVolatile).map(([id]) => statusId(id)));
 
+/**
+ * Añade los estados del módulo a `CONFIG.statusEffects` mediante
+ * pokemonStatusConfig(), sin duplicar los ya presentes y admitiendo las dos
+ * formas (array u objeto) que ha tenido esa configuración en Foundry.
+ * La llama el hook `init` de main.mjs.
+ */
 export function registerPokemonStatusEffects() {
   for (const [id, definition] of Object.entries(POKEMON_STATUS_EFFECTS)) {
     const config = pokemonStatusConfig(id, definition);
@@ -32,6 +65,12 @@ export function registerPokemonStatusEffects() {
   }
 }
 
+/**
+ * Deja al director escuchando: atiende por socket las peticiones de
+ * applyMoveStatuses(), engancha el daño de fin de turno al cambio de turno del
+ * combate y sincroniza los iconos con synchronizePokemonStatusEffects().
+ * La llama el hook `ready` de main.mjs.
+ */
 export function registerPokemonStatusSocket() {
   game.socket.on(`module.${MODULE_ID}`, payload => {
     if (payload?.action !== STATUS_SOCKET_ACTION || !isResponsibleGm()) return;
@@ -44,6 +83,14 @@ export function registerPokemonStatusSocket() {
   synchronizePokemonStatusEffects().catch(error => console.error(`${MODULE_ID} | Status icon synchronization failed`, error));
 }
 
+/**
+ * Deduce del texto de un movimiento (en inglés o español) qué estados provoca y
+ * con qué disparador: "automatic", "hit", "failed-save", "natural" (con el
+ * mínimo que devuelve naturalThreshold()) o "manual" si figura en
+ * MANUAL_STATUS_MOVES. data-service.mjs la ejecuta una sola vez al cargar el
+ * catálogo y guarda el resultado en `move.statusEffects`, que después consume
+ * applyMoveStatuses().
+ */
 export function inferMoveStatusEffects(move) {
   const text = [...(move.description ?? []), move.higherLevels ?? ""].filter(Boolean).join(" ");
   const sentences = text.split(/(?<=[.!?])\s+/);
@@ -70,6 +117,13 @@ export function inferMoveStatusEffects(move) {
   return effects;
 }
 
+/**
+ * Reparte los estados de un movimiento entre los objetivos seleccionados:
+ * descarta los que el ataque no alcanza (attackHitsTarget()), tira una sola
+ * salvación por objetivo con rollTargetSave() y avisa de los estados manuales.
+ * Aplica los resultados directamente si quien juega tiene permisos y, si no, los
+ * envía por socket al director. La llama pokemon-sheet.mjs tras cada ataque.
+ */
 export async function applyMoveStatuses({ move, attack = null, saveDc, sourceActor, sourceName }) {
   const effects = move.statusEffects ?? inferMoveStatusEffects(move);
   if (!effects.length) return;
@@ -117,6 +171,13 @@ export async function applyMoveStatuses({ move, attack = null, saveDc, sourceAct
   }
 }
 
+/**
+ * Construye el ActiveEffect de un estado a partir de POKEMON_STATUS_EFFECTS,
+ * con sus condiciones enlazadas, la duración en rondas y la reducción de
+ * velocidad propia de Paralizado. La usan applyPokemonStatus(),
+ * synchronizePokemonStatusEffects() y el despliegue de tokens en deployment.mjs
+ * y wild-deployment.mjs.
+ */
 export function pokemonStatusEffectSource(id, { sourceName = "", moveName = "" } = {}) {
   const definition = POKEMON_STATUS_EFFECTS[id];
   if (!definition) return null;
@@ -138,6 +199,12 @@ export function pokemonStatusEffectSource(id, { sourceName = "", moveName = "" }
   };
 }
 
+/**
+ * Repara los estados de los actores ya desplegados: actualiza los iconos
+ * antiguos y vuelve a crear los efectos que consten en el Item del Pokémon pero
+ * falten en el actor. Solo la ejecuta el director al arrancar, desde
+ * registerPokemonStatusSocket().
+ */
 export async function synchronizePokemonStatusEffects() {
   if (!isResponsibleGm()) return;
   for (const actor of game.actors.filter(candidate => ["deployed", "wild"].includes(candidate.getFlag(MODULE_ID, "kind")))) {
@@ -158,12 +225,22 @@ export async function synchronizePokemonStatusEffects() {
   }
 }
 
+/**
+ * Convierte los estados guardados en un Pokémon en entradas con nombre, icono y
+ * descripción para la ficha. La usa pokemon-sheet.mjs.
+ */
 export function pokemonStatusEntries(instance) {
   return [...new Set(instance?.conditions ?? [])].map(id => ({ id, ...POKEMON_STATUS_EFFECTS[id] })).filter(entry => entry.name);
 }
 
+/** Expone statusId() fuera del módulo; lo usa pokemon-sheet.mjs para los iconos. */
 export function pokemonStatusId(id) { return statusId(id); }
 
+/**
+ * Cura un estado: lo borra del Item del Pokémon y elimina su ActiveEffect del
+ * actor asociado, ya sea un salvaje o un desplegado localizado por su UUID.
+ * Inversa de applyPokemonStatus(); la llama pokemon-sheet.mjs.
+ */
 export async function removePokemonStatus(pokemonItem, id) {
   const instance = foundry.utils.deepClone(pokemonItem.getFlag(MODULE_ID, "instance") ?? {});
   instance.conditions = (instance.conditions ?? []).filter(condition => condition !== id);
@@ -175,6 +252,12 @@ export async function removePokemonStatus(pokemonItem, id) {
   if (effects.length) await actor.deleteEmbeddedDocuments("ActiveEffect", effects.map(effect => effect.id));
 }
 
+/**
+ * Ejecuta la aplicación de estados solicitada, ya venga de applyMoveStatuses()
+ * en local o del socket. Antes comprueba que quien la pidió siga conectado y sea
+ * dueño del actor origen, para que el socket no pueda usarse en nombre de otro.
+ * Delega cada estado en applyPokemonStatus().
+ */
 async function completeStatusApplication(payload) {
   const requester = game.users.get(payload.userId);
   const sourceActor = payload.sourceActorUuid ? await fromUuid(payload.sourceActorUuid) : null;
@@ -186,6 +269,12 @@ async function completeStatusApplication(payload) {
   }
 }
 
+/**
+ * Aplica un estado concreto a un actor: descarta las inmunidades por tipo
+ * (pokemonTypes()), los duplicados y los no volátiles cuando ya hay otro; crea
+ * el efecto con pokemonStatusEffectSource(), lo guarda en el Item con
+ * persistPokemonStatus() si es no volátil y lo anuncia en el chat.
+ */
 async function applyPokemonStatus(actor, id, source) {
   const definition = POKEMON_STATUS_EFFECTS[id];
   if (!definition) return;
@@ -208,6 +297,10 @@ async function applyPokemonStatus(actor, id, source) {
   });
 }
 
+/**
+ * Guarda un estado no volátil en el Item del Pokémon (vía pokemonItemForActor())
+ * para que sobreviva a retirarlo del mapa. Su inversa es removePokemonStatus().
+ */
 async function persistPokemonStatus(actor, id) {
   const pokemonItem = await pokemonItemForActor(actor);
   if (!pokemonItem) return;
@@ -216,6 +309,12 @@ async function persistPokemonStatus(actor, id) {
   await pokemonItem.setFlag(MODULE_ID, "instance", instance);
 }
 
+/**
+ * Daño periódico de veneno y quemadura al terminar el turno, calculado sobre la
+ * competencia que corresponde al nivel del Pokémon (doble si está gravemente
+ * envenenado). Lo dispara el hook `combatTurnChange` registrado en
+ * registerPokemonStatusSocket(), y solo en el cliente del director.
+ */
 async function applyEndTurnStatusDamage(actor) {
   if (!actor || Number(actor.system.attributes?.hp?.value) <= 0) return;
   let multiplier = 0;
@@ -232,12 +331,22 @@ async function applyEndTurnStatusDamage(actor) {
   await ChatMessage.create({ content: `<div class="dnd5e chat-card poke5e-status-card"><p><strong>${escapeHtml(actor.name)}</strong> recibe <strong>${damage} de daño</strong> por ${escapeHtml(label)} al final de su turno.</p></div>` });
 }
 
+/**
+ * Localiza el Item Pokémon que respalda a un actor: por el UUID que guarda un
+ * desplegado o, si no lo hay, entre los Items embebidos de un salvaje.
+ * Puente entre actor y ficha para el resto del archivo.
+ */
 async function pokemonItemForActor(actor) {
   const uuid = actor.getFlag(MODULE_ID, "pokemonItemUuid");
   if (uuid) return fromUuid(uuid);
   return actor.items?.find(item => item.getFlag(MODULE_ID, "kind") === "pokemon") ?? null;
 }
 
+/**
+ * Decide si un ataque alcanzó a un objetivo comparando el total con su CA, con
+ * pifia y crítico automáticos. Ante una CA ilegible da el impacto por bueno.
+ * Auxiliar de applyMoveStatuses().
+ */
 function attackHitsTarget(attack, actor) {
   if (Number(attack.natural) === 1) return false;
   if (Number(attack.natural) === 20) return true;
@@ -245,6 +354,12 @@ function attackHitsTarget(attack, actor) {
   return !Number.isFinite(ac) || Number(attack.total) >= ac;
 }
 
+/**
+ * Tira la salvación de un objetivo contra un movimiento, eligiendo la
+ * característica más favorable de entre las que este permite (Constitución por
+ * defecto) según savingThrowModifier(), y publica la tirada en el chat.
+ * Auxiliar de applyMoveStatuses().
+ */
 async function rollTargetSave(actor, move, dc) {
   const attributes = move.save?.attribute?.length ? move.save.attribute : ["con"];
   const choices = attributes.map(key => ({ key, modifier: savingThrowModifier(actor, key) }));
@@ -254,6 +369,11 @@ async function rollTargetSave(actor, move, dc) {
   return { total: Number(roll.total) || 0, success: Number(roll.total) >= Number(dc) };
 }
 
+/**
+ * Modificador de salvación de una característica: usa el que ya calcula D&D 5e
+ * y, si no está disponible, lo reconstruye desde la puntuación y la competencia.
+ * Auxiliar de rollTargetSave().
+ */
 function savingThrowModifier(actor, key) {
   const ability = actor.system.abilities?.[key] ?? {};
   const prepared = Number(ability.save?.value ?? ability.save?.total ?? ability.save);
@@ -264,12 +384,22 @@ function savingThrowModifier(actor, key) {
   return modifier + (proficiency * (Number(ability.proficient) || 0));
 }
 
+/**
+ * Tipos Pokémon de un actor, tomados del flag que escriben deployment.mjs y
+ * wild-deployment.mjs o, en su defecto, de la especie de su Item.
+ * Auxiliar de applyPokemonStatus() para resolver las inmunidades.
+ */
 function pokemonTypes(actor) {
   const flagged = actor.getFlag(MODULE_ID, "pokemonTypes");
   if (Array.isArray(flagged)) return flagged;
   return actor.items?.find(item => item.getFlag(MODULE_ID, "kind") === "pokemon")?.getFlag(MODULE_ID, "species")?.type ?? [];
 }
 
+/**
+ * Extrae de una frase el resultado natural mínimo que exige un estado ("con una
+ * tirada natural de 18 o más"), en inglés o español, o null si no lo indica.
+ * Auxiliar de inferMoveStatusEffects() para el disparador "natural".
+ */
 function naturalThreshold(sentence) {
   const match = sentence.match(/natural(?: attack)? roll(?:s)?(?: of| is| result(?: is)?| de)?\s*(?:a )?(\d+)|(?:tirada de ataque|resultado|tirada)(?: es| de)?\s*(?:a )?(\d+)(?: o| natural)/i);
   if (match) return Number(match[1] ?? match[2]);
@@ -277,16 +407,31 @@ function naturalThreshold(sentence) {
   return spanish ? Number(spanish[1] ?? spanish[2]) : null;
 }
 
+/**
+ * Adapta una entrada de POKEMON_STATUS_EFFECTS al formato de
+ * `CONFIG.statusEffects`. Auxiliar de registerPokemonStatusEffects().
+ */
 function pokemonStatusConfig(id, definition) {
   return { id: statusId(id), name: definition.name, img: definition.img, description: definition.description, flags: { [MODULE_ID]: { pokemonStatus: id } } };
 }
 
+/**
+ * Constructor abreviado de las entradas de POKEMON_STATUS_EFFECTS, que fija los
+ * valores por defecto de los campos opcionales.
+ */
 function status(name, img, description, { nonVolatile = false, immuneTypes = [], linked = [], rounds = 0 } = {}) {
   return { name, img, description, nonVolatile, immuneTypes, linked, rounds };
 }
 
+/** Prefija el id de un estado con el del módulo para no chocar con D&D 5e. */
 function statusId(id) { return `${MODULE_ID}-${id}`; }
+/** Escapa texto para los mensajes de chat que genera este archivo. */
 function escapeHtml(value) { return foundry.utils.escapeHTML(String(value ?? "")); }
+/**
+ * Elige un único director responsable (el de id menor entre los conectados) para
+ * que las tareas compartidas —socket, daño de fin de turno y sincronización— se
+ * ejecuten una sola vez aunque haya varios directores en la partida.
+ */
 function isResponsibleGm() {
   const active = game.users.filter(user => user.active && user.isGM).sort((a, b) => a.id.localeCompare(b.id));
   return active[0]?.id === game.user.id;

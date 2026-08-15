@@ -1,3 +1,15 @@
+/**
+ * Interfaz del generador de Entrenadores NPC, exclusiva del director. Reúne en
+ * un formulario todas las opciones del NPC (identidad, nivel, origen,
+ * especialización, arquetipo, dificultad, inventario, token y permisos) y del
+ * equipo, permite ajustarlo Pokémon a Pokémon y lanza la creación.
+ *
+ * Las reglas están en npc-trainer-rules.mjs y la creación de documentos en
+ * npc-trainer-actor.mjs; aquí solo vive el estado del formulario. La abren el
+ * menú de ajustes, el control de escena y la macro
+ * `game.poke5e.openNpcTrainerGenerator`, registrados en main.mjs. Su plantilla es
+ * `templates/npc-trainer-generator.hbs`.
+ */
 import { loadPoke5eData } from "./data-service.mjs";
 import { MODULE_PATH, portraitUrl, trainerPokeslotsForLevel } from "./model.mjs";
 import { NATURES, ORIGINS, SPECIALIZATIONS } from "./trainer-creation-data.mjs";
@@ -6,6 +18,7 @@ import { NPC_ARCHETYPES, NPC_DIFFICULTIES, NPC_TRAINER_PATHS, filterNpcTrainerSp
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
+/** Ventana del generador de Entrenadores NPC. */
 export class Poke5eNpcTrainerGenerator extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "poke5e-npc-trainer-generator",
@@ -16,6 +29,11 @@ export class Poke5eNpcTrainerGenerator extends HandlebarsApplicationMixin(Applic
 
   static PARTS = { main: { template: `${MODULE_PATH}/templates/npc-trainer-generator.hbs`, scrollable: [""] } };
 
+  /**
+   * Arranca con la configuración de defaultConfig() y el equipo vacío; nada se
+   * guarda en el mundo hasta pulsar crear. `creating` bloquea el botón mientras
+   * se generan los actores.
+   */
   constructor(options = {}) {
     super(options);
     this.config = defaultConfig();
@@ -24,6 +42,13 @@ export class Poke5eNpcTrainerGenerator extends HandlebarsApplicationMixin(Applic
     this.refocusSearch = false;
   }
 
+  /**
+   * Prepara el formulario entero: las especies candidatas que devuelve
+   * filterNpcTrainerSpecies() (recortadas a 80), el equipo actual con su retrato
+   * y datos, el límite de Pokéslots del nivel elegido, el SR máximo que permite
+   * trainerControlSr() y todos los desplegables, unos fijos y otros deducidos del
+   * catálogo con uniqueOptions(). Corta con `unauthorized` si no es el director.
+   */
   async _prepareContext() {
     if (!game.user.isGM) return { unauthorized: true };
     const data = await loadPoke5eData();
@@ -78,6 +103,11 @@ export class Poke5eNpcTrainerGenerator extends HandlebarsApplicationMixin(Applic
     };
   }
 
+  /**
+   * Conecta los campos del formulario con #changeConfig(), la búsqueda con
+   * retardo y los botones de generar equipo, vaciar, restablecer, añadir o quitar
+   * especies, resortear, ajustar nivel y shiny, y crear los Entrenadores.
+   */
   _onRender(context, options) {
     super._onRender(context, options);
     if (!game.user.isGM) return;
@@ -104,6 +134,11 @@ export class Poke5eNpcTrainerGenerator extends HandlebarsApplicationMixin(Applic
     }
   }
 
+  /**
+   * Guarda el valor de un campo y solo redibuja cuando el cambio afecta a lo que
+   * se muestra (filtros, nivel o camino), para no interrumpir la escritura en los
+   * demás. Al bajar el nivel recorta el equipo a los Pokéslots disponibles.
+   */
   #changeConfig(event) {
     const input = event.currentTarget;
     this.config[input.dataset.config] = input.type === "checkbox" ? input.checked : input.value;
@@ -111,10 +146,19 @@ export class Poke5eNpcTrainerGenerator extends HandlebarsApplicationMixin(Applic
     if (["quantity", "trainerLevel", "path", "respectControlLimit", "typePrimary", "typeSecondary", "typeMode", "region", "biome", "srMin", "srMax", "levelMax", "stage", "includeIds", "excludeIds"].includes(input.dataset.config)) this.render({ force: true });
   }
 
+  /**
+   * Vuelca a `config` el contenido de todos los campos. Se llama antes de
+   * generar o crear para recoger los que #changeConfig() no provoca redibujado.
+   */
   #captureAll() {
     for (const input of this.element.querySelectorAll("[data-config]")) this.config[input.dataset.config] = input.type === "checkbox" ? input.checked : input.value;
   }
 
+  /**
+   * Sortea el equipo con generateNpcTrainerTeam() sobre las especies filtradas.
+   * Si se pidió composición temática sin fijar especialización, elige una al azar
+   * y lo advierte.
+   */
   async #generateTeam() {
     this.#captureAll();
     if (this.config.composition === "specialized" && this.config.specialization === "random") {
@@ -128,6 +172,10 @@ export class Poke5eNpcTrainerGenerator extends HandlebarsApplicationMixin(Applic
     this.render({ force: true });
   }
 
+  /**
+   * Añade a mano una especie al equipo respetando los Pokéslots y, si está
+   * activa, la opción de no repetir especie.
+   */
   async #addSpecies(speciesId) {
     const maxTeamSize = trainerPokeslotsForLevel(this.config.trainerLevel);
     if (this.team.length >= maxTeamSize) return ui.notifications.warn(`Los Pokéslots de este Entrenador permiten un máximo de ${maxTeamSize} Pokémon.`);
@@ -140,11 +188,16 @@ export class Poke5eNpcTrainerGenerator extends HandlebarsApplicationMixin(Applic
     this.render({ force: true });
   }
 
+  /** Quita un Pokémon del equipo previsto. */
   #removePokemon(index) {
     this.team.splice(Number(index), 1);
     this.render({ force: true });
   }
 
+  /**
+   * Sustituye un Pokémon por otro sorteado con los mismos filtros, excluyendo
+   * las especies que ya ocupan los demás puestos si se exigen únicas.
+   */
   async #rerollPokemon(index) {
     this.#captureAll();
     const data = await loadPoke5eData();
@@ -159,6 +212,7 @@ export class Poke5eNpcTrainerGenerator extends HandlebarsApplicationMixin(Applic
     this.render({ force: true });
   }
 
+  /** Ajusta a mano el nivel de un Pokémon, sin bajar del mínimo de su especie. */
   #changePokemonLevel(event) {
     const entry = this.team[Number(event.currentTarget.dataset.index)];
     if (!entry) return;
@@ -166,11 +220,21 @@ export class Poke5eNpcTrainerGenerator extends HandlebarsApplicationMixin(Applic
     this.render({ force: true });
   }
 
+  /**
+   * Marca o desmarca a un Pokémon como shiny. No redibuja, para no perder el
+   * foco al recorrer las casillas.
+   */
   #changePokemonShiny(event) {
     const entry = this.team[Number(event.currentTarget.dataset.index)];
     if (entry) entry.shiny = event.currentTarget.checked;
   }
 
+  /**
+   * Crea los Entrenadores con createNpcTrainerActor(): el primero lleva el
+   * equipo preparado en pantalla y los demás uno sorteado de nuevo, todos en la
+   * carpeta que asegura ensureNpcTrainerFolder(). Si se pidió, los coloca en la
+   * escena con placeNpcTrainer() y abre la ficha del primero. Máximo 12 por tanda.
+   */
   async #createTrainers() {
     if (this.creating) return;
     this.#captureAll();
@@ -203,6 +267,11 @@ export class Poke5eNpcTrainerGenerator extends HandlebarsApplicationMixin(Applic
   }
 }
 
+/**
+ * Configuración inicial del formulario, con todas las opciones del NPC, del
+ * equipo, de los filtros de especie, del inventario y del token.
+ * La usan el constructor y el botón de restablecer.
+ */
 function defaultConfig() {
   return {
     quantity: 1, name: "", image: "", useTitle: true, gender: "random", age: "", trainerLevel: 5,
@@ -217,6 +286,12 @@ function defaultConfig() {
   };
 }
 
+/**
+ * Convierte en desplegable un catálogo con entradas {name}, como NPC_ARCHETYPES,
+ * NPC_DIFFICULTIES o NPC_TRAINER_PATHS.
+ */
 function optionMap(entries) { return Object.fromEntries(Object.entries(entries).map(([key, value]) => [key, value.name])); }
+/** Desplegable de los valores presentes en el catálogo, sin repetir y ordenados. */
 function uniqueOptions(values, labeler = value => value) { return [...new Set(values)].sort((a, b) => String(a).localeCompare(String(b))).reduce((result, value) => ({ ...result, [value]: labeler(value) }), {}); }
+/** Capitaliza tipos y biomas para los desplegables. */
 function titleCase(value) { return String(value).split("-").map(part => part.charAt(0).toLocaleUpperCase() + part.slice(1)).join(" "); }

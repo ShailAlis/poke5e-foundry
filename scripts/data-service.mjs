@@ -1,9 +1,23 @@
+/**
+ * Servicio de acceso a los JSON de `data/`. Carga el catálogo completo una sola
+ * vez por idioma, lo enriquece (traducciones, efectos de estado, datos de
+ * concurso, cadenas evolutivas) y lo expone ya indexado por id.
+ *
+ * Toda la interfaz que necesita datos pasa por aquí: pokemon-sheet.mjs,
+ * species-browser.mjs, importer.mjs, capture.mjs, deployment.mjs,
+ * wild-deployment.mjs, trainer-creator.mjs y los dos generadores.
+ */
 import { inferMoveStatusEffects } from "./status-effects.mjs";
 
 const MODULE_ID = "poke5e-foundry";
 const MODULE_PATH = `modules/${MODULE_ID}`;
 const cache = new Map();
 
+/**
+ * Punto de entrada único al catálogo. Cachea la promesa de load() por idioma,
+ * de modo que las llamadas simultáneas comparten una sola carga y las
+ * posteriores son inmediatas.
+ */
 export async function loadPoke5eData(language = game.settings.get(MODULE_ID, "dataLanguage")) {
   if (cache.has(language)) return cache.get(language);
   const promise = load(language);
@@ -11,6 +25,14 @@ export async function loadPoke5eData(language = game.settings.get(MODULE_ID, "da
   return promise;
 }
 
+/**
+ * Carga y ensambla el catálogo: lee los JSON en paralelo con fetchJson(), deduce
+ * los efectos de estado de cada movimiento con inferMoveStatusEffects()
+ * (status-effects.mjs), superpone la traducción con mergeTranslation(), adjunta
+ * los datos de concurso que consume contests.mjs y agrupa las evoluciones por
+ * especie de origen. Devuelve también los índices por id que usan las fichas.
+ * Solo la llama loadPoke5eData().
+ */
 async function load(language) {
   const [pokemon, movesEn, abilitiesEn, itemsEn, evolutions, contests, contestEffects] = await Promise.all([
     fetchJson("pokemon.json"),
@@ -63,12 +85,21 @@ async function load(language) {
   };
 }
 
+/**
+ * Lee un JSON de la carpeta `data/` del módulo y lanza un error descriptivo si
+ * la respuesta falla. Auxiliar exclusivo de load().
+ */
 async function fetchJson(file) {
   const response = await fetch(`${MODULE_PATH}/data/${file}`);
   if (!response.ok) throw new Error(`No se pudo cargar ${file} (${response.status}).`);
   return response.json();
 }
 
+/**
+ * Superpone las entradas traducidas sobre las inglesas emparejándolas por id, de
+ * forma que los campos ausentes en la traducción conservan el valor original.
+ * Auxiliar exclusivo de load().
+ */
 function mergeTranslation(base, translated) {
   const translations = new Map(translated.map(value => [value.id, value]));
   return base.map(value => ({ ...value, ...(translations.get(value.id) ?? {}) }));

@@ -1,8 +1,20 @@
+/**
+ * Reglas de tipos Pokémon: tabla de efectividad, etiquetas, colores y su
+ * integración como tipos de daño de D&D 5e. Módulo de reglas puro, sin estado ni
+ * dependencias internas, lo que permite a validate-combat.mjs probarlo en Node.
+ *
+ * Lo consumen model.mjs (afinidades en las descripciones), deployment.mjs y
+ * wild-deployment.mjs (rasgos de los actores), pokemon-sheet.mjs (tiradas de
+ * daño) y main.mjs (registro y migración).
+ */
+
+/** Los 18 tipos Pokémon canónicos, en el orden en que se muestran. */
 export const POKEMON_TYPES = [
   "bug", "dark", "dragon", "electric", "fairy", "fighting", "fire", "flying", "ghost",
   "grass", "ground", "ice", "normal", "poison", "psychic", "rock", "steel", "water"
 ];
 
+/** Tipos de daño adicionales sin entrada en la tabla de efectividad. */
 export const EXTRA_DAMAGE_TYPES = ["stellar", "typeless"];
 
 const TYPE_LABELS = {
@@ -19,7 +31,10 @@ const TYPE_COLORS = {
   rock: 0xAFA981, steel: 0x60A1B8, water: 0x2980EF, stellar: 0x7A8CFF, typeless: 0x777777
 };
 
-// Offensive chart. Entries not present have a multiplier of 1.
+/**
+ * Tabla ofensiva: TYPE_CHART[atacante][defensor] da el multiplicador de daño.
+ * Las combinaciones ausentes valen 1. Solo la lee pokemonDefenses().
+ */
 const TYPE_CHART = {
   normal: { rock: 0.5, ghost: 0, steel: 0.5 },
   fire: { fire: 0.5, water: 0.5, grass: 2, ice: 2, bug: 2, rock: 0.5, dragon: 0.5, steel: 2 },
@@ -41,10 +56,20 @@ const TYPE_CHART = {
   fairy: { fire: 0.5, fighting: 2, poison: 0.5, dragon: 2, dark: 2, steel: 0.5 }
 };
 
+/**
+ * Nombre en español de un tipo, con titleCase() como reserva para los valores no
+ * catalogados. Lo usan registerPokemonDamageTypes(), model.mjs y las fichas.
+ */
 export function typeLabel(type) {
   return TYPE_LABELS[type] ?? titleCase(type);
 }
 
+/**
+ * Inyecta los tipos Pokémon en `CONFIG.DND5E.damageTypes` sin tocar los tipos
+ * propios de D&D 5e, para que el sistema aplique por sí solo resistencias e
+ * inmunidades. La llama el hook `init` de main.mjs; sale sin hacer nada si el
+ * sistema no está cargado, lo que permite probarla desde validate-combat.mjs.
+ */
 export function registerPokemonDamageTypes() {
   const damageTypes = globalThis.CONFIG?.DND5E?.damageTypes;
   if (!damageTypes) return;
@@ -58,6 +83,12 @@ export function registerPokemonDamageTypes() {
   }
 }
 
+/**
+ * Calcula las afinidades de una especie multiplicando en TYPE_CHART los
+ * multiplicadores de cada uno de sus tipos, y las reparte en vulnerabilidades,
+ * resistencias e inmunidades. Base de damageTraitsForPokemonTypes() y de la
+ * descripción de especie en model.mjs.
+ */
 export function pokemonDefenses(defendingTypes) {
   const types = [...new Set((defendingTypes ?? []).filter(type => POKEMON_TYPES.includes(type)))];
   const vulnerabilities = [];
@@ -72,6 +103,11 @@ export function pokemonDefenses(defendingTypes) {
   return { vulnerabilities, resistances, immunities };
 }
 
+/**
+ * Traduce el resultado de pokemonDefenses() a los rasgos `dr`/`dv`/`di` que
+ * espera un actor de D&D 5e. La usan deployment.mjs y wild-deployment.mjs al
+ * crear tokens, y la migración de main.mjs sobre los ya existentes.
+ */
 export function damageTraitsForPokemonTypes(types) {
   const defenses = pokemonDefenses(types);
   const trait = value => ({ value, custom: "", bypasses: [] });
@@ -82,11 +118,20 @@ export function damageTraitsForPokemonTypes(types) {
   };
 }
 
+/**
+ * Depura los tipos de daño declarados en un movimiento del JSON: acepta valor
+ * suelto o lista, descarta los desconocidos y admite además "healing".
+ * La usa pokemon-sheet.mjs antes de lanzar una tirada de daño.
+ */
 export function normalizeMoveDamageTypes(value) {
   const types = Array.isArray(value) ? value : value ? [value] : [];
   return [...new Set(types.filter(type => [...POKEMON_TYPES, ...EXTRA_DAMAGE_TYPES, "healing"].includes(type)))];
 }
 
+/**
+ * Capitaliza un identificador con guiones. Copia local de la utilidad homónima
+ * de model.mjs para que este archivo siga sin dependencias internas.
+ */
 function titleCase(value) {
   return String(value ?? "").split("-").map(part => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
 }

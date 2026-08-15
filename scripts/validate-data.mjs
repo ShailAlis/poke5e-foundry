@@ -1,3 +1,14 @@
+/**
+ * Validador de los JSON de `data/`, ejecutado por `npm run check`. No importa
+ * código del módulo: comprueba los datos en bruto antes de que nadie los use.
+ *
+ * Verifica volumen mínimo e ids únicos de cada catálogo, que los tipos y la
+ * proporción de sexos de cada especie sean válidos, que sus movimientos
+ * iniciales y habilidades existan, que las velocidades usen tipos conocidos, que
+ * las evoluciones apunten a especies reales con condiciones reconocidas y que
+ * los tipos de daño de los movimientos estén dentro de los admitidos.
+ * Falla con un throw a la primera incoherencia.
+ */
 import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";

@@ -1,3 +1,11 @@
+/**
+ * Validador de encounter-generator.mjs, ejecutado por `npm run check`. Con
+ * Bulbasaur como caso de prueba y un generador aleatorio fijo, comprueba el
+ * filtrado por bioma y tipo, los movimientos por nivel, el aumento de PG al
+ * subir, la generación de un encuentro reproducible y que la instancia salvaje
+ * salga con su nivel, experiencia, cuatro movimientos como mucho con sus PP
+ * correctos y fuera de todo equipo.
+ */
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import {

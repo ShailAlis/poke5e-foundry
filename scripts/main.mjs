@@ -1,3 +1,11 @@
+/**
+ * Punto de entrada del módulo declarado en `module.json`. No contiene reglas:
+ * registra ajustes, fichas, efectos y controles, engancha los hooks de Foundry
+ * que conectan cada subsistema.
+ *
+ * Es la cúspide del grafo de dependencias: importa de casi todos los archivos y
+ * ninguno lo importa a él.
+ */
 import { Poke5eImporter } from "./importer.mjs";
 import { Poke5ePokemonSheet } from "./pokemon-sheet.mjs";
 import { Poke5eReference } from "./reference.mjs";
@@ -13,6 +21,13 @@ import { Poke5eTrainerCreator, enforceHumanActorSource, isHumanSpecies } from ".
 import { Poke5eNpcTrainerGenerator } from "./npc-trainer-generator.mjs";
 import { registerPokemonStatusEffects, registerPokemonStatusSocket } from "./status-effects.mjs";
 
+/**
+ * Arranque temprano: delega el registro de tipos de daño (combat.mjs), fichas
+ * (trainer-actor-sheet.mjs, pokemon-actor-sheet.mjs), movimiento de tokens
+ * (deployment.mjs) y estados alterados (status-effects.mjs); después declara los
+ * ajustes del mundo y los menús que abren importer, referencia y los dos
+ * generadores exclusivos del director.
+ */
 Hooks.once("init", () => {
   registerPokemonDamageTypes();
   registerTrainerActorSheet();
@@ -64,6 +79,11 @@ Hooks.once("init", () => {
   });
 });
 
+/**
+ * Mundo ya cargado: aplica el modo oscuro, abre los sockets de captura y estados
+ * (capture.mjs y status-effects.mjs), publica la API de macros `game.poke5e` y,
+ * solo para el director, lanza las tres migraciones de datos antiguos.
+ */
 Hooks.once("ready", () => {
   applyDarkMode(game.settings.get(MODULE_ID, "darkMode"));
   registerCaptureSocket();
@@ -85,10 +105,20 @@ Hooks.once("ready", () => {
   }
 });
 
+/**
+ * Activa o desactiva la clase CSS del modo oscuro en el documento. La llaman el
+ * `onChange` del ajuste `darkMode` y el arranque del hook `ready`.
+ */
 function applyDarkMode(enabled) {
   document.body.classList.toggle("poke5e-dark-mode", Boolean(enabled));
 }
 
+/**
+ * Filtra los Items que se crean sobre un actor: rechaza especies de jugador que
+ * no sean Humano (isHumanSpecies() de trainer-creator.mjs) y convierte las
+ * especies Pokémon arrastradas con normalizeDroppedSpecies() (model.mjs),
+ * mandándolas a la reserva si el equipo activo ya está lleno.
+ */
 Hooks.on("preCreateItem", item => {
   if (item.parent?.documentName === "Actor" && item.parent.type === "character" && item.type === "race" && !isHumanSpecies(item)) {
     ui.notifications.warn("En Pokémon 5e los personajes jugadores solo pueden ser humanos.");
@@ -99,18 +129,27 @@ Hooks.on("preCreateItem", item => {
   if (currentTeam.length >= trainerPokeslotLimit(item.parent)) item.updateSource({ [`flags.${MODULE_ID}.instance.inTeam`]: false });
 });
 
+/** Fuerza la especie Humano en los personajes nuevos (trainer-creator.mjs). */
 Hooks.on("preCreateActor", actor => enforceHumanActorSource(actor));
+/** Abre el asistente de creación de Entrenador tras crear un personaje sin completar. */
 Hooks.on("createActor", (actor, options, userId) => {
   if (userId !== game.user.id || actor.type !== "character" || actor.getFlag(MODULE_ID, "trainerCreation")?.completed) return;
   setTimeout(() => new Poke5eTrainerCreator({ actor }).render(true), 250);
 });
 
+/** Botones de cabecera en las fichas antiguas (ApplicationV1), vía addLegacyHeaderControl(). */
 Hooks.on("getActorSheetHeaderButtons", (sheet, buttons) => addLegacyHeaderControl(sheet, buttons));
 Hooks.on("getApplicationV1HeaderButtons", (application, buttons) => addLegacyHeaderControl(application, buttons));
+/** Añade a la barra de herramientas de tokens los accesos del director. */
 Hooks.on("getSceneControlButtons", controls => {
   addEncounterSceneControl(controls);
   addNpcTrainerSceneControl(controls);
 });
+/**
+ * Equivalente de addLegacyHeaderControl() para las fichas ApplicationV2: inserta
+ * los botones de equipo Pokémon, de completar Entrenador y de Pokédex, evitando
+ * duplicarlos y excluyendo las ventanas propias del módulo.
+ */
 Hooks.on("getHeaderControlsApplicationV2", (application, controls) => {
   if (application instanceof Poke5ePokemonSheet || application instanceof Poke5eTrainerTeam) return;
   const actor = application.actor ?? application.document;
@@ -135,6 +174,11 @@ Hooks.on("getHeaderControlsApplicationV2", (application, controls) => {
   }
 });
 
+/**
+ * Propaga a la ficha del entrenador los PG que cambian en un actor desplegado o
+ * salvaje, mediante syncDeploymentHp() (deployment.mjs). El sentido inverso lo
+ * cubre el hook `updateItem`.
+ */
 Hooks.on("updateActor", (actor, changes) => {
   if (!["deployed", "wild"].includes(actor.getFlag(MODULE_ID, "kind"))) return;
   if (foundry.utils.hasProperty(changes, "system.attributes.hp") || foundry.utils.hasProperty(changes, "system.attributes.hp.value") || foundry.utils.hasProperty(changes, "system.attributes.hp.max")) {
@@ -142,6 +186,10 @@ Hooks.on("updateActor", (actor, changes) => {
   }
 });
 
+/**
+ * Contrapartida del hook `updateActor`: lleva los PG editados en la ficha del
+ * Pokémon a su actor desplegado con syncPokemonHpToDeployment() (deployment.mjs).
+ */
 Hooks.on("updateItem", (item, changes) => {
   if (item.getFlag(MODULE_ID, "kind") !== "pokemon") return;
   if (foundry.utils.hasProperty(changes, `flags.${MODULE_ID}.instance.hp`) || foundry.utils.hasProperty(changes, `flags.${MODULE_ID}.instance`)) {
@@ -149,14 +197,26 @@ Hooks.on("updateItem", (item, changes) => {
   }
 });
 
+/** Retira del mapa el token de un Pokémon cuyo Item se ha borrado (deployment.mjs). */
 Hooks.on("deleteItem", item => {
   if (item.getFlag(MODULE_ID, "kind") === "pokemon") recallPokemon(item).catch(error => console.error(`${MODULE_ID} | Recall after item deletion failed`, error));
 });
 
+/**
+ * Elimina el actor temporal que queda huérfano al borrar su último token
+ * (cleanDeploymentActor() de deployment.mjs), aplazado un tick para que Foundry
+ * termine de actualizar la escena.
+ */
 Hooks.on("deleteToken", token => {
   setTimeout(() => cleanDeploymentActor(token).catch(error => console.error(`${MODULE_ID} | Deployment cleanup failed`, error)), 0);
 });
 
+/**
+ * Inserta los botones de cabecera del módulo en las aplicaciones ApplicationV1
+ * (equipo Pokémon, completar Entrenador y Pokédex). Comparte criterios con el
+ * hook `getHeaderControlsApplicationV2` y se apoya en needsTrainerCreation(),
+ * teamLabel() y openPokemon().
+ */
 function addLegacyHeaderControl(application, buttons) {
   const actor = application.actor ?? application.document;
   if (actor?.documentName !== "Actor") return;
@@ -174,21 +234,39 @@ function addLegacyHeaderControl(application, buttons) {
   }
 }
 
+/**
+ * Abre el gestor de equipo (trainer-team.mjs) validando que el actor sea un
+ * personaje. Respaldo de la macro `game.poke5e.openTeam`.
+ */
 function openTeam(actor) {
   if (!actor || actor.type !== "character") return ui.notifications.warn("Selecciona un actor de entrenador.");
   return new Poke5eTrainerTeam({ actor }).render(true);
 }
 
+/**
+ * Abre el asistente de creación de Entrenador (trainer-creator.mjs) comprobando
+ * tipo de actor y permisos. Respaldo de la macro `game.poke5e.createTrainer`.
+ */
 function openTrainerCreator(actor) {
   if (!actor || actor.type !== "character") return ui.notifications.warn("Selecciona un personaje Entrenador.");
   if (!actor.isOwner) return ui.notifications.warn("No tienes permiso para configurar este personaje.");
   return new Poke5eTrainerCreator({ actor }).render(true);
 }
 
+/**
+ * Indica si un personaje aún no ha pasado por el asistente, según el flag
+ * `trainerCreation.completed` que escribe trainer-creator.mjs. La consultan
+ * ambos registradores de botones de cabecera.
+ */
 function needsTrainerCreation(actor) {
   return actor?.documentName === "Actor" && actor.type === "character" && !actor.getFlag(MODULE_ID, "trainerCreation")?.completed;
 }
 
+/**
+ * Abre la ficha Pokédex de un Pokémon aceptando tanto su Item como el actor
+ * desplegado o salvaje, en cuyo caso resuelve el Item original por su UUID.
+ * La usan los botones de cabecera y la macro `game.poke5e.openPokemon`.
+ */
 async function openPokemon(document) {
   let item = document;
   if (document?.documentName === "Actor" && ["deployed", "wild"].includes(document.getFlag(MODULE_ID, "kind"))) {
@@ -201,6 +279,11 @@ async function openPokemon(document) {
   return new Poke5ePokemonSheet({ pokemonItem: item }).render(true);
 }
 
+/**
+ * Migración: reescribe con displayAssetUrl() (model.mjs) las imágenes de Items
+ * que aún apuntan a rutas locales del módulo. Se ejecuta una vez por sesión de
+ * director desde el hook `ready`.
+ */
 async function migrateEmbeddedAssetUrls() {
   for (const actor of game.actors) {
     const updates = actor.items.reduce((entries, item) => {
@@ -212,6 +295,12 @@ async function migrateEmbeddedAssetUrls() {
   }
 }
 
+/**
+ * Migración a la versión 1.0: asigna sexo con randomGenderForRatio() a los
+ * Pokémon guardados que no lo tengan y actualiza resistencias, vulnerabilidades
+ * e inmunidades de los actores desplegados con damageTraitsForPokemonTypes()
+ * (combat.mjs). Se ejecuta una vez por sesión de director desde el hook `ready`.
+ */
 async function migratePokemonCombatData() {
   for (const actor of game.actors) {
     const updates = [];
@@ -237,6 +326,12 @@ async function migratePokemonCombatData() {
   }
 }
 
+/**
+ * Añade el botón del generador de encuentros (encounter-builder.mjs) a los
+ * controles de token del director, admitiendo tanto la forma de array como la de
+ * objeto que han tenido los controles en distintas versiones de Foundry.
+ * Gemela de addNpcTrainerSceneControl().
+ */
 function addEncounterSceneControl(controls) {
   if (!game.user.isGM) return;
   const open = () => new Poke5eEncounterBuilder().render(true);
@@ -262,6 +357,11 @@ function addEncounterSceneControl(controls) {
   }
 }
 
+/**
+ * Añade el botón del generador de Entrenadores NPC (npc-trainer-generator.mjs) a
+ * los controles de token del director, con la misma lógica de compatibilidad que
+ * addEncounterSceneControl().
+ */
 function addNpcTrainerSceneControl(controls) {
   if (!game.user.isGM) return;
   const open = () => new Poke5eNpcTrainerGenerator().render(true);
@@ -285,6 +385,10 @@ function addNpcTrainerSceneControl(controls) {
   } else if (!tokenControls.tools[tool.name]) tokenControls.tools[tool.name] = tool;
 }
 
+/**
+ * Rótulo del botón de equipo con la ocupación actual ("Equipo Pokémon (3/6)"),
+ * a partir de getPokemonItems() y trainerPokeslotLimit() (model.mjs).
+ */
 function teamLabel(actor) {
   const count = getPokemonItems(actor).filter(item => item.getFlag(MODULE_ID, "instance")?.inTeam).length;
   return `Equipo Pokémon (${count}/${trainerPokeslotLimit(actor)})`;

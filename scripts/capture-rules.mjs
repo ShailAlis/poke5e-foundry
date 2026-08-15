@@ -1,3 +1,11 @@
+/**
+ * Reglas de captura: cálculo de la CD, ventaja por estados alterados y efecto
+ * particular de cada Poké Ball. Módulo puro y sin dependencias —la parte de
+ * interfaz, tiradas e inventario vive en capture.mjs—, verificado por
+ * validate-capture.mjs.
+ */
+
+/** Identificadores de las Poké Balls reconocidas, en el orden de la tienda. */
 export const POKEBALL_IDS = Object.freeze([
   "poke-ball", "great-ball", "ultra-ball", "master-ball", "safari-ball", "fast-ball",
   "level-ball", "lure-ball", "heavy-ball", "love-ball", "friend-ball", "moon-ball",
@@ -5,17 +13,32 @@ export const POKEBALL_IDS = Object.freeze([
   "luxury-ball", "premier-ball", "dusk-ball", "heal-ball", "quick-ball", "dream-ball"
 ]);
 
+/**
+ * Estados que conceden ventaja a la tirada de captura. Incluye variantes de
+ * nombre porque conviven los identificadores de D&D 5e, los de status-effects.mjs
+ * y los del JSON original. Solo la lee captureHasAdvantage().
+ */
 const ADVANTAGE_STATUSES = new Set([
   "poisoned", "poison", "restrained", "asleep", "sleep", "sleeping", "burning", "burned",
   "confused", "paralyzed", "paralysed", "frozen"
 ]);
 
+/** Orden de tamaños con sus abreviaturas de D&D 5e; lo usa la Heavy Ball. */
 const SIZE_RANK = { tiny: 0, small: 1, medium: 2, med: 2, large: 3, lg: 3, huge: 4, gargantuan: 5, grg: 5 };
 
+/**
+ * CD de partida de una captura: 10 + SR de la especie + nivel del objetivo.
+ * Primer sumando de captureDifficulty(), del que después se restan las
+ * reducciones por PG y por Poké Ball.
+ */
 export function baseCaptureDifficulty(speciesRating, level) {
   return 10 + Math.floor(Math.max(0, Number(speciesRating) || 0)) + normalizedLevel(level);
 }
 
+/**
+ * Reducción de CD por PG del objetivo: −5 por debajo de la mitad y −5 más por
+ * debajo del 10 %, acumulables. Segundo sumando de captureDifficulty().
+ */
 export function healthCaptureReduction(currentHp, maximumHp) {
   const current = Math.max(0, Number(currentHp) || 0);
   const maximum = Math.max(1, Number(maximumHp) || 1);
@@ -25,10 +48,21 @@ export function healthCaptureReduction(currentHp, maximumHp) {
   return reduction;
 }
 
+/**
+ * Indica si alguno de los estados del objetivo da ventaja, comparándolo contra
+ * ADVANTAGE_STATUSES sin distinguir mayúsculas. La usan capture.mjs al tirar y
+ * pokeballAdjustment() para el caso concreto de la Dream Ball.
+ */
 export function captureHasAdvantage(statuses = []) {
   return statuses.some(status => ADVANTAGE_STATUSES.has(String(status).trim().toLocaleLowerCase()));
 }
 
+/**
+ * Aplica el efecto de la Poké Ball elegida sobre el contexto del encuentro
+ * (nivel, tamaño, entorno, turno, estados…) y devuelve la reducción total, el
+ * desglose de motivos que se muestra al usuario y el éxito automático de la
+ * Master Ball. Tercer sumando de captureDifficulty().
+ */
 export function pokeballAdjustment(ballId, context = {}) {
   let reduction = 0;
   const reasons = [];
@@ -63,6 +97,11 @@ export function pokeballAdjustment(ballId, context = {}) {
   return { reduction, reasons, automaticSuccess: false };
 }
 
+/**
+ * Única entrada pública del cálculo: combina baseCaptureDifficulty(),
+ * healthCaptureReduction() y pokeballAdjustment() en la CD final con su
+ * desglose. La llama attemptCapture() en capture.mjs.
+ */
 export function captureDifficulty({ speciesRating, level, currentHp, maximumHp, ballId, context = {} }) {
   const base = baseCaptureDifficulty(speciesRating, level);
   const healthReduction = healthCaptureReduction(currentHp, maximumHp);
@@ -77,6 +116,7 @@ export function captureDifficulty({ speciesRating, level, currentHp, maximumHp, 
   };
 }
 
+/** Acota un nivel al rango 1-20. Auxiliar de baseCaptureDifficulty(). */
 function normalizedLevel(value) {
   return Math.max(1, Math.min(20, Math.trunc(Number(value) || 1)));
 }

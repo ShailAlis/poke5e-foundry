@@ -1,3 +1,11 @@
+/**
+ * Validador de status-effects.mjs, ejecutado por `npm run check`. Es el que
+ * protege la deducción de estados a partir del texto de los movimientos: fija
+ * los disparadores esperados de varios casos representativos (natural, impacto,
+ * salvación fallida y manual), comprueba que también funcione sobre el texto en
+ * español, verifica las inmunidades por tipo y el icono del efecto generado, y
+ * exige que al menos 80 movimientos sigan produciendo algún estado.
+ */
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { POKEMON_STATUS_EFFECTS, inferMoveStatusEffects, pokemonStatusEffectSource } from "./status-effects.mjs";

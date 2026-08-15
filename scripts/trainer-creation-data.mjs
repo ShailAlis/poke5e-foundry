@@ -1,8 +1,22 @@
+/**
+ * Datos y reglas de la creación de Entrenadores: catálogos de características,
+ * habilidades, naturalezas, orígenes regionales y especializaciones, más la
+ * validación completa de una ficha en construcción.
+ *
+ * Módulo puro y sin dependencias —ni siquiera de los globales de Foundry—, lo
+ * que permite a validate-trainer-creation.mjs probar sus reglas en Node. Lo usan
+ * el asistente de jugador (trainer-creator.mjs) y el generador de NPC
+ * (npc-trainer-actor.mjs y npc-trainer-generator.mjs), que comparten así los
+ * mismos orígenes y especializaciones.
+ */
+
+/** Las seis características de D&D 5e con su nombre en español. */
 export const ABILITIES = {
   str: "Fuerza", dex: "Destreza", con: "Constitución",
   int: "Inteligencia", wis: "Sabiduría", cha: "Carisma"
 };
 
+/** Habilidades de D&D 5e por su clave, con el nombre que se muestra. */
 export const SKILLS = {
   acr: "Acrobacias", ani: "Trato con Animales", arc: "Conocimiento Arcano",
   ath: "Atletismo", dec: "Engaño", his: "Historia", ins: "Perspicacia",
@@ -12,17 +26,33 @@ export const SKILLS = {
   ste: "Sigilo", sur: "Supervivencia"
 };
 
+/**
+ * Habilidades entre las que la clase Entrenador deja elegir dos, además de Trato
+ * con Animales, que concede siempre. resolveTrainerCreation() lo comprueba.
+ */
 export const CLASS_SKILLS = ["acr", "ath", "ins", "itm", "inv", "med", "nat", "prc", "prf", "per", "slt", "ste", "sur"];
 
+/**
+ * Las 25 naturalezas Pokémon. Las ofrece trainer-creator.mjs para el inicial y
+ * las sortea npc-trainer-actor.mjs para los equipos de los NPC.
+ */
 export const NATURES = [
   "Hardy", "Lonely", "Brave", "Adamant", "Naughty", "Bold", "Docile", "Relaxed",
   "Impish", "Lax", "Timid", "Hasty", "Serious", "Jolly", "Naive", "Modest",
   "Mild", "Quiet", "Bashful", "Rash", "Calm", "Gentle", "Sassy", "Careful", "Quirky"
 ];
 
+/** Conjunto estándar de puntuaciones; resolveBaseAbilities() exige usarlo entero. */
 export const STANDARD_ARRAY = [15, 14, 13, 12, 10, 8];
+/** Coste en puntos de cada puntuación en compra de puntos (27 puntos en total). */
 export const POINT_BUY_COSTS = { 8: 0, 9: 1, 10: 2, 11: 3, 12: 4, 13: 5, 14: 7, 15: 9 };
 
+/**
+ * Orígenes regionales construidos con origin(). Cada uno concede +2/+1 a dos
+ * características —Kanto deja elegirlas ("any-two") y Galar ofrece dos
+ * combinaciones—, una competencia, un idioma y una dote propia.
+ * Los resuelve resolveOriginAbilities().
+ */
 export const ORIGINS = [
   origin("alolan", "Alola", ["int", "cha"], "nat", "Alolano", "Un vínculo diferente", "Una vez por descanso largo, puedes lanzar Hablar con los Pokémon."),
   origin("galarian", "Galar", [["str", "dex"], ["dex", "str"]], "itm", "Galariano", "Mi madre pega más fuerte", "Cuando recibes daño, puedes usar tu reacción para tirar 1d12, sumar tu modificador de Constitución y reducir el daño en ese total. Recuperas el uso tras un descanso corto o largo."),
@@ -34,6 +64,11 @@ export const ORIGINS = [
   origin("unovan", "Teselia", ["dex", "wis"], "ins", "Unovano", "Muchos talentos", "Obtienes competencia en dos habilidades de tu elección.")
 ];
 
+/**
+ * Especializaciones de tipo construidas con specialization(). Cada una da +1 a
+ * una característica o competencia en una habilidad, y sus Pokémon de ese tipo
+ * reciben un bono que aplica deployment.mjs al desplegarlos.
+ */
 export const SPECIALIZATIONS = [
   specialization("normal", "Fan Pokémon", "cha"), specialization("fighting", "Cinturón Negro", null, "ath"),
   specialization("flying", "Ornitólogo", null, "prc"), specialization("poison", "Punk", null, "slt"),
@@ -46,6 +81,17 @@ export const SPECIALIZATIONS = [
   specialization("dark", "Delincuente", null, "ste"), specialization("fairy", "Actor", null, "prf")
 ];
 
+/**
+ * Valida y resuelve una ficha de Entrenador completa. Comprueba origen y
+ * especialización, que las dos habilidades de clase sean válidas y no dupliquen
+ * competencias ya concedidas, las dos adicionales de Teselia, el entorno de
+ * Hoenn y la dote de Kanto; después suma a las características base de
+ * resolveBaseAbilities() los ajustes de origen y especialización y devuelve
+ * competencias, salvaciones, idiomas, PG iniciales y el texto de la dote.
+ * Lanza un Error con un mensaje para el usuario ante cualquier fallo.
+ * Punto de entrada del módulo: lo usan trainer-creator.mjs y
+ * validate-trainer-creation.mjs.
+ */
 export function resolveTrainerCreation(selection) {
   const originEntry = ORIGINS.find(entry => entry.id === selection.origin);
   const specializationEntry = SPECIALIZATIONS.find(entry => entry.type === selection.specialization);
@@ -87,6 +133,13 @@ export function resolveTrainerCreation(selection) {
   };
 }
 
+/**
+ * Lee y valida las características base según el método elegido: conjunto
+ * estándar (cada valor una vez), compra de puntos (27 exactos con los costes de
+ * POINT_BUY_COSTS) o manual (enteros de 3 a 18). Sin método devuelve 10 en todas,
+ * para la vista previa del asistente. La usan resolveTrainerCreation() y
+ * trainer-creator.mjs.
+ */
 export function resolveBaseAbilities(selection) {
   const method = selection.baseAbilityMethod;
   if (!method) return Object.fromEntries(Object.keys(ABILITIES).map(key => [key, 10]));
@@ -104,6 +157,11 @@ export function resolveBaseAbilities(selection) {
   return abilities;
 }
 
+/**
+ * Determina qué dos características mejora el origen: las suyas fijas, las dos
+ * elegidas si admite cualquiera (Kanto) o la combinación seleccionada si ofrece
+ * varias (Galar). Auxiliar de resolveTrainerCreation().
+ */
 function resolveOriginAbilities(originEntry, selection) {
   if (originEntry.abilities === "any-two") {
     const values = [selection.originAbilityPrimary, selection.originAbilitySecondary];
@@ -118,20 +176,35 @@ function resolveOriginAbilities(originEntry, selection) {
   return originEntry.abilities;
 }
 
+/**
+ * Compone el texto de la dote del origen añadiendo lo que se haya elegido: el
+ * entorno en Hoenn y la dote concreta en Kanto. Auxiliar de resolveTrainerCreation().
+ */
 function originFeatDetails(originEntry, selection) {
   if (originEntry.id === "hoennian") return `${originEntry.featEffect}<br><strong>Entorno elegido:</strong> ${{ coast: "Costa", desert: "Desierto", forest: "Bosque", mountain: "Montaña" }[selection.environment]}.`;
   if (originEntry.id === "kantoan") return `${originEntry.featEffect}<br><strong>Dote elegida:</strong> ${escapeHtml(String(selection.chosenFeat).trim())}.`;
   return originEntry.featEffect;
 }
 
+/** Constructor abreviado de las entradas de ORIGINS. */
 function origin(id, name, abilities, skill, language, featName, featEffect) {
   return { id, name, abilities, skill, language, featName, featEffect };
 }
 
+/**
+ * Constructor abreviado de las entradas de SPECIALIZATIONS; cada una concede una
+ * característica o una habilidad, nunca ambas.
+ */
 function specialization(type, name, ability = null, skill = null) {
   return { type, name, ability, skill };
 }
 
+/** Elimina repetidos y valores vacíos; base de las comprobaciones de duplicados. */
 function unique(values) { return [...new Set(values.filter(Boolean))]; }
+/** Pasa "str" a "Str" para componer los nombres de campo del formulario. */
 function titleKey(value) { return value.charAt(0).toUpperCase() + value.slice(1); }
+/**
+ * Escapa HTML con una implementación propia, sin recurrir a las utilidades de
+ * Foundry, para que este archivo siga ejecutándose en Node.
+ */
 function escapeHtml(value) { return value.replace(/[&<>"']/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[character]); }

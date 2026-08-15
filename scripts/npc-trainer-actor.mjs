@@ -1,3 +1,14 @@
+/**
+ * Creación de los documentos de un Entrenador NPC: convierte la configuración
+ * del generador en un actor de personaje completo —características, PG,
+ * competencias, origen, especialización, camino, inventario, token, biografía y
+ * equipo Pokémon— y lo coloca en la escena.
+ *
+ * Es el puente entre las reglas de npc-trainer-rules.mjs y los documentos de
+ * Foundry, con la misma estructura que produce el asistente de creación de
+ * jugador (trainer-creator.mjs) para que ambos usen la misma ficha. Solo lo
+ * llama npc-trainer-generator.mjs.
+ */
 import { buildWildInstance } from "./encounter-generator.mjs";
 import { deployPokemon } from "./deployment.mjs";
 import { MODULE_ID, gearItemSource, pokemonItemSourceFromSpecies, portraitUrl, speciesItemSource, trainerClassSource } from "./model.mjs";
@@ -5,12 +16,26 @@ import { NATURES, ORIGINS, SKILLS, SPECIALIZATIONS } from "./trainer-creation-da
 import { NPC_ARCHETYPES, NPC_TRAINER_PATHS, npcTrainerAbilities, npcTrainerHitPoints, randomNpcTrainerName } from "./npc-trainer-rules.mjs";
 import { chooseTokenPosition } from "./wild-deployment.mjs";
 
+/**
+ * Icono por defecto de cada arquetipo, usado como retrato e imagen de token
+ * cuando no se indica uno propio.
+ */
 const ARCHETYPE_ICONS = {
   balanced: "icons/svg/people.svg", ace: "icons/svg/crown.svg", tactical: "icons/svg/eye.svg",
   athletic: "icons/svg/fist.svg", agile: "icons/svg/wing.svg", researcher: "icons/svg/book.svg",
   medic: "icons/svg/heal.svg", performer: "icons/svg/sound.svg", villain: "icons/svg/hazard.svg", boss: "icons/svg/crown.svg"
 };
 
+/**
+ * Crea el actor de un Entrenador NPC (solo director). Resuelve origen,
+ * especialización y camino —fijos o al azar—, calcula características con
+ * npcTrainerAbilities() más los ajustes de applyOriginAndSpecialization(), los PG
+ * con npcTrainerHitPoints() y las competencias con npcSkillRanks(); monta los
+ * Items (especie humana, origen, especialización, camino, clase de Entrenador al
+ * nivel pedido, inventario y equipo Pokémon con npcPokemonSource()) y configura
+ * token, permisos y biografía. El parámetro `index` numera las tandas de varios
+ * NPC. Su interfaz es npc-trainer-generator.mjs.
+ */
 export async function createNpcTrainerActor(config, team, data, index = 0) {
   if (!game.user.isGM) throw new Error("Solo el director de juego puede crear Entrenadores NPC.");
   const level = clamp(config.trainerLevel, 1, 20);
@@ -79,6 +104,11 @@ export async function createNpcTrainerActor(config, team, data, index = 0) {
   return Actor.create(source, { renderSheet: false, poke5eNpcTrainer: true });
 }
 
+/**
+ * Coloca al NPC en la escena con chooseTokenPosition() (wild-deployment.mjs) y,
+ * si se pide, saca al mapa parte de su equipo activo o todo él mediante
+ * deployPokemon(). Devuelve null si se cancela la colocación.
+ */
 export async function placeNpcTrainer(actor, { deployCount = 0 } = {}) {
   if (!canvas?.ready || !canvas.scene) throw new Error("Abre una escena para colocar al Entrenador NPC.");
   const position = await chooseTokenPosition(actor.prototypeToken, actor.name);
@@ -92,6 +122,10 @@ export async function placeNpcTrainer(actor, { deployCount = 0 } = {}) {
   return created;
 }
 
+/**
+ * Devuelve la carpeta de actores con ese nombre, creándola si no existe, para
+ * agrupar los NPC generados. La usa npc-trainer-generator.mjs antes de crearlos.
+ */
 export async function ensureNpcTrainerFolder(name) {
   const clean = String(name ?? "").trim();
   if (!clean) return null;
@@ -100,6 +134,13 @@ export async function ensureNpcTrainerFolder(name) {
   return folder;
 }
 
+/**
+ * Crea el Item de un Pokémon del equipo: parte de speciesItemSource() y
+ * pokemonItemSourceFromSpecies() (model.mjs) y sustituye la instancia por una de
+ * buildWildInstance() al nivel sorteado, con su naturaleza y su condición de
+ * shiny. Los seis primeros van al equipo activo y el resto a la reserva.
+ * Auxiliar de createNpcTrainerActor().
+ */
 function npcPokemonSource(entry, teamIndex, data, config) {
   const species = data.pokemonById.get(entry.speciesId);
   if (!species) throw new Error(`No se encontró la especie ${entry.speciesId}.`);
@@ -117,6 +158,11 @@ function npcPokemonSource(entry, teamIndex, data, config) {
   return source;
 }
 
+/**
+ * Genera el inventario del NPC (Poké Balls y pociones en las cantidades
+ * configuradas) con gearItemSource(). Esas Poké Balls son las que capture.mjs
+ * encontraría si el NPC intentara capturar. Auxiliar de createNpcTrainerActor().
+ */
 function inventorySources(config, data) {
   const result = [];
   for (const [id, quantity] of [[config.ballType || "poke-ball", config.ballCount], ["potion", config.potionCount]]) {
@@ -130,6 +176,10 @@ function inventorySources(config, data) {
   return result;
 }
 
+/**
+ * Item de especie Humano, obligatorio en esta ambientación. Coincide con el que
+ * exige enforceHumanActorSource() (trainer-creator.mjs) para los jugadores.
+ */
 function humanSource() {
   return simpleItem("Humano", "race", "npc-human", "Todos los personajes de esta ambientación son humanos.", "icons/svg/people.svg", {
     movement: { walk: 30, fly: 0, swim: 0, burrow: 0, climb: 0, units: "ft", hover: false },
@@ -137,19 +187,29 @@ function humanSource() {
   });
 }
 
+/** Item de trasfondo con la región de origen, su competencia y su idioma. */
 function originSource(origin) {
   return simpleItem(`Origen: ${origin.name}`, "background", `npc-origin-${origin.id}`, `Procede de ${origin.name}. Obtiene competencia en ${SKILLS[origin.skill]} y habla ${origin.language}.`);
 }
 
+/**
+ * Item de la especialización de tipo, con su beneficio propio y el +1 a las
+ * pruebas de los Pokémon de ese tipo que aplica deployment.mjs al desplegarlos.
+ */
 function specializationSource(specialization) {
   const effect = specialization.skill ? `Competencia o Pericia en ${SKILLS[specialization.skill]}.` : `+1 a ${specialization.ability.toUpperCase()}.`;
   return simpleItem(`Especialización: ${specialization.name}`, "feat", `npc-specialization-${specialization.type}`, `${effect} Sus Pokémon de tipo ${specialization.type} obtienen +1 a sus pruebas de habilidad.`, "icons/svg/upgrade.svg");
 }
 
+/** Item descriptivo del Camino de Entrenador, tomado de NPC_TRAINER_PATHS. */
 function pathSource(path) {
   return simpleItem(`Camino: ${path.name}`, "feat", `npc-path-${path.id}`, path.description, "icons/svg/book.svg");
 }
 
+/**
+ * Constructor común de los Items descriptivos del NPC (humano, origen,
+ * especialización y camino), con su descripción escapada y sus flags.
+ */
 function simpleItem(name, type, sourceId, description, img = "icons/svg/book.svg", extraSystem = {}) {
   return {
     name, type, img,
@@ -158,16 +218,25 @@ function simpleItem(name, type, sourceId, description, img = "icons/svg/book.svg
   };
 }
 
+/**
+ * Resuelve el origen regional: el indicado o uno al azar de ORIGINS
+ * (trainer-creation-data.mjs). Gemela de selectSpecialization() y selectPath().
+ */
 function selectOrigin(id, index) {
   if (id && id !== "random") return ORIGINS.find(entry => entry.id === id) ?? ORIGINS[0];
   return ORIGINS[Math.floor(Math.random() * ORIGINS.length)] ?? ORIGINS[index % ORIGINS.length] ?? ORIGINS[0];
 }
 
+/** Resuelve la especialización de tipo: la indicada o una al azar de SPECIALIZATIONS. */
 function selectSpecialization(type, index) {
   if (type && type !== "random") return SPECIALIZATIONS.find(entry => entry.type === type) ?? SPECIALIZATIONS[0];
   return SPECIALIZATIONS[Math.floor(Math.random() * SPECIALIZATIONS.length)] ?? SPECIALIZATIONS[index % SPECIALIZATIONS.length];
 }
 
+/**
+ * Resuelve el Camino de Entrenador: ninguno por debajo del nivel 2, y a partir
+ * de ahí el indicado o uno al azar de NPC_TRAINER_PATHS.
+ */
 function selectPath(id, level) {
   if (level < 2 || id === "none") return null;
   const available = Object.entries(NPC_TRAINER_PATHS).filter(([key]) => key !== "none");
@@ -177,6 +246,11 @@ function selectPath(id, level) {
   return { id: pathId, ...path };
 }
 
+/**
+ * Suma a las características de npcTrainerAbilities() el +2/+1 del origen —si
+ * este deja elegir, sobre las dos prioritarias del arquetipo— y el +1 de la
+ * especialización, sin pasar de 20. Auxiliar de createNpcTrainerActor().
+ */
 function applyOriginAndSpecialization(base, origin, specialization, archetypeId) {
   const result = { ...base };
   let pair = origin.abilities;
@@ -188,6 +262,11 @@ function applyOriginAndSpecialization(base, origin, specialization, archetypeId)
   return result;
 }
 
+/**
+ * Reparte las competencias: Trato con Animales y la del origen siempre, más las
+ * del arquetipo, y Pericia (rango 2) si la especialización repite una de ellas.
+ * Auxiliar de createNpcTrainerActor().
+ */
 function npcSkillRanks(archetypeId, origin, specialization) {
   const result = { ani: 1, [origin.skill]: 1 };
   for (const skill of NPC_ARCHETYPES[archetypeId]?.skills ?? []) result[skill] = Math.max(1, result[skill] ?? 0);
@@ -195,12 +274,20 @@ function npcSkillRanks(archetypeId, origin, specialization) {
   return result;
 }
 
+/**
+ * Compone la biografía del NPC con su arquetipo, origen, especialización,
+ * camino, la lista de su equipo y las notas del director.
+ */
 function biographyHtml(config, origin, specialization, path, team, data) {
   const roster = team.map(entry => `${data.pokemonById.get(entry.speciesId)?.name ?? entry.speciesId} (nivel ${entry.level})`).join(", ");
   return `<h2>Entrenador NPC</h2><p><strong>Arquetipo:</strong> ${escapeHtml(NPC_ARCHETYPES[config.archetype]?.name ?? config.archetype)} · <strong>Origen:</strong> ${escapeHtml(origin.name)} · <strong>Especialización:</strong> ${escapeHtml(specialization.name)} · <strong>Camino:</strong> ${escapeHtml(path?.name ?? "Ninguno")}</p><p><strong>Equipo:</strong> ${escapeHtml(roster)}</p><p>${escapeHtml(config.notes ?? "")}</p>`;
 }
 
+/** Género al azar del NPC cuando se configura como aleatorio. */
 function randomGender() { return ["Masculino", "Femenino", "No binario"][Math.floor(Math.random() * 3)]; }
+/** Acota un valor numérico a un rango. Lo usa el nivel de Entrenador. */
 function clamp(value, minimum, maximum) { return Math.max(minimum, Math.min(maximum, Math.trunc(Number(value) || minimum))); }
+/** Devuelve el número si es válido y, si no, la reserva. Auxiliar de los ajustes de token. */
 function finiteNumber(value, fallback) { return Number.isFinite(Number(value)) ? Number(value) : fallback; }
+/** Escapa el texto de descripciones y biografía. */
 function escapeHtml(value) { return foundry.utils.escapeHTML(String(value ?? "")); }

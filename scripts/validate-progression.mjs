@@ -1,3 +1,9 @@
+/**
+ * Validador de progression.mjs, ejecutado por `npm run check`. Comprueba la
+ * tabla de experiencia, la equivalencia entre nivel y PX en sus umbrales, el
+ * desglose completo de experienceProgress(), la recompensa por derrota y que
+ * evolutionReadiness() separe bien las condiciones automáticas de las manuales.
+ */
 import assert from "node:assert/strict";
 import {
   EXPERIENCE_BY_LEVEL,

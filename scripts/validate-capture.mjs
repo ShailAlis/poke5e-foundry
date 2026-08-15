@@ -1,3 +1,9 @@
+/**
+ * Validador de capture-rules.mjs, ejecutado por `npm run check`. Comprueba la CD
+ * base, los dos escalones de reducción por PG, la ventaja por estado, el efecto
+ * de varias Poké Balls con su contexto, el éxito automático de la Master Ball y
+ * el desglose completo que devuelve captureDifficulty().
+ */
 import assert from "node:assert/strict";
 import {
   baseCaptureDifficulty,

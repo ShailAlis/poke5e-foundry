@@ -1,3 +1,15 @@
+/**
+ * Ficha Pokédex de un Pokémon individual, el archivo más extenso del módulo.
+ * Reúne en una sola ventana los datos de la especie y de la instancia, las
+ * tiradas de ataque y daño, el modo Concurso, el gestor de movimientos, la
+ * experiencia y la evolución, los objetos equipados y los estados alterados.
+ *
+ * Casi no contiene reglas propias: las toma de move-learning.mjs, combat.mjs,
+ * contests.mjs, progression.mjs y status-effects.mjs, y aquí solo las presenta y
+ * guarda el resultado en el flag `instance` del Item. La abren trainer-team.mjs,
+ * trainer-actor-sheet.mjs, pokemon-actor-sheet.mjs y main.mjs. Su plantilla es
+ * `templates/pokemon-sheet.hbs`.
+ */
 import { loadPoke5eData } from "./data-service.mjs";
 import { MODULE_ID, MODULE_PATH, displayPokemonName, gearItemSource, portraitUrl } from "./model.mjs";
 import { MAX_KNOWN_MOVES, applyLearnedMove, filterMoveCatalog, moveEligibility } from "./move-learning.mjs";
@@ -16,6 +28,11 @@ import {
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
+/**
+ * Ficha de un Pokémon individual. Trabaja siempre sobre el Item embebido en el
+ * entrenador (o en el actor salvaje), nunca sobre el actor temporal del mapa,
+ * que es el que redirige aquí pokemon-actor-sheet.mjs.
+ */
 export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "poke5e-pokemon",
@@ -31,6 +48,12 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     }
   };
 
+  /**
+   * Guarda el Item Pokémon y el estado propio de la ventana —gestor de
+   * movimientos abierto, sus filtros y el modo Combate/Concurso—, que no se
+   * persiste en el documento. El id incluye el del Item para que cada Pokémon
+   * tenga su ventana.
+   */
   constructor({ pokemonItem, ...options } = {}) {
     super({ ...options, id: `poke5e-pokemon-${pokemonItem?.id ?? "unknown"}` });
     this.pokemonItem = pokemonItem;
@@ -41,10 +64,21 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     this.contestType = "cool";
   }
 
+  /** Título traducido con el nombre visible del Pokémon. */
   get title() {
     return game.i18n.format("POKE5E.Sheet.Title", { name: displayPokemonName(this.pokemonItem) });
   }
 
+  /**
+   * Reúne todo lo que muestra la plantilla: movimientos conocidos con
+   * prepareMove(), catálogo del gestor si está abierto (filterMoveCatalog()),
+   * habilidades y características, afinidades de pokemonDefenses(), experiencia
+   * y recompensa de progression.mjs, objeto equipado, estados —cruzando los
+   * guardados en la instancia con los activos en el actor del mapa—, objetos del
+   * inventario que puede equipar, evoluciones con prepareEvolutions() y los
+   * datos del modo Concurso. Usa las características de la instancia si las
+   * tiene, para reflejar las mejoras ganadas al evolucionar.
+   */
   async _prepareContext() {
     const data = await loadPoke5eData();
     const species = this.pokemonItem.getFlag(MODULE_ID, "species") ?? {};
@@ -142,6 +176,13 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     };
   }
 
+  /**
+   * Conecta todos los controles de la plantilla con los métodos privados de la
+   * clase: tiradas, selector Combate/Concurso, gestor de movimientos con su
+   * búsqueda (que recupera el foco tras redibujar), nivel y experiencia,
+   * evolución, PG, apodo, objeto equipado, curación de estados y el soltar
+   * movimientos u objetos sobre la ficha.
+   */
   _onRender(context, options) {
     super._onRender(context, options);
     this.element.querySelectorAll("[data-action='roll-move']").forEach(button => button.addEventListener("click", event => this.#rollMove(event)));
@@ -192,6 +233,10 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     this.element.addEventListener("drop", event => this.#onDrop(event));
   }
 
+  /**
+   * Fija el nivel a mano (1-20) y reajusta la experiencia al umbral de ese
+   * nivel con experienceAtLevel(). Su contraparte es #changeExperience().
+   */
   async #changeLevel(event) {
     const instance = this.#instance();
     instance.level = Math.max(1, Math.min(20, Number(event.currentTarget.value) || 1));
@@ -200,6 +245,11 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     this.render({ force: true });
   }
 
+  /**
+   * Fija la experiencia total y sube de nivel si procede, según
+   * levelForExperience(). Nunca baja el nivel ya alcanzado, y anuncia la subida
+   * con notifyLevelGain().
+   */
   async #changeExperience(event) {
     const instance = this.#instance();
     const oldLevel = Math.max(1, Math.min(20, Number(instance.level) || 1));
@@ -210,6 +260,10 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     this.render({ force: true });
   }
 
+  /**
+   * Suma experiencia preguntando la cantidad con promptExperienceAmount(); por
+   * lo demás se comporta igual que #changeExperience().
+   */
   async #addExperience() {
     const instance = this.#instance();
     const oldLevel = Math.max(1, Math.min(20, Number(instance.level) || 1));
@@ -222,6 +276,14 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     this.render({ force: true });
   }
 
+  /**
+   * Evolución guiada. Comprueba las condiciones automáticas con
+   * evolutionReadiness(), pide confirmación y el reparto de puntos de
+   * característica con promptEvolution(), lo valida con applyAbilityAllocation(),
+   * retira al Pokémon del mapa y reescribe el Item con la nueva especie:
+   * conserva el daño recibido al ampliar los PG máximos, actualiza CA,
+   * características, habilidades (evolvedAbilities()), nombre e imagen.
+   */
   async #evolve(event) {
     const evolutionId = event.currentTarget.dataset.evolutionId;
     const data = await loadPoke5eData();
@@ -263,6 +325,10 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     this.render({ force: true });
   }
 
+  /**
+   * Edita los PG acotándolos entre 0 y el máximo. El hook `updateItem` de
+   * main.mjs propaga el cambio al mapa mediante syncPokemonHpToDeployment().
+   */
   async #changeHp(event) {
     const instance = this.#instance();
     instance.hp.value = Math.max(0, Math.min(Number(instance.hp.max) || 1, Number(event.currentTarget.value) || 0));
@@ -270,6 +336,10 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     this.render({ force: true });
   }
 
+  /**
+   * Cambia el apodo (o lo borra para recuperar el nombre de la especie) y lo
+   * propaga a los tokens con syncPokemonIdentityToDeployment().
+   */
   async #changeNickname(event) {
     if (!this.pokemonItem.isOwner) return;
     const instance = this.#instance();
@@ -283,6 +353,12 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     this.render({ force: true });
   }
 
+  /**
+   * Equipa o retira el objeto que lleva el Pokémon, moviendo la unidad entre el
+   * inventario del entrenador y la instancia: devuelve el anterior con
+   * returnHeldItem(), descuenta el nuevo con decrementInventoryItem() y le fija
+   * sus cargas con initialHeldItemCharges().
+   */
   async #equipHeldItem(event) {
     const trainer = this.pokemonItem.parent;
     if (trainer?.type !== "character" || !this.pokemonItem.isOwner) return;
@@ -309,6 +385,10 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     this.render({ force: true });
   }
 
+  /**
+   * Usa el objeto equipado: publica su efecto en el chat, gasta una carga y, si
+   * es una baya, la consume por completo. Su contraparte es #restoreHeldItem().
+   */
   async #useHeldItem() {
     const instance = this.#instance();
     const held = instance.heldItem;
@@ -325,6 +405,10 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     this.render({ force: true });
   }
 
+  /**
+   * Devuelve al objeto equipado sus cargas iniciales, típicamente tras un
+   * descanso. Contraparte de #useHeldItem().
+   */
   async #restoreHeldItem() {
     const instance = this.#instance();
     if (!instance.heldItem) return;
@@ -334,12 +418,17 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     this.render({ force: true });
   }
 
+  /**
+   * Cura un estado alterado delegando en removePokemonStatus()
+   * (status-effects.mjs), que lo borra tanto del Item como del actor del mapa.
+   */
   async #removeStatus(event) {
     if (!this.pokemonItem.isOwner) return;
     await removePokemonStatus(this.pokemonItem, event.currentTarget.dataset.statusId);
     this.render({ force: true });
   }
 
+  /** Devuelve un movimiento a sus PP máximos. Lo contrario lo hace #rollMove(). */
   async #restorePp(event) {
     const instance = this.#instance();
     const entry = instance.moves.find(move => move.id === event.currentTarget.dataset.moveEntryId);
@@ -349,6 +438,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     this.render({ force: true });
   }
 
+  /** Olvida un movimiento aprendido, liberando un hueco de MAX_KNOWN_MOVES. */
   async #removeMove(event) {
     const instance = this.#instance();
     instance.moves = instance.moves.filter(move => move.id !== event.currentTarget.dataset.moveEntryId);
@@ -356,6 +446,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     this.render({ force: true });
   }
 
+  /** Quita una habilidad Pokémon de la instancia. */
   async #removeAbility(event) {
     const instance = this.#instance();
     instance.abilities = instance.abilities.filter(id => id !== event.currentTarget.dataset.abilityId);
@@ -363,6 +454,11 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     this.render({ force: true });
   }
 
+  /**
+   * Aprende un movimiento desde el gestor: comprueba con moveEligibility() que
+   * la especie pueda aprenderlo ya —si no, lo explica con notifyMoveUnavailable()—,
+   * descarta los repetidos y delega en #addMove() la sustitución si hace falta.
+   */
   async #learnMove(event) {
     event.preventDefault();
     event.stopPropagation();
@@ -380,6 +476,11 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     this.render({ force: true });
   }
 
+  /**
+   * Acepta movimientos y habilidades arrastrados desde los compendios,
+   * aplicando a los movimientos las mismas comprobaciones que #learnMove().
+   * Cualquier otro tipo de Item se ignora.
+   */
   async #onDrop(event) {
     event.preventDefault();
     if (!this.pokemonItem.isOwner) return;
@@ -408,6 +509,13 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     this.render({ force: true });
   }
 
+  /**
+   * Inserta un movimiento en la instancia resolviendo el límite de cuatro: pide
+   * con chooseMoveToForget() cuál se sustituye y aplica applyLearnedMove(). Ante
+   * datos antiguos con más movimientos de los permitidos, obliga a olvidar antes
+   * de seguir. Devuelve false si la operación no llegó a realizarse.
+   * La comparten #learnMove() y #onDrop().
+   */
   async #addMove(instance, move, movesById) {
     if (instance.moves.length > MAX_KNOWN_MOVES) {
       ui.notifications.warn(`Este Pokémon conoce ${instance.moves.length} movimientos de una versión anterior. Debe olvidar movimientos hasta quedarse con cuatro antes de aprender otro.`);
@@ -422,6 +530,16 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     return true;
   }
 
+  /**
+   * Ejecuta un movimiento en modo Combate. Comprueba los PP y los descuenta;
+   * calcula MOVE con getMoveModifier() y la competencia por nivel; según el
+   * movimiento tira ataque (con desventaja si está envenenado o amedrentado),
+   * anuncia una CD de salvación o solo publica su descripción; tira el daño con
+   * el DamageRoll de D&D 5e —pidiendo el tipo con chooseDamageType() cuando hay
+   * varios y quedándose con la menor de dos tiradas si está quemado— y termina
+   * repartiendo los estados con applyMoveStatuses(). Su gemela para concursos es
+   * #rollContestMove().
+   */
   async #rollMove(event) {
     const data = await loadPoke5eData();
     const instance = this.#instance();
@@ -490,6 +608,12 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     this.render({ force: true });
   }
 
+  /**
+   * Ejecuta un movimiento en modo Concurso: ofrece los métodos de prueba de
+   * contestRollMethods(), pide CD y modo de tirada con promptContestRoll(),
+   * puntúa con contestAppealOutcome() según la compatibilidad de categorías y
+   * publica el resultado con contestChatCard(). No gasta PP ni causa daño.
+   */
   async #rollContestMove(event) {
     const data = await loadPoke5eData();
     const instance = this.#instance();
@@ -516,11 +640,21 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     await ChatMessage.create({ speaker, content: contestChatCard({ name, move, method, selection, details, compatibility, outcome }) });
   }
 
+  /**
+   * Copia editable del flag `instance`. Todos los métodos que modifican el
+   * Pokémon parten de aquí y terminan guardándola con setFlag().
+   */
   #instance() {
     return foundry.utils.deepClone(this.pokemonItem.getFlag(MODULE_ID, "instance"));
   }
 }
 
+/**
+ * Métodos con los que se puede afrontar una prueba de concurso: siempre
+ * Interpretación (Carisma, con competencia si la especie la tiene) y además las
+ * características que admita el campo `power` del movimiento.
+ * Alimenta promptContestRoll().
+ */
 function contestRollMethods(species, move, proficiency) {
   const attributes = species.attributes ?? {};
   const performanceProficient = (species.skills ?? []).includes("performance");
@@ -539,6 +673,10 @@ function contestRollMethods(species, move, proficiency) {
   return methods;
 }
 
+/**
+ * Diálogo previo a una prueba de concurso: método, CD del juez y modo de tirada.
+ * Devuelve null si se cancela. Solo lo usa #rollContestMove().
+ */
 async function promptContestRoll(move, methods, contestType) {
   const methodOptions = methods.map(method => `<option value="${escapeHtml(method.id)}">${escapeHtml(method.label)} (${signed(method.modifier)})</option>`).join("");
   try {
@@ -567,6 +705,11 @@ async function promptContestRoll(move, methods, contestType) {
   }
 }
 
+/**
+ * HTML del mensaje de chat de una prueba de concurso, con el resultado, los
+ * puntos de Appeal y Crowd que devuelve contestAppealOutcome(), el Jam y el
+ * efecto del movimiento. Solo lo usa #rollContestMove().
+ */
 function contestChatCard({ move, method, selection, details, compatibility, outcome }) {
   const points = outcome.points > 0 ? `+${outcome.points}` : String(outcome.points);
   const crowd = outcome.crowd > 0 ? `+${outcome.crowd}` : String(outcome.crowd);
@@ -580,6 +723,11 @@ function contestChatCard({ move, method, selection, details, compatibility, outc
   </div>`;
 }
 
+/**
+ * Texto legible del campo `power` de un movimiento ("Cualquier característica",
+ * "Variable", "Interpretación" o la lista de siglas), para la tarjeta de
+ * concurso que arma prepareMove().
+ */
 function contestPowerLabel(move) {
   const configured = Array.isArray(move.power) ? move.power : move.power ? [move.power] : [];
   if (!configured.length || configured.includes("any")) return "Cualquier característica";
@@ -588,8 +736,15 @@ function contestPowerLabel(move) {
   return configured.map(value => value.toUpperCase()).join(" / ");
 }
 
+/** Modificador de una puntuación de característica. Auxiliar de todo el archivo. */
 function abilityModifier(score) { return Math.floor(((Number(score) || 10) - 10) / 2); }
 
+/**
+ * Resuelve el tipo de daño de una tirada: lo deduce solo cuando
+ * normalizeMoveDamageTypes() devuelve uno único y, si hay varios, lo pregunta.
+ * Devuelve "typeless" si el movimiento no declara ninguno y null si se cancela,
+ * en cuyo caso #rollMove() aborta sin gastar PP.
+ */
 async function chooseDamageType(move) {
   const types = normalizeMoveDamageTypes(move.damage?.type);
   if (!types.length) return "typeless";
@@ -612,10 +767,16 @@ async function chooseDamageType(move) {
   }
 }
 
+/** Convierte un tipo en {id, etiqueta} para las listas de afinidades. */
 function prepareType(type) {
   return { id: type, label: typeLabel(type) };
 }
 
+/**
+ * Describe los objetivos seleccionados en el formato que espera D&D 5e para
+ * aplicar el daño automáticamente desde el mensaje de chat, omitiendo la CA de
+ * quien tenga cobertura total. Auxiliar de #rollMove().
+ */
 function targetDescriptors() {
   const targets = new Map();
   for (const token of game.user.targets ?? []) {
@@ -631,6 +792,11 @@ function targetDescriptors() {
   return [...targets.values()];
 }
 
+/**
+ * Presenta el sexo del Pokémon con su icono y la probabilidad de la especie,
+ * calculada desde la proporción "F:M" que usa randomGenderForRatio() (model.mjs).
+ * Auxiliar de _prepareContext().
+ */
 function prepareGender(gender, ratio) {
   const labels = {
     female: { label: "Hembra", icon: "fa-venus" },
@@ -645,6 +811,12 @@ function prepareGender(gender, ratio) {
   return { value, ...labels[value], probability };
 }
 
+/**
+ * Prepara las evoluciones posibles: traduce sus condiciones con
+ * evolutionConditionLabel() y consulta evolutionReadiness() para saber si el
+ * botón debe estar activo y si requiere confirmación de la mesa.
+ * Auxiliar de _prepareContext(); quien evoluciona es #evolve().
+ */
 function prepareEvolutions(evolutions, data, instance) {
   return evolutions.map(evolution => {
     const readiness = evolutionReadiness(evolution, {
@@ -665,6 +837,11 @@ function prepareEvolutions(evolutions, data, instance) {
   });
 }
 
+/**
+ * Traduce una condición de evolución a texto, resolviendo nombres de objetos y
+ * movimientos contra el catálogo. Versión extendida de la conditionShortLabel()
+ * de model.mjs; la usan prepareEvolutions() y promptEvolution().
+ */
 function evolutionConditionLabel(condition, data) {
   if (condition.type === "level") return `Nivel ${condition.value}`;
   if (condition.type === "item") return `Usar ${data.itemsById.get(condition.value)?.name ?? condition.value}`;
@@ -676,6 +853,13 @@ function evolutionConditionLabel(condition, data) {
   return String(condition.value ?? "Condición especial");
 }
 
+/**
+ * Prepara un movimiento aprendido para la plantilla: PP, bonificador de ataque o
+ * CD de salvación calculados con getMoveModifier() y la competencia por nivel,
+ * fórmula de daño de damageFormula(), datos de concurso y un aviso si dejó de
+ * ser compatible con la especie (por ejemplo tras evolucionar).
+ * Auxiliar de _prepareContext(); su gemela para el catálogo es prepareCatalogMove().
+ */
 function prepareMove(entry, move, species, level, effectsById, contestType) {
   const modifier = getMoveModifier(species, move);
   const proficiency = 2 + Math.floor((level - 1) / 4);
@@ -700,6 +884,11 @@ function prepareMove(entry, move, species, level, effectsById, contestType) {
   };
 }
 
+/**
+ * Enriquece una entrada del gestor de movimientos con los mismos datos
+ * calculados que prepareMove(), partiendo de lo que devuelve filterMoveCatalog()
+ * y sin los PP, que solo existen una vez aprendido.
+ */
 function prepareCatalogMove(entry, move, species, level, effectsById, contestType) {
   if (!move) return entry;
   const modifier = getMoveModifier(species, move);
@@ -717,6 +906,11 @@ function prepareCatalogMove(entry, move, species, level, effectsById, contestTyp
   };
 }
 
+/**
+ * Reúne los datos de concurso de un movimiento (contestDetailsForMove()), su
+ * compatibilidad con la categoría elegida y la característica que usa.
+ * La comparten prepareMove() y prepareCatalogMove().
+ */
 function prepareContestDisplay(move, effectsById, contestType) {
   const details = contestDetailsForMove(move, effectsById);
   return {
@@ -726,6 +920,11 @@ function prepareContestDisplay(move, effectsById, contestType) {
   };
 }
 
+/**
+ * Pregunta qué movimiento olvidar cuando ya se conocen cuatro y devuelve el id
+ * de la entrada elegida, o null si se cancela. Solo la usa #addMove(), que pasa
+ * ese id a applyLearnedMove().
+ */
 async function chooseMoveToForget(knownMoves, newMove, movesById) {
   const options = knownMoves.map(entry => {
     const move = movesById.get(entry.moveId);
@@ -753,16 +952,30 @@ async function chooseMoveToForget(knownMoves, newMove, movesById) {
   }
 }
 
+/**
+ * Crea la entrada de un movimiento recién aprendido, con id propio y los PP a
+ * tope. Auxiliar de #addMove().
+ */
 function moveEntry(move) {
   const pp = Math.max(Number(move?.pp) || 0, 0);
   return { id: foundry.utils.randomID(), moveId: move.id, pp: { value: pp, max: pp } };
 }
 
+/**
+ * Explica por qué no puede aprenderse un movimiento: si es cuestión de nivel
+ * indica cuál hace falta, y si no, que la especie no lo admite.
+ * La usan #learnMove() y #onDrop() con el resultado de moveEligibility().
+ */
 function notifyMoveUnavailable(move, eligibility) {
   if (eligibility.future) return ui.notifications.warn(`${move.name} se aprende a nivel ${eligibility.requiredLevel}.`);
   return ui.notifications.warn(`${move.name} no puede ser aprendido por esta especie Pokémon.`);
 }
 
+/**
+ * Calcula MOVE, el modificador de un movimiento: el mayor de las características
+ * que admite su campo `power`, o 0 si no usa ninguna. Base del bonificador de
+ * ataque, de la CD de salvación y del daño en todo el archivo.
+ */
 function getMoveModifier(species, move) {
   const configured = Array.isArray(move.power) ? move.power : move.power ? [move.power] : [];
   if (configured.includes("none")) return 0;
@@ -771,6 +984,13 @@ function getMoveModifier(species, move) {
   return Math.max(...allowed.map(key => Math.floor(((Number(species.attributes?.[key]) || 10) - 10) / 2)));
 }
 
+/**
+ * Compone la fórmula de daño: elige los dados del tramo de nivel alcanzado y le
+ * suma el modificador que indique el movimiento (MOVE, LEVEL, un número fijo,
+ * "MOVE + n" o "MOVE + STAB", que añade 2 si el tipo coincide con el del
+ * Pokémon). Devuelve null si el movimiento no causa daño.
+ * La usan prepareMove(), prepareCatalogMove() y #rollMove().
+ */
 function damageFormula(move, level, moveModifier, species) {
   const diceByLevel = move.damage?.dice;
   if (!diceByLevel) return null;
@@ -786,17 +1006,27 @@ function damageFormula(move, level, moveModifier, species) {
   return String(dice);
 }
 
+/** Añade el modificador a la expresión de dados con su signo. Auxiliar de damageFormula(). */
 function appendModifier(dice, modifier) {
   if (!modifier) return String(dice);
   return `${dice} ${modifier > 0 ? "+" : "-"} ${Math.abs(modifier)}`;
 }
 
+/**
+ * Descripción HTML de un movimiento, con sus bloques (descriptionBlock()) y el
+ * apartado de niveles superiores. La usan la ficha, los diálogos y los mensajes
+ * de chat de este archivo.
+ */
 function moveDescription(move) {
   const blocks = Array.isArray(move.description) ? move.description : move.description ? [move.description] : [];
   const body = blocks.map(descriptionBlock).join("");
   return `${body}${move.higherLevels ? `<h3>A niveles superiores</h3><p>${escapeHtml(move.higherLevels)}</p>` : ""}`;
 }
 
+/**
+ * Convierte un bloque de descripción en HTML: párrafo si es texto y tabla si el
+ * JSON declara una. Auxiliar de moveDescription().
+ */
 function descriptionBlock(block) {
   if (typeof block === "string") return `<p>${escapeHtml(block)}</p>`;
   if (block?.type !== "table") return "";
@@ -805,6 +1035,11 @@ function descriptionBlock(block) {
   return `<table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
 }
 
+/**
+ * Traduce las velocidades de la especie a etiqueta e icono para la ficha.
+ * Auxiliar de _prepareContext(); wild-deployment.mjs hace la conversión
+ * equivalente hacia el bloque `movement` de D&D 5e.
+ */
 function prepareSpeeds(speeds = []) {
   const display = {
     walking: { label: "Caminar", icon: "fa-person-walking" },
@@ -822,6 +1057,10 @@ function prepareSpeeds(speeds = []) {
   }));
 }
 
+/**
+ * Pide los PX que se van a sumar y devuelve 0 si se cancela.
+ * Solo la usa #addExperience().
+ */
 async function promptExperienceAmount() {
   try {
     return await foundry.applications.api.DialogV2.prompt({
@@ -843,6 +1082,12 @@ async function promptExperienceAmount() {
   }
 }
 
+/**
+ * Diálogo de evolución: resume lo que conserva y lo que gana el Pokémon, exige
+ * marcar las condiciones que solo puede confirmar la mesa y, si la evolución
+ * concede puntos de característica, ofrece repartirlos. Devuelve ese reparto,
+ * que #evolve() valida con applyAbilityAllocation(), o null si se cancela.
+ */
 async function promptEvolution({ evolution, target, data, instance, species, asiPoints, manual }) {
   const attributes = instance.attributes ?? species.attributes ?? {};
   const allocation = asiPoints ? `<fieldset class="poke5e-asi-allocation">
@@ -879,6 +1124,12 @@ async function promptEvolution({ evolution, target, data, instance, species, asi
   }
 }
 
+/**
+ * Valida y aplica el reparto de puntos de una evolución: exige gastarlos todos,
+ * un máximo de 4 por característica y no superar 20. Solo modifica `attributes`
+ * si el reparto entero es válido; devuelve false en caso contrario.
+ * La usa #evolve().
+ */
 function applyAbilityAllocation(attributes, allocation, expectedPoints) {
   if (!allocation || Object.values(allocation).some(value => value < 0 || value > 4)) return false;
   if (Object.values(allocation).reduce((total, value) => total + value, 0) !== expectedPoints) return false;
@@ -890,24 +1141,42 @@ function applyAbilityAllocation(attributes, allocation, expectedPoints) {
   return true;
 }
 
+/**
+ * Determina las habilidades tras evolucionar: conserva las que la nueva especie
+ * también tenga y, si no queda ninguna, le asigna la primera no oculta.
+ * Auxiliar de #evolve().
+ */
 function evolvedAbilities(current = [], target) {
   const available = (target.abilities ?? []).filter(entry => !entry.hidden).map(entry => entry.id);
   const retained = current.filter(id => available.includes(id));
   return retained.length ? retained : available.slice(0, 1);
 }
 
+/**
+ * Avisa de la subida de nivel indicando cuántos se han ganado de golpe.
+ * La usan #changeExperience() y #addExperience().
+ */
 function notifyLevelGain(item, previousLevel, currentLevel) {
   if (currentLevel <= previousLevel) return;
   const levels = currentLevel - previousLevel;
   ui.notifications.info(`${displayPokemonName(item)} ha alcanzado el nivel ${currentLevel}${levels > 1 ? ` (sube ${levels} niveles)` : ""}. Recuerda aplicar sus PG y beneficios de subida de nivel.`);
 }
 
+/**
+ * Descuenta una unidad del inventario del entrenador, borrando el Item si era la
+ * última. La usa #equipHeldItem(); su inversa es returnHeldItem().
+ */
 async function decrementInventoryItem(item) {
   const quantity = Math.max(1, Number(item.system.quantity) || 1);
   if (quantity <= 1) await item.delete();
   else await item.update({ "system.quantity": quantity - 1 });
 }
 
+/**
+ * Devuelve al inventario el objeto que llevaba el Pokémon: suma uno a la pila
+ * existente o crea el Item con gearItemSource() (model.mjs).
+ * Inversa de decrementInventoryItem(); la usa #equipHeldItem().
+ */
 async function returnHeldItem(trainer, heldItem, data) {
   const existing = trainer.items.find(item => item.getFlag(MODULE_ID, "kind") === "gear" && item.getFlag(MODULE_ID, "sourceId") === heldItem.sourceId);
   if (existing) return existing.update({ "system.quantity": Math.max(0, Number(existing.system.quantity) || 0) + 1 });
@@ -915,6 +1184,12 @@ async function returnHeldItem(trainer, heldItem, data) {
   if (definition) return trainer.createEmbeddedDocuments("Item", [gearItemSource(definition)]);
 }
 
+/**
+ * Cargas iniciales de un objeto equipado: 1 para la Banda Focus (que
+ * syncDeploymentHp() consume en deployment.mjs) y, si no, las que mencione su
+ * descripción; null si el objeto no las usa. La usan #equipHeldItem() y
+ * #restoreHeldItem().
+ */
 function initialHeldItemCharges(sourceId, definition) {
   if (sourceId === "focus-sash") return 1;
   const text = (definition?.description ?? []).join(" ");
@@ -922,10 +1197,14 @@ function initialHeldItemCharges(sourceId, definition) {
   return match ? Number(match[1]) : null;
 }
 
+/** Formatea las cifras de experiencia según el idioma de la interfaz. */
 function formatNumber(value) {
   return new Intl.NumberFormat(game.i18n.lang || "es").format(Number(value) || 0);
 }
 
+/** Antepone el signo a un modificador ("+3", "-1"). */
 function signed(value) { return Number(value) >= 0 ? `+${value}` : String(value); }
+/** Capitaliza un identificador con guiones; copia local de la de model.mjs. */
 function titleCase(value) { return String(value).split("-").map(part => part.charAt(0).toUpperCase() + part.slice(1)).join(" "); }
+/** Escapa el texto de los datos antes de insertarlo en HTML. */
 function escapeHtml(value) { return foundry.utils.escapeHTML(String(value ?? "")); }

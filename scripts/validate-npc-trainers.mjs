@@ -1,3 +1,11 @@
+/**
+ * Validador de npc-trainer-rules.mjs, ejecutado por `npm run check`. Comprueba
+ * el filtrado por uno o dos tipos en sus dos modos, el límite de SR por nivel
+ * (con el ajuste del Guru) y el filtro por etapa evolutiva; genera con un
+ * aleatorio fijo un equipo temático verificando tamaño, especies únicas, rango
+ * de niveles y tipo; y contrasta características por arquetipo, PG por
+ * dificultad y los dos modos de nombrar a un NPC.
+ */
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { filterNpcTrainerSpecies, generateNpcTrainerTeam, npcTrainerAbilities, npcTrainerHitPoints, randomNpcTrainerName, trainerControlSr } from "./npc-trainer-rules.mjs";

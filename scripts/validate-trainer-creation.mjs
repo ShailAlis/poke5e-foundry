@@ -1,3 +1,12 @@
+/**
+ * Validador de trainer-creation-data.mjs, ejecutado por `npm run check`.
+ * Comprueba los tres métodos de característica y sus rechazos, las
+ * bonificaciones de varios orígenes (incluidas las opciones de Galar y la
+ * salvación extra de Sinnoh), la Pericia cuando la especialización repite una
+ * competencia, y que se rechacen las dos características iguales de Kanto, las
+ * habilidades ya conocidas de Teselia y las de clase que duplican la
+ * especialización.
+ */
 import assert from "node:assert/strict";
 import { resolveTrainerCreation } from "./trainer-creation-data.mjs";
 

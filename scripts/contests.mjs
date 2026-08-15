@@ -1,3 +1,12 @@
+/**
+ * Reglas de los concursos Pokémon: categorías, compatibilidad de los
+ * movimientos y puntuación de una prueba de Appeal. Módulo puro sin
+ * dependencias, verificado por validate-contests.mjs y consumido por el modo
+ * Concurso de pokemon-sheet.mjs. Los datos vienen de `contest.json` y
+ * `contest-effects.json`, que data-service.mjs adjunta a cada movimiento.
+ */
+
+/** Las cinco categorías de concurso, con su icono y sus categorías vecinas. */
 export const CONTEST_TYPES = {
   cool: { label: "Cool", icon: "fa-fire", complementary: ["beauty", "tough"] },
   beauty: { label: "Beauty", icon: "fa-gem", complementary: ["cool", "cute"] },
@@ -6,6 +15,10 @@ export const CONTEST_TYPES = {
   tough: { label: "Tough", icon: "fa-dumbbell", complementary: ["clever", "cool"] }
 };
 
+/**
+ * Categoría sugerida para cada tipo Pokémon, usada por contestDetailsForMove()
+ * cuando un movimiento no tiene datos de concurso en las reglas originales.
+ */
 const MOVE_TYPE_DEFAULTS = {
   normal: "cool", flying: "cool", rock: "cool", bug: "cool",
   ghost: "beauty", steel: "beauty", electric: "beauty", ice: "beauty",
@@ -14,6 +27,12 @@ const MOVE_TYPE_DEFAULTS = {
   fighting: "tough", ground: "tough", dragon: "tough"
 };
 
+/**
+ * Datos de concurso de un movimiento (categoría, Appeal, Jam y efecto). Si el
+ * movimiento no está definido en las reglas, deduce la categoría con
+ * MOVE_TYPE_DEFAULTS y lo marca con `fallback: true` para que la ficha lo
+ * presente como sugerencia. Entrada de contestCompatibility().
+ */
 export function contestDetailsForMove(move, effectsById = new Map()) {
   const defined = move?.contest;
   const contest = CONTEST_TYPES[defined?.contest] ? defined.contest : (MOVE_TYPE_DEFAULTS[move?.type] ?? "cute");
@@ -32,12 +51,23 @@ export function contestDetailsForMove(move, effectsById = new Map()) {
   };
 }
 
+/**
+ * Compara la categoría del concurso con la del movimiento y devuelve
+ * compatible, complementario o incompatible según CONTEST_TYPES.
+ * Su resultado decide la puntuación en contestAppealOutcome().
+ */
 export function contestCompatibility(contestType, moveContestType) {
   if (contestType === moveContestType) return { id: "compatible", label: "Compatible" };
   if (CONTEST_TYPES[contestType]?.complementary.includes(moveContestType)) return { id: "complementary", label: "Complementario" };
   return { id: "incompatible", label: "Incompatible" };
 }
 
+/**
+ * Resuelve una prueba de Appeal contra la CD del juez: cruza la compatibilidad
+ * de contestCompatibility() con el resultado de la tirada (éxito, crítico o
+ * pifia) y devuelve los puntos obtenidos y la reacción del público.
+ * La llama pokemon-sheet.mjs tras evaluar la tirada.
+ */
 export function contestAppealOutcome({ compatibility, appeal, natural, total, dc }) {
   const success = Number(total) >= Number(dc);
   const critical = Number(natural) === 20;
@@ -60,6 +90,10 @@ export function contestAppealOutcome({ compatibility, appeal, natural, total, dc
   return { success, critical, fumble, points, crowd };
 }
 
+/**
+ * Aplana CONTEST_TYPES en un mapa id → etiqueta para el desplegable de
+ * categoría de la ficha Pokémon.
+ */
 export function contestTypeOptions() {
   return Object.fromEntries(Object.entries(CONTEST_TYPES).map(([id, entry]) => [id, entry.label]));
 }

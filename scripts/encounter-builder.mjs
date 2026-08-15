@@ -1,3 +1,13 @@
+/**
+ * Interfaz del generador de encuentros salvajes, exclusiva del director. Filtra
+ * el catálogo, arma la lista del encuentro —generada por objetivo de PX o a
+ * mano—, permite ajustar niveles y despliega los Pokémon en la escena.
+ *
+ * Las reglas están en encounter-generator.mjs y el despliegue en
+ * wild-deployment.mjs; aquí solo queda el estado de la ventana. La abren el menú
+ * de ajustes, el control de escena y la macro `game.poke5e.openEncounterBuilder`,
+ * todos registrados en main.mjs. Su plantilla es `templates/encounter-builder.hbs`.
+ */
 import { loadPoke5eData } from "./data-service.mjs";
 import { filterEncounterSpecies, generateEncounter, MAX_ENCOUNTER_POKEMON } from "./encounter-generator.mjs";
 import { MODULE_PATH, portraitUrl } from "./model.mjs";
@@ -6,6 +16,7 @@ import { deployWildPokemon } from "./wild-deployment.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
+/** Ventana del generador de encuentros salvajes. */
 export class Poke5eEncounterBuilder extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "poke5e-encounter-builder",
@@ -16,6 +27,11 @@ export class Poke5eEncounterBuilder extends HandlebarsApplicationMixin(Applicati
 
   static PARTS = { main: { template: `${MODULE_PATH}/templates/encounter-builder.hbs`, scrollable: [""] } };
 
+  /**
+   * Inicia los filtros y la lista del encuentro, que solo viven en la ventana:
+   * nada se guarda en el mundo hasta desplegar. `deploying` bloquea los botones
+   * mientras se coloca una tanda.
+   */
   constructor(options = {}) {
     super(options);
     this.filters = defaultFilters();
@@ -24,6 +40,13 @@ export class Poke5eEncounterBuilder extends HandlebarsApplicationMixin(Applicati
     this.deploying = false;
   }
 
+  /**
+   * Prepara las dos mitades de la ventana: las especies candidatas que devuelve
+   * filterEncounterSpecies() (recortadas a 60) con los desplegables de tipo,
+   * bioma y región que arma optionsFrom(), y el encuentro actual con nombre,
+   * retrato y PX de cada entrada más el total. Corta con `unauthorized` si quien
+   * la abre no es el director.
+   */
   async _prepareContext() {
     if (!game.user.isGM) return { unauthorized: true };
     const data = await loadPoke5eData();
@@ -73,6 +96,11 @@ export class Poke5eEncounterBuilder extends HandlebarsApplicationMixin(Applicati
     };
   }
 
+  /**
+   * Conecta los filtros, la búsqueda con retardo (recuperando el foco tras
+   * redibujar) y los botones de generar, vaciar, añadir, quitar, cambiar nivel y
+   * desplegar.
+   */
   _onRender(context, options) {
     super._onRender(context, options);
     if (!game.user.isGM) return;
@@ -107,6 +135,10 @@ export class Poke5eEncounterBuilder extends HandlebarsApplicationMixin(Applicati
     }
   }
 
+  /**
+   * Sustituye el encuentro por uno nuevo de generateEncounter(), dando a cada
+   * entrada un id propio para poder editarla y desplegarla por separado.
+   */
   async #generate() {
     const data = await loadPoke5eData();
     const pool = filterEncounterSpecies(data.pokemon, this.filters);
@@ -120,6 +152,10 @@ export class Poke5eEncounterBuilder extends HandlebarsApplicationMixin(Applicati
     this.render({ force: true });
   }
 
+  /**
+   * Añade a mano una especie de la lista de candidatas, al nivel más bajo que
+   * permitan la especie y los filtros, respetando MAX_ENCOUNTER_POKEMON.
+   */
   async #addSpecies(event) {
     if (this.encounter.length >= MAX_ENCOUNTER_POKEMON) return ui.notifications.warn(`Un encuentro admite un máximo de ${MAX_ENCOUNTER_POKEMON} Pokémon.`);
     const data = await loadPoke5eData();
@@ -132,11 +168,16 @@ export class Poke5eEncounterBuilder extends HandlebarsApplicationMixin(Applicati
     this.render({ force: true });
   }
 
+  /** Quita una entrada del encuentro; no afecta a lo ya desplegado en el mapa. */
   #removeEntry(event) {
     this.encounter = this.encounter.filter(entry => entry.id !== event.currentTarget.dataset.entryId);
     this.render({ force: true });
   }
 
+  /**
+   * Cambia el nivel de una entrada aún no desplegada y recalcula sus PX con
+   * experienceAward().
+   */
   async #changeEntryLevel(event) {
     const data = await loadPoke5eData();
     const entry = this.encounter.find(candidate => candidate.id === event.currentTarget.dataset.entryId);
@@ -147,6 +188,11 @@ export class Poke5eEncounterBuilder extends HandlebarsApplicationMixin(Applicati
     this.render({ force: true });
   }
 
+  /**
+   * Despliega una entrada con deployWildPokemon() y la marca como colocada.
+   * Devuelve si lo consiguió, para que #deployAll() se detenga al cancelarse.
+   * Con `batch` no redibuja ni avisa, porque de eso se encarga la tanda.
+   */
   async #deployEntry(entryId, { batch = false } = {}) {
     if (!canvas?.ready || !canvas.scene) {
       if (!batch) ui.notifications.warn("Abre una escena antes de desplegar el encuentro.");
@@ -163,6 +209,11 @@ export class Poke5eEncounterBuilder extends HandlebarsApplicationMixin(Applicati
     return true;
   }
 
+  /**
+   * Despliega en secuencia las entradas pendientes, pidiendo una posición por
+   * cada una y parando en cuanto se cancela. El indicador `deploying` evita
+   * lanzar dos tandas a la vez.
+   */
   async #deployAll() {
     if (this.deploying) return;
     if (!canvas?.ready || !canvas.scene) return ui.notifications.warn("Abre una escena antes de desplegar el encuentro.");
@@ -180,18 +231,29 @@ export class Poke5eEncounterBuilder extends HandlebarsApplicationMixin(Applicati
   }
 }
 
+/**
+ * Filtros iniciales de la ventana, que incluyen también los parámetros de
+ * generación (cantidad, rango de niveles y objetivo de PX). Los usan el
+ * constructor y el botón de limpiar.
+ */
 function defaultFilters() {
   return { query: "", type: "", biome: "", region: "", srMin: "", srMax: "", levelMin: 1, levelMax: 5, count: 3, targetExperience: "" };
 }
 
+/**
+ * Construye un desplegable a partir de los valores presentes en el catálogo,
+ * sin repetir y ordenados alfabéticamente. Auxiliar de _prepareContext().
+ */
 function optionsFrom(values, labeler) {
   return [...new Set(values)].sort((a, b) => String(a).localeCompare(String(b))).reduce((result, value) => ({ ...result, [value]: labeler(value) }), {});
 }
 
+/** Capitaliza tipos y biomas para los desplegables. */
 function titleCase(value) {
   return String(value).split("-").map(part => part.charAt(0).toLocaleUpperCase() + part.slice(1)).join(" ");
 }
 
+/** Formatea las cifras de PX según el idioma de la interfaz. */
 function formatNumber(value) {
   return new Intl.NumberFormat(game.i18n.lang || "es").format(Number(value) || 0);
 }

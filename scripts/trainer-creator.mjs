@@ -1,3 +1,17 @@
+/**
+ * Asistente guiado de creación de Entrenadores jugadores, en cuatro pasos:
+ * identidad y origen, competencias y especialización, Pokémon inicial y resumen.
+ * Al terminar escribe en el actor sus características, competencias, idiomas,
+ * PG, dinero, clase de Entrenador con sus rasgos de nivel 1, equipo inicial y
+ * Pokémon inicial.
+ *
+ * Las reglas y su validación están en trainer-creation-data.mjs; aquí quedan la
+ * interfaz y la escritura de documentos. Se abre solo al crear un personaje
+ * (hook `createActor` de main.mjs) y también desde el botón de cabecera o la
+ * macro `game.poke5e.createTrainer`. Además exporta las dos funciones con las que
+ * main.mjs impide especies distintas de Humano. Su equivalente para los NPC es
+ * npc-trainer-actor.mjs; la plantilla es `templates/trainer-creator.hbs`.
+ */
 import { loadPoke5eData } from "./data-service.mjs";
 import {
   MODULE_ID, MODULE_PATH, gearItemSource, pokemonItemSourceFromSpecies, portraitUrl,
@@ -6,8 +20,13 @@ import {
 import { ABILITIES, CLASS_SKILLS, NATURES, ORIGINS, POINT_BUY_COSTS, SKILLS, SPECIALIZATIONS, STANDARD_ARRAY, resolveBaseAbilities, resolveTrainerCreation } from "./trainer-creation-data.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
+/**
+ * Prefijo de los flags de los Items que crea el asistente. Permite reconocerlos y
+ * reemplazarlos si se vuelve a ejecutar, sin tocar lo que se haya añadido después.
+ */
 const CREATION_KIND_PREFIX = "trainer-creation-";
 
+/** Ventana del asistente de creación de Entrenador, con sus cuatro pasos. */
 export class Poke5eTrainerCreator extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "poke5e-trainer-creator",
@@ -18,6 +37,10 @@ export class Poke5eTrainerCreator extends HandlebarsApplicationMixin(Application
 
   static PARTS = { main: { template: `${MODULE_PATH}/templates/trainer-creator.hbs`, scrollable: [""] } };
 
+  /**
+   * Empieza en el paso 1 y rellena la selección con lo guardado en el flag
+   * `trainerCreation`, de modo que reabrir el asistente retome lo ya elegido.
+   */
   constructor({ actor, ...options } = {}) {
     super({ ...options, id: `poke5e-trainer-creator-${actor?.id ?? "unknown"}` });
     this.actor = actor;
@@ -50,6 +73,15 @@ export class Poke5eTrainerCreator extends HandlebarsApplicationMixin(Application
     this.saving = false;
   }
 
+  /**
+   * Prepara los cuatro pasos a la vez —la plantilla enseña solo el activo—:
+   * métodos de característica con el gasto de puntos, orígenes con sus opciones
+   * de bonificación, habilidades de clase ocultando las que ya concede el origen
+   * o la especialización, campos propios de Hoenn, Kanto y Teselia, la lista de
+   * iniciales (SR ≤ 1/2 sin evolucionar) con sus habilidades y naturalezas, y el
+   * resumen final. Llama a resolveTrainerCreation() en cada dibujado para mostrar
+   * al momento el resultado o el error, sin bloquear la navegación.
+   */
   async _prepareContext() {
     const data = await loadPoke5eData();
     const origin = ORIGINS.find(entry => entry.id === this.selection.origin);
@@ -129,6 +161,7 @@ export class Poke5eTrainerCreator extends HandlebarsApplicationMixin(Application
     };
   }
 
+  /** Conecta los campos del formulario y los botones de atrás, siguiente y finalizar. */
   _onRender(context, options) {
     super._onRender(context, options);
     this.element.querySelectorAll("input, select").forEach(input => input.addEventListener("change", event => this.#capture(event)));
@@ -137,6 +170,13 @@ export class Poke5eTrainerCreator extends HandlebarsApplicationMixin(Application
     this.element.querySelector("[data-action='finish']")?.addEventListener("click", () => this.#finish());
   }
 
+  /**
+   * Guarda el cambio de un campo y redibuja solo cuando afecta a lo que se
+   * muestra. Antes de redibujar vuelca todo el formulario con #captureAll() para
+   * no perder lo escrito, y reaplica el valor que acaba de cambiar porque el DOM
+   * todavía no lo refleja. Cambiar de inicial borra la habilidad elegida y
+   * cambiar de especialización libera las habilidades de clase que ya concede.
+   */
   #capture(event) {
     const input = event.currentTarget;
     const changedName = input.name;
@@ -155,6 +195,10 @@ export class Poke5eTrainerCreator extends HandlebarsApplicationMixin(Application
     }
   }
 
+  /**
+   * Vuelca a `selection` todos los campos visibles, incluidas las casillas de
+   * habilidades. Se llama antes de navegar entre pasos y antes de finalizar.
+   */
   #captureAll() {
     for (const input of this.element.querySelectorAll("input:not([type='checkbox']):not([type='radio']), select")) {
       if (input.name) this.selection[input.name] = input.value;
@@ -165,6 +209,11 @@ export class Poke5eTrainerCreator extends HandlebarsApplicationMixin(Application
     }
   }
 
+  /**
+   * Descarta de las habilidades de clase las que ya conceden el origen o la
+   * especialización, para que resolveTrainerCreation() no las rechace por
+   * duplicadas al cambiar de opción.
+   */
   #removeGrantedClassSkills() {
     const origin = ORIGINS.find(entry => entry.id === this.selection.origin);
     const specialization = SPECIALIZATIONS.find(entry => entry.type === this.selection.specialization);
@@ -172,6 +221,10 @@ export class Poke5eTrainerCreator extends HandlebarsApplicationMixin(Application
     this.selection.classSkills = this.selection.classSkills.filter(skill => !granted.has(skill));
   }
 
+  /**
+   * Avanza al paso siguiente si validateStep() no encuentra problemas; si los
+   * hay, los explica y se queda donde está.
+   */
   #next() {
     this.#captureAll();
     const error = validateStep(this.step, this.selection);
@@ -180,6 +233,11 @@ export class Poke5eTrainerCreator extends HandlebarsApplicationMixin(Application
     this.render({ force: true });
   }
 
+  /**
+   * Cierra el asistente: valida la ficha entera y el inicial, comprueba permisos
+   * y aplica todo con applyTrainerCreation(). Si algo falla, lo comunica y deja
+   * la ventana abierta para corregirlo.
+   */
   async #finish() {
     if (this.saving) return;
     this.#captureAll();
@@ -205,6 +263,16 @@ export class Poke5eTrainerCreator extends HandlebarsApplicationMixin(Application
   }
 }
 
+/**
+ * Escribe en el actor el resultado del asistente: datos personales,
+ * características, salvaciones, competencias, idiomas, PG, velocidades del
+ * entorno de Hoenn y el dinero inicial (1000 + 100 × 4d4). Después sustituye los
+ * Items que creó una ejecución anterior —reconocidos por CREATION_KIND_PREFIX o
+ * por el flag `creationManaged`—, borra cualquier especie que no sea Humano y
+ * añade especie, origen, dote, especialización, clase con sus rasgos de nivel 1,
+ * equipo inicial y el Pokémon inicial con su naturaleza y habilidad.
+ * La llama #finish().
+ */
 export async function applyTrainerCreation(actor, selection, rules) {
   const data = await loadPoke5eData();
   const species = data.pokemonById.get(selection.starter);
@@ -252,18 +320,33 @@ export async function applyTrainerCreation(actor, selection, rules) {
   await actor.createEmbeddedDocuments("Item", sources, { poke5eTrainerCreation: true });
 }
 
+/**
+ * Elimina de un actor que se está creando cualquier especie que no sea Humano y
+ * lo marca con el flag `humanOnly`. La llama el hook `preCreateActor` de
+ * main.mjs; el hook `preCreateItem` hace lo propio con las especies posteriores.
+ */
 export function enforceHumanActorSource(actor) {
   if (actor.type !== "character") return;
   const items = (actor._source.items ?? []).filter(item => item.type !== "race" || isHumanSpecies(item));
   actor.updateSource({ items, [`flags.${MODULE_ID}.humanOnly`]: true });
 }
 
+/**
+ * Reconoce la especie Humano por su flag o por su nombre en español o inglés,
+ * de modo que valga tanto la que crea el asistente como una traída de fuera.
+ * Funciona con documentos y con datos en bruto, porque la usan tanto
+ * enforceHumanActorSource() como el hook `preCreateItem` de main.mjs.
+ */
 export function isHumanSpecies(item) {
   const flag = item.getFlag ? item.getFlag(MODULE_ID, "kind") : item.flags?.[MODULE_ID]?.kind;
   const name = String(item.name ?? "").trim().toLocaleLowerCase();
   return flag === `${CREATION_KIND_PREFIX}human` || name === "human" || name === "humano";
 }
 
+/**
+ * Item de especie Humano con su velocidad y tipo de criatura. Equivale al
+ * humanSource() de npc-trainer-actor.mjs.
+ */
 function humanSpeciesSource() {
   const source = creationItem("Humano", "race", "human", "<p>En el mundo de Pokémon 5e todos los personajes jugadores son humanos. Los rasgos culturales proceden de su origen regional.</p>", "icons/svg/people.svg");
   source.system.movement = { walk: 30, fly: 0, swim: 0, burrow: 0, climb: 0, units: "ft", hover: false };
@@ -271,10 +354,17 @@ function humanSpeciesSource() {
   return source;
 }
 
+/** Item de trasfondo del origen, con sus bonificaciones, competencia e idiomas. */
 function originSource(rules) {
   return creationItem(`Origen: ${rules.origin.name}`, "background", "origin", `<p>Obtienes +2 a ${ABILITIES[rules.originAbilities[0]]} y +1 a ${ABILITIES[rules.originAbilities[1]]}, competencia en ${SKILLS[rules.origin.skill]} y los idiomas ${rules.languages.join(" y ")}.</p>`);
 }
 
+/**
+ * Item de la dote del origen. En el caso de Kanto, que deja elegir cualquier
+ * dote, intenta reutilizar la real del mundo o de un compendio con
+ * findFeatSource() —así conserva sus efectos— y solo crea una descriptiva si no
+ * la encuentra.
+ */
 async function originFeatSource(rules, selection) {
   if (rules.origin.id !== "kantoan") return creationItem(rules.origin.featName, "feat", "origin-feat", `<p>${rules.featDetails}</p>`, "icons/svg/book.svg");
   const existing = await findFeatSource(selection.chosenFeat);
@@ -284,6 +374,10 @@ async function originFeatSource(rules, selection) {
   return existing;
 }
 
+/**
+ * Item de la especialización, con su beneficio propio y el +1 a las pruebas de
+ * los Pokémon de ese tipo que aplica deployment.mjs al desplegarlos.
+ */
 function specializationSource(rules) {
   const effect = rules.specialization.ability
     ? `Aumenta ${ABILITIES[rules.specialization.ability]} en 1, hasta un máximo de 20.`
@@ -291,6 +385,11 @@ function specializationSource(rules) {
   return creationItem(`Especialización: ${rules.specialization.name}`, "feat", "specialization", `<p>${effect}</p><p>Los Pokémon de tipo ${titleCase(rules.specialization.type)} obtienen +1 a todas sus pruebas de habilidad.</p>`, "icons/svg/upgrade.svg");
 }
 
+/**
+ * Clase Entrenador para el asistente: parte de trainerClassSource() (model.mjs)
+ * y le vacía los avances, porque los rasgos de nivel 1 se entregan ya hechos en
+ * levelOneFeatureSources() en lugar de dejar que D&D 5e los pida.
+ */
 function trainerClassCreationSource() {
   const source = trainerClassSource();
   source.system.advancement = {};
@@ -298,6 +397,11 @@ function trainerClassCreationSource() {
   return source;
 }
 
+/**
+ * Rasgos de nivel 1: los de TRAINER_FEATURES que devuelve trainerFeatureSources()
+ * más los propios del asistente (licencia, Pokédex, competencia con Poké Balls y
+ * los tres Pokéslots iniciales).
+ */
 function levelOneFeatureSources() {
   const features = trainerFeatureSources().filter(source => source.flags[MODULE_ID].level === 1);
   for (const source of features) source.flags[MODULE_ID].kind = `${CREATION_KIND_PREFIX}feature`;
@@ -310,6 +414,10 @@ function levelOneFeatureSources() {
   ];
 }
 
+/**
+ * Equipo inicial: cinco Poké Balls y una Poción tomadas del catálogo —las mismas
+ * que después reconocerá capture.mjs—, más la licencia y la Pokédex como objetos.
+ */
 function startingGearSources(data) {
   const sources = [];
   for (const [id, quantity] of [["poke-ball", 5], ["potion", 1]]) {
@@ -325,6 +433,11 @@ function startingGearSources(data) {
   return sources;
 }
 
+/**
+ * Constructor común de los Items del asistente, que les pone el prefijo
+ * CREATION_KIND_PREFIX y el flag `creationManaged` para poder sustituirlos si se
+ * vuelve a ejecutar.
+ */
 function creationItem(name, type, id, description, img = "icons/svg/item-bag.svg") {
   return {
     name, type, img,
@@ -333,6 +446,11 @@ function creationItem(name, type, id, description, img = "icons/svg/item-bag.svg
   };
 }
 
+/**
+ * Busca una dote por nombre entre los Items del mundo y, si no aparece, en todos
+ * los compendios de Items, y devuelve una copia limpia con cleanEmbeddedSource().
+ * Solo la usa originFeatSource() para la dote libre de Kanto.
+ */
 async function findFeatSource(name) {
   const normalized = String(name ?? "").trim().toLocaleLowerCase();
   const worldItem = game.items.find(item => item.type === "feat" && item.name.trim().toLocaleLowerCase() === normalized);
@@ -348,6 +466,11 @@ async function findFeatSource(name) {
   return null;
 }
 
+/**
+ * Quita de un documento copiado los campos propios de su origen (id, estadísticas,
+ * carpeta y permisos) para poder embeberlo en otro actor.
+ * Auxiliar de findFeatSource().
+ */
 function cleanEmbeddedSource(source) {
   const clone = foundry.utils.deepClone(source);
   delete clone._id;
@@ -357,6 +480,12 @@ function cleanEmbeddedSource(source) {
   return clone;
 }
 
+/**
+ * Valida lo exigible en cada paso y devuelve el mensaje del primer problema, o
+ * cadena vacía si todo está bien: nombre, origen y características en el 1;
+ * la ficha completa vía resolveTrainerCreation() en el 2; y el inicial en el 3.
+ * La usa #next().
+ */
 function validateStep(step, selection) {
   if (step === 1) {
     if (!String(selection.name).trim()) return "Escribe el nombre del Entrenador.";
@@ -376,20 +505,33 @@ function validateStep(step, selection) {
   return "";
 }
 
+/**
+ * Comprueba que estén elegidos el Pokémon inicial, su naturaleza y una habilidad
+ * no oculta; lanza Error si falta alguno. La usan validateStep() y #finish().
+ */
 function validateStarter(selection) {
   if (!selection.starter) throw new Error("Selecciona un Pokémon inicial.");
   if (!selection.nature) throw new Error("Selecciona la naturaleza del Pokémon inicial.");
   if (!selection.ability) throw new Error("Selecciona una habilidad no oculta para el Pokémon inicial.");
 }
 
+/** Crea una opción de desplegable marcando la seleccionada. Base de toda la plantilla. */
 function option(value, label, selected) { return { value, label, selected: String(value) === String(selected) }; }
+/** Convierte un catálogo clave→etiqueta en opciones con option(). */
 function selectEntries(entries, selected) { return Object.entries(entries).map(([value, label]) => option(value, label, selected)); }
+/** Texto de la bonificación de un origen ("+2 Carisma, +1 Destreza"). */
 function abilityBonusLabel(values) { return `+2 ${ABILITIES[values[0]]}, +1 ${ABILITIES[values[1]]}`; }
+/**
+ * Puntos gastados en compra de puntos según POINT_BUY_COSTS, para mostrar en
+ * vivo cuántos quedan. La misma cuenta la verifica resolveBaseAbilities().
+ */
 function pointBuySpent(selection) {
   return Object.keys(ABILITIES).reduce((total, key) => {
     const inputName = `baseAbility${key.charAt(0).toUpperCase()}${key.slice(1)}`;
     return total + (POINT_BUY_COSTS[Number(selection[inputName])] ?? 0);
   }, 0);
 }
+/** Capitaliza tipos y otros identificadores con guiones. */
 function titleCase(value) { return String(value).split("-").map(part => part.charAt(0).toLocaleUpperCase() + part.slice(1)).join(" "); }
+/** Escapa el texto que se inserta en la biografía y las descripciones. */
 function escapeHtml(value) { return foundry.utils.escapeHTML(String(value ?? "")); }

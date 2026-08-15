@@ -1,3 +1,14 @@
+/**
+ * Validador de deployment.mjs, ejecutado por `npm run check`. Sustituye el
+ * lienzo y la colección de actores de Foundry por dobles de prueba con una
+ * rejilla de 100 px equivalente a 5 pies, y después importa el módulo con
+ * `import()` dinámico para que encuentre esos globales ya preparados.
+ *
+ * Comprueba las reglas de posición (dentro de alcance, fuera de alcance y
+ * casilla ocupada) y, sobre todo, que el borrado sea idempotente: dos
+ * removeDeployment() simultáneos más una limpieza posterior deben producir un
+ * único borrado de token y de actor.
+ */
 const actors = new Map();
 const scene = {
   tokens: [],

@@ -1,3 +1,9 @@
+/**
+ * Validador de move-learning.mjs, ejecutado por `npm run check`. Comprueba que
+ * la sustitución de movimientos respete el límite de cuatro y no modifique la
+ * lista original, y recorre todas las especies verificando que sus movimientos
+ * iniciales estén disponibles al nivel 1 y los de cada tramo, en su nivel.
+ */
 import fs from "node:fs";
 import { MAX_KNOWN_MOVES, applyLearnedMove, moveEligibility } from "./move-learning.mjs";
 

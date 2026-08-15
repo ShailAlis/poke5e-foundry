@@ -1,10 +1,25 @@
+/**
+ * Modelo de datos del módulo. Convierte las entradas JSON de `data/` en fuentes
+ * de documentos de Foundry (Items de compendio, Pokémon individuales y la clase
+ * Entrenador de D&D 5e) y centraliza las constantes compartidas, el acceso a los
+ * compendios y la resolución de URLs de recursos remotos.
+ *
+ * Es el núcleo del módulo: lo importan casi todos los demás archivos. A su vez
+ * solo depende de combat.mjs (defensas por tipo) y progression.mjs (experiencia
+ * inicial de un Pokémon recién creado).
+ */
 import { pokemonDefenses, typeLabel } from "./combat.mjs";
 import { experienceAtLevel } from "./progression.mjs";
 
+/** Identificador del módulo, raíz de sus flags y ajustes; usado en todo el proyecto. */
 export const MODULE_ID = "poke5e-foundry";
 export const MODULE_PATH = `modules/${MODULE_ID}`;
 export const POKEMON_TOKEN_SCALE = 1.65;
 
+/**
+ * Compendios de mundo que crea importer.mjs. getPack() los resuelve por esta
+ * clave, de modo que el nombre real solo se declara aquí.
+ */
 export const PACKS = {
   species: { name: "poke5e-species", label: "Pokémon 5e — Especies" },
   moves: { name: "poke5e-moves", label: "Pokémon 5e — Movimientos" },
@@ -13,6 +28,13 @@ export const PACKS = {
   progression: { name: "poke5e-progression", label: "Pokémon 5e — Clases y progresión" }
 };
 
+/**
+ * Tabla de rasgos de la clase Entrenador por nivel, construida con feature().
+ * Los rasgos con `grant: true` se convierten en Items mediante
+ * trainerFeatureSources(); el resto (mejoras de característica) los gestiona
+ * D&D 5e. trainerClassSource() y trainerClassDescription() la recorren a través
+ * de groupFeaturesByLevel().
+ */
 export const TRAINER_FEATURES = [
   feature(1, "starter-pokemon", "Pokémon inicial", "Elige un Pokémon sin evolucionar de SR 1/2 o inferior. Empieza con sus estadísticas base; puedes elegir su naturaleza y una habilidad que no sea oculta."),
   feature(1, "specialization-1", "Especialización de Entrenador", "Elige tu primera especialización de Entrenador. Sus beneficios representan el ámbito en el que has centrado tu formación."),
@@ -41,10 +63,22 @@ export const TRAINER_FEATURES = [
   feature(20, "master-trainer", "Maestro Entrenador", "Cuando tú o uno de tus Pokémon falléis una salvación, puedes convertir el fallo en éxito. Puedes hacerlo dos veces y recuperas todos los usos con un descanso largo.")
 ];
 
+/**
+ * Devuelve el compendio de mundo asociado a una clave de PACKS.
+ * Lo usan importer.mjs al crear o actualizar los compendios y
+ * species-browser.mjs al leer el catálogo de especies.
+ */
 export function getPack(key) {
   return game.packs.get(`world.${PACKS[key].name}`);
 }
 
+/**
+ * Crea la fuente del Item de catálogo de una especie, con su descripción
+ * generada por speciesDescription() y los PP de sus movimientos iniciales.
+ * La invocan importer.mjs (compendio de especies), species-browser.mjs y
+ * npc-trainer-actor.mjs; su resultado es la entrada de
+ * pokemonItemSourceFromSpecies().
+ */
 export function speciesItemSource(species, movesById = new Map(), evolutions = []) {
   const startingMoves = (species.moves?.start ?? []).map(id => ({ id, pp: Math.max(Number(movesById.get(id)?.pp) || 0, 0) }));
   return {
@@ -56,6 +90,10 @@ export function speciesItemSource(species, movesById = new Map(), evolutions = [
   };
 }
 
+/**
+ * Crea la fuente del Item de un movimiento para el compendio, con la ficha
+ * técnica que arma moveDescription(). Solo la usa importer.mjs.
+ */
 export function moveItemSource(move) {
   return {
     name: move.name,
@@ -66,6 +104,10 @@ export function moveItemSource(move) {
   };
 }
 
+/**
+ * Crea la fuente del Item de una habilidad Pokémon para el compendio.
+ * Solo la usa importer.mjs.
+ */
 export function abilityItemSource(ability) {
   return {
     name: ability.name,
@@ -76,6 +118,11 @@ export function abilityItemSource(ability) {
   };
 }
 
+/**
+ * Crea la fuente del Item de un objeto (tipo `loot`, con precio y cantidad).
+ * La usan importer.mjs para el compendio, npc-trainer-actor.mjs para el
+ * inventario de los NPC y pokemon-sheet.mjs al entregar objetos equipados.
+ */
 export function gearItemSource(item) {
   return {
     name: item.name,
@@ -90,6 +137,11 @@ export function gearItemSource(item) {
   };
 }
 
+/**
+ * Convierte los rasgos otorgables de TRAINER_FEATURES en Items de compendio.
+ * importer.mjs los crea primero y pasa sus UUID a trainerClassSource(), que los
+ * enlaza en los avances por nivel de la clase.
+ */
 export function trainerFeatureSources() {
   return TRAINER_FEATURES.filter(entry => entry.grant).map(entry => ({
     name: entry.name,
@@ -105,6 +157,12 @@ export function trainerFeatureSources() {
   }));
 }
 
+/**
+ * Construye la clase Entrenador nativa de D&D 5e: dado de golpe, competencias,
+ * avances ItemGrant por nivel (a partir de los UUID de trainerFeatureSources())
+ * y mejoras de característica. Usa groupFeaturesByLevel() y
+ * trainerClassDescription(). La invocan importer.mjs y npc-trainer-actor.mjs.
+ */
 export function trainerClassSource(featureUuids = new Map()) {
   const advancement = {
     P5eHitPoints0001: {
@@ -176,6 +234,13 @@ export function trainerClassSource(featureUuids = new Map()) {
   };
 }
 
+/**
+ * Transforma un Item de especie del catálogo en un Pokémon individual: crea el
+ * bloque `instance` con nivel, PG, movimientos con PP, sexo (randomGenderForRatio()),
+ * experiencia (experienceAtLevel() de progression.mjs) y estado de equipo.
+ * Punto de entrada de todo Pokémon del módulo: lo llaman normalizeDroppedSpecies(),
+ * species-browser.mjs y npc-trainer-actor.mjs.
+ */
 export function pokemonItemSourceFromSpecies(speciesDocument) {
   const source = speciesDocument.toObject ? speciesDocument.toObject() : foundry.utils.deepClone(speciesDocument);
   const species = source.flags?.[MODULE_ID]?.species;
@@ -218,6 +283,12 @@ export function pokemonItemSourceFromSpecies(speciesDocument) {
   };
 }
 
+/**
+ * Detecta una especie arrastrada sobre un actor y la reescribe en el sitio como
+ * Pokémon individual con pokemonItemSourceFromSpecies(). La llama el hook
+ * `preCreateItem` de main.mjs, que después decide si entra al equipo o a la reserva.
+ * Devuelve false si el Item no era una especie soltada sobre un actor.
+ */
 export function normalizeDroppedSpecies(item) {
   const flags = item.flags?.[MODULE_ID];
   if (flags?.kind !== "species" || !item.parent || item.parent.documentName !== "Actor") return false;
@@ -226,24 +297,52 @@ export function normalizeDroppedSpecies(item) {
   return true;
 }
 
+/**
+ * Devuelve los Items Pokémon embebidos en un actor (equipo activo y reserva).
+ * Filtro base de todo el módulo: lo usan main.mjs, capture.mjs, trainer-team.mjs,
+ * trainer-actor-sheet.mjs y species-browser.mjs.
+ */
 export function getPokemonItems(actor) {
   return actor?.items?.filter(item => item.getFlag(MODULE_ID, "kind") === "pokemon") ?? [];
 }
 
+/**
+ * Nivel de Entrenador de un actor (1-20), leído de su Item de clase, ya provenga
+ * del compendio, del asistente de creación o del generador de NPC; recurre al
+ * nivel general del personaje si no la encuentra. Base de trainerPokeslotLimit()
+ * y del límite de nivel de captura en capture.mjs.
+ */
 export function trainerLevel(actor) {
   const trainerClass = actor?.items?.find(item => item.type === "class" && (item.system.identifier === "trainer" || ["trainer-class", "trainer-creation-class", "npc-trainer-class"].includes(item.getFlag(MODULE_ID, "kind"))));
   return Math.max(1, Math.min(20, Number(trainerClass?.system.levels) || Number(actor?.system?.details?.level) || 1));
 }
 
+/**
+ * Pokéslots disponibles de un actor: combina trainerLevel() con
+ * trainerPokeslotsForLevel(). Controla cuántos Pokémon caben en el equipo activo
+ * en main.mjs, capture.mjs, trainer-team.mjs, trainer-actor-sheet.mjs y
+ * species-browser.mjs.
+ */
 export function trainerPokeslotLimit(actor) {
   return trainerPokeslotsForLevel(trainerLevel(actor));
 }
 
+/**
+ * Tabla de Pokéslots por nivel (3/4/5/6 a partir de los niveles 1/5/10/15).
+ * Versión sin actor de trainerPokeslotLimit(), usada por el generador de NPC
+ * (npc-trainer-rules.mjs y npc-trainer-generator.mjs) para acotar el equipo.
+ */
 export function trainerPokeslotsForLevel(level) {
   const normalized = Math.max(1, Math.min(20, Number(level) || 1));
   return normalized >= 15 ? 6 : normalized >= 10 ? 5 : normalized >= 5 ? 4 : 3;
 }
 
+/**
+ * Sortea el sexo de un Pokémon según la proporción "F:M" de su especie;
+ * devuelve "none" si la especie carece de sexo. Recibe el generador aleatorio
+ * por parámetro para que validate-model.mjs pueda fijarlo. La usan
+ * pokemonItemSourceFromSpecies() y la migración de datos de main.mjs.
+ */
 export function randomGenderForRatio(ratio, random = Math.random) {
   const [female, male] = String(ratio ?? "0:0").split(":").map(value => Math.max(0, Number(value) || 0));
   const total = female + male;
@@ -251,16 +350,32 @@ export function randomGenderForRatio(ratio, random = Math.random) {
   return random() < female / total ? "female" : "male";
 }
 
+/**
+ * Nombre visible de un Pokémon: su apodo si lo tiene, o el de la especie.
+ * Lo usan capture.mjs, deployment.mjs, pokemon-sheet.mjs, trainer-team.mjs y
+ * trainer-actor-sheet.mjs para que fichas, tokens y mensajes coincidan.
+ */
 export function displayPokemonName(item) {
   const instance = item.getFlag(MODULE_ID, "instance") ?? {};
   return instance.nickname?.trim() || item.name;
 }
 
+/**
+ * Resuelve una ruta de recurso contra el host configurado en el ajuste
+ * `assetBaseUrl` mediante assetUrl(). Base de portraitUrl() y de las imágenes de
+ * token en deployment.mjs y wild-deployment.mjs.
+ */
 export function remoteAssetUrl(path) {
   const baseUrl = String(game.settings.get(MODULE_ID, "assetBaseUrl") ?? "").replace(/\/$/, "");
   return assetUrl(baseUrl, path);
 }
 
+/**
+ * Normaliza una imagen ya guardada en un documento: convierte las rutas locales
+ * heredadas de `modules/poke5e-foundry/assets/…` en URLs remotas y deja intactos
+ * los iconos de Foundry y las URL absolutas. La usan la migración de main.mjs y
+ * las plantillas de trainer-team.mjs, trainer-actor-sheet.mjs y species-browser.mjs.
+ */
 export function displayAssetUrl(path, fallback = "") {
   const original = String(path ?? "").trim();
   if (!original) return fallback;
@@ -272,17 +387,32 @@ export function displayAssetUrl(path, fallback = "") {
   return original;
 }
 
+/**
+ * Retrato de una especie con reserva en cascada (variante shiny → sprite →
+ * icono genérico), resuelto con remoteAssetUrl(). Lo usan las fichas, los
+ * generadores y el despliegue de tokens.
+ */
 export function portraitUrl(species, shiny = false) {
   if (shiny) return remoteAssetUrl(species.media?.mainShiny) || remoteAssetUrl(species.media?.spriteShiny) || remoteAssetUrl(species.media?.main) || remoteAssetUrl(species.media?.sprite) || "icons/svg/mystery-man.svg";
   return remoteAssetUrl(species.media?.main) || remoteAssetUrl(species.media?.sprite) || "icons/svg/mystery-man.svg";
 }
 
+/**
+ * Une un host y una ruta respetando las URL ya absolutas. Función pura sin
+ * dependencia de los ajustes de Foundry: remoteAssetUrl() le añade el host
+ * configurado.
+ */
 export function assetUrl(baseUrl, path) {
   if (!baseUrl || !path) return "";
   if (/^https?:\/\//i.test(path)) return path;
   return `${baseUrl}${path.startsWith("/") ? "" : "/"}${path}`;
 }
 
+/**
+ * Compone el HTML de la entrada de compendio de una especie: número, tipos,
+ * estadísticas, afinidades de pokemonDefenses() (combat.mjs) y evoluciones
+ * resumidas con conditionShortLabel(). Solo la llama speciesItemSource().
+ */
 function speciesDescription(species, evolutions = []) {
   const types = (species.type ?? []).map(titleCase).join(" / ");
   const defenses = pokemonDefenses(species.type);
@@ -295,10 +425,19 @@ function speciesDescription(species, evolutions = []) {
     <p><strong>Evolución:</strong> ${evolutionText}</p>`;
 }
 
+/**
+ * Formatea una lista de tipos con typeLabel() (combat.mjs), o "—" si está vacía.
+ * Auxiliar de speciesDescription() para las líneas de afinidades.
+ */
 function typeList(types) {
   return types.length ? types.map(type => escapeHtml(typeLabel(type))).join(", ") : "—";
 }
 
+/**
+ * Traduce una condición de evolución (nivel, objeto, vínculo, movimiento, sexo,
+ * momento del día) a texto breve. Auxiliar de speciesDescription();
+ * pokemon-sheet.mjs mantiene su propia versión extendida para la ficha.
+ */
 function conditionShortLabel(condition) {
   if (condition.type === "level") return `nivel ${condition.value}`;
   if (condition.type === "item") return `objeto: ${escapeHtml(condition.value)}`;
@@ -310,6 +449,11 @@ function conditionShortLabel(condition) {
   return escapeHtml(condition.value);
 }
 
+/**
+ * Compone el HTML de un movimiento: cabecera con tipo, tiempo, rango, duración y
+ * PP, más su descripción y el apartado de niveles superiores.
+ * Solo la llama moveItemSource().
+ */
 function moveDescription(move) {
   const details = [
     `<strong>Tipo:</strong> ${escapeHtml(move.type ?? "—")}`,
@@ -321,23 +465,47 @@ function moveDescription(move) {
   return `<p class="poke5e-move-meta">${details}</p>${paragraphs(move.description)}${move.higherLevels ? `<h3>A niveles superiores</h3>${paragraphs([move.higherLevels])}` : ""}`;
 }
 
+/**
+ * Convierte un texto o lista de textos en párrafos HTML escapados con
+ * escapeHtml(), respetando los saltos de línea. La usan todas las funciones
+ * *Description() y *ItemSource() del archivo.
+ */
 function paragraphs(values) {
   const list = Array.isArray(values) ? values : values ? [values] : [];
   return list.map(value => `<p>${escapeHtml(value).replace(/\n/g, "<br>")}</p>`).join("");
 }
 
+/**
+ * Escapa texto procedente de los JSON de datos antes de insertarlo en HTML.
+ * Envuelve la utilidad de Foundry, que validate-model.mjs simula al ejecutarse
+ * en Node.
+ */
 function escapeHtml(value) {
   return foundry.utils.escapeHTML(String(value ?? ""));
 }
 
+/**
+ * Pasa un identificador con guiones a texto capitalizado ("water-gun" → "Water Gun").
+ * Auxiliar de presentación de speciesDescription().
+ */
 function titleCase(value) {
   return String(value).split("-").map(part => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
 }
 
+/**
+ * Constructor abreviado de las entradas de TRAINER_FEATURES. `grant: false`
+ * marca los rasgos que no generan Item porque los cubre D&D 5e (mejoras de
+ * característica y don épico).
+ */
 function feature(level, id, name, description, grant = true) {
   return { level, id, name, description, grant };
 }
 
+/**
+ * Genera la descripción HTML de la clase Entrenador con su tabla de progresión
+ * (rasgos, Pokéslots y SR máximo por nivel) a partir de groupFeaturesByLevel().
+ * Solo la llama trainerClassSource().
+ */
 function trainerClassDescription() {
   const rows = [...groupFeaturesByLevel()].map(([level, entries]) => {
     const slots = level < 5 ? 3 : level < 10 ? 4 : level < 15 ? 5 : 6;
@@ -355,6 +523,10 @@ function trainerClassDescription() {
     <p><a href="https://poke5e.app/es/reference/trainer-class" target="_blank" rel="noopener">Consultar las reglas completas de la clase</a></p>`;
 }
 
+/**
+ * Agrupa TRAINER_FEATURES por nivel conservando el orden de declaración.
+ * La comparten trainerClassSource() (avances) y trainerClassDescription() (tabla).
+ */
 function groupFeaturesByLevel() {
   const grouped = new Map();
   for (const entry of TRAINER_FEATURES) {

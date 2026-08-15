@@ -1,9 +1,25 @@
+/**
+ * Despliegue de Pokémon salvajes en el mapa. A diferencia de deployment.mjs, el
+ * salvaje no procede de ningún entrenador: su Item Pokémon vive embebido en el
+ * propio actor temporal, que nace hostil, sin dueño y marcado como capturable.
+ *
+ * Lo usan encounter-builder.mjs al desplegar un encuentro y npc-trainer-actor.mjs,
+ * que reaprovecha chooseTokenPosition() para colocar al Entrenador NPC.
+ * capture.mjs es quien después convierte al salvaje en Pokémon del entrenador.
+ */
 import { damageTraitsForPokemonTypes } from "./combat.mjs";
 import { loadPoke5eData } from "./data-service.mjs";
 import { buildWildInstance } from "./encounter-generator.mjs";
 import { MODULE_ID, POKEMON_TOKEN_SCALE, portraitUrl, remoteAssetUrl } from "./model.mjs";
 import { pokemonStatusEffectSource } from "./status-effects.mjs";
 
+/**
+ * Crea y coloca un Pokémon salvaje en la escena activa (solo director): genera
+ * su instancia con buildWildInstance() (encounter-generator.mjs), arma el actor
+ * con wildActorSource(), pide la casilla con chooseWildPosition() y guarda en un
+ * flag el UUID del Item interno para que capture.mjs y status-effects.mjs lo
+ * localicen. Si algo falla tras crear el actor, lo borra.
+ */
 export async function deployWildPokemon(species, level, { encounterId = "" } = {}) {
   if (!game.user.isGM) return ui.notifications.warn("Solo el director de juego puede desplegar Pokémon salvajes.");
   if (!canvas?.ready || !canvas.scene) return ui.notifications.warn("Abre una escena antes de desplegar el encuentro.");
@@ -31,6 +47,14 @@ export async function deployWildPokemon(species, level, { encounterId = "" } = {
   }
 }
 
+/**
+ * Construye el actor NPC de un salvaje: características y salvaciones,
+ * velocidades (prepareMovement()) y sentidos (prepareSenses()), CA y PG de la
+ * instancia, tamaño y sprite, afinidades de damageTraitsForPokemonTypes(),
+ * estados activos y, como Items, su ficha Pokémon y sus movimientos. Nace hostil
+ * y sin dueño, con `kind: "wild"` y `capturable: true`. Equivalente de
+ * deployedActorSource() (deployment.mjs); validate-deployment.mjs la comprueba.
+ */
 export function wildActorSource(species, instance, movesById, encounterId = "") {
   const abilities = {};
   for (const key of ["str", "dex", "con", "int", "wis", "cha"]) {
@@ -109,6 +133,12 @@ export function wildActorSource(species, instance, movesById, encounterId = "") 
   };
 }
 
+/**
+ * Pide en el mapa la posición de un token y devuelve una promesa con ella, o con
+ * null si se cancela (Escape, clic derecho o cambio de escena). A diferencia de
+ * chooseDeploymentPosition() (deployment.mjs) no limita el alcance: basta con
+ * que la casilla esté libre según isFreePosition().
+ */
 function chooseWildPosition(tokenData, pokemonName) {
   ui.notifications.info(`Elige en el mapa dónde aparece ${pokemonName}. Pulsa Escape o haz clic derecho para cancelar.`);
   return new Promise(resolve => {
@@ -140,10 +170,18 @@ function chooseWildPosition(tokenData, pokemonName) {
   });
 }
 
+/**
+ * Expone chooseWildPosition() con un rótulo genérico para reutilizar el mismo
+ * selector con cualquier token. La usa npc-trainer-actor.mjs.
+ */
 export function chooseTokenPosition(tokenData, label) {
   return chooseWildPosition(tokenData, label);
 }
 
+/**
+ * Ajusta un punto del lienzo a la rejilla y devuelve la esquina del token.
+ * Equivalente local de deploymentPosition() (deployment.mjs).
+ */
 function tokenPosition(point, tokenData) {
   const width = Number(tokenData.width ?? 1) * canvas.grid.sizeX;
   const height = Number(tokenData.height ?? 1) * canvas.grid.sizeY;
@@ -152,6 +190,10 @@ function tokenPosition(point, tokenData) {
   return { x: Math.round(topLeft.x), y: Math.round(topLeft.y) };
 }
 
+/**
+ * Comprueba que el token quepa entero en la escena y no pise a otro
+ * (rectanglesOverlap()). Versión sin límite de alcance de isAllowedDeployment().
+ */
 function isFreePosition(position, tokenData) {
   const width = Number(tokenData.width ?? 1) * canvas.grid.sizeX;
   const height = Number(tokenData.height ?? 1) * canvas.grid.sizeY;
@@ -163,6 +205,11 @@ function isFreePosition(position, tokenData) {
   ));
 }
 
+/**
+ * Traduce las velocidades del JSON de especie al bloque `movement` de D&D 5e,
+ * quedándose con el mayor valor de cada tipo y tratando "hover" como vuelo.
+ * Auxiliar de wildActorSource().
+ */
 function prepareMovement(speeds = []) {
   const movement = { walk: 0, fly: 0, swim: 0, burrow: 0, climb: 0, units: "ft", hover: false };
   for (const speed of speeds) {
@@ -173,6 +220,10 @@ function prepareMovement(speeds = []) {
   return movement;
 }
 
+/**
+ * Traduce los sentidos del JSON a los alcances de D&D 5e, corrigiendo la errata
+ * "tremmorsense" del origen. Auxiliar de wildActorSource().
+ */
 function prepareSenses(senses = []) {
   const ranges = { darkvision: 0, blindsight: 0, tremorsense: 0, truesight: 0 };
   for (const sense of senses) {
@@ -182,15 +233,21 @@ function prepareSenses(senses = []) {
   return ranges;
 }
 
+/**
+ * Descripción HTML de un movimiento para los Items del salvaje. Versión reducida
+ * de la homónima de model.mjs, sin la cabecera de datos técnicos.
+ */
 function moveDescription(move) {
   const descriptions = Array.isArray(move.description) ? move.description : move.description ? [move.description] : [];
   return descriptions.map(value => typeof value === "string" ? `<p>${escapeHtml(value)}</p>` : "").join("");
 }
 
+/** Intersección de dos rectángulos. Auxiliar geométrico de isFreePosition(). */
 function rectanglesOverlap(a, b) {
   return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
 }
 
+/** Escapa el texto de los JSON antes de insertarlo en las descripciones. */
 function escapeHtml(value) {
   return foundry.utils.escapeHTML(String(value ?? ""));
 }

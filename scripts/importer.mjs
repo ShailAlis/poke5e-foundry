@@ -1,3 +1,15 @@
+/**
+ * Importador de contenido: crea o actualiza los compendios de mundo con
+ * especies, movimientos, habilidades, objetos y la clase de Entrenador, además
+ * de un diario de referencia.
+ *
+ * Convierte lo que devuelve data-service.mjs con las funciones *ItemSource() de
+ * model.mjs. Es idempotente: identifica lo ya importado por su `sourceId` y lo
+ * actualiza en lugar de duplicarlo, de modo que puede ejecutarse tras cada
+ * actualización del módulo. Lo abren el menú de ajustes, la ventana de
+ * referencia y la macro `game.poke5e.openImporter`. Su plantilla es
+ * `templates/importer.hbs`.
+ */
 import { loadPoke5eData } from "./data-service.mjs";
 import {
   MODULE_ID,
@@ -14,6 +26,7 @@ import {
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 const CompendiumCollection = foundry.documents.collections.CompendiumCollection;
 
+/** Ventana del importador de compendios, exclusiva del director. */
 export class Poke5eImporter extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "poke5e-importer",
@@ -25,10 +38,15 @@ export class Poke5eImporter extends HandlebarsApplicationMixin(ApplicationV2) {
 
   static PARTS = { main: { template: `${MODULE_PATH}/templates/importer.hbs` } };
 
+  /** Título traducido de la ventana. */
   get title() {
     return game.i18n.localize("POKE5E.Menu.Importer.Name");
   }
 
+  /**
+   * Datos del formulario: si quien mira es director, el idioma configurado, el
+   * comodín "*" que importa la Pokédex entera y el enlace a la referencia.
+   */
   async _prepareContext() {
     return {
       isGM: game.user.isGM,
@@ -38,11 +56,20 @@ export class Poke5eImporter extends HandlebarsApplicationMixin(ApplicationV2) {
     };
   }
 
+  /** Engancha el botón de importar a #import(). */
   _onRender(context, options) {
     super._onRender(context, options);
     this.element.querySelector("[data-action='import']")?.addEventListener("click", event => this.#import(event));
   }
 
+  /**
+   * Ejecuta la importación de los compendios marcados, en este orden: especies
+   * (según lo que seleccione selectPokemon()), movimientos, habilidades, objetos
+   * y progresión. Esta última va en dos pasos, porque la clase necesita los UUID
+   * de sus rasgos, ya creados, que recoge progressionFeatureUuids(). Cada tramo
+   * tiene asignado un porcentaje de la barra que actualiza setStatus(), y el
+   * botón queda deshabilitado hasta terminar.
+   */
   async #import(event) {
     event.preventDefault();
     if (!game.user.isGM) return ui.notifications.warn(game.i18n.localize("POKE5E.Notifications.GMOnly"));
@@ -108,6 +135,11 @@ export class Poke5eImporter extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 }
 
+/**
+ * Devuelve el compendio de mundo de una clave de PACKS, creándolo si no existe y
+ * desbloqueándolo para poder escribir. Los compendios quedan editables a
+ * propósito, para que el director pueda ampliarlos.
+ */
 async function ensurePack(key) {
   const config = PACKS[key];
   const collection = `world.${config.name}`;
@@ -125,6 +157,12 @@ async function ensurePack(key) {
   return pack;
 }
 
+/**
+ * Vuelca una lista de fuentes en un compendio sin duplicar nada: indexa lo ya
+ * presente por "kind:sourceId", actualiza lo que coincide y crea el resto, todo
+ * en tandas de 100 con inBatches() para no bloquear la interfaz. Es lo que hace
+ * idempotente al importador. La usan todos los tramos de #import().
+ */
 async function upsertPackItems(pack, sources, status, startProgress, endProgress) {
   const index = await pack.getIndex({ fields: [`flags.${MODULE_ID}.sourceId`, `flags.${MODULE_ID}.kind`] });
   const existing = new Map();
@@ -157,6 +195,11 @@ async function upsertPackItems(pack, sources, status, startProgress, endProgress
   return sources.length;
 }
 
+/**
+ * Recoge los UUID de los rasgos de Entrenador ya presentes en el compendio de
+ * progresión, indexados por su `sourceId`. trainerClassSource() (model.mjs) los
+ * necesita para enlazarlos en los avances por nivel de la clase.
+ */
 async function progressionFeatureUuids(pack) {
   const index = await pack.getIndex({ fields: [`flags.${MODULE_ID}.sourceId`, `flags.${MODULE_ID}.kind`] });
   const entries = new Map();
@@ -168,6 +211,11 @@ async function progressionFeatureUuids(pack) {
   return entries;
 }
 
+/**
+ * Interpreta el campo de especies: "*" importa toda la Pokédex y, si no, filtra
+ * por la lista de ids separada por espacios, comas o puntos y coma, avisando de
+ * los que no existan. Auxiliar de #import().
+ */
 function selectPokemon(allPokemon, selection) {
   const normalized = selection.trim().toLocaleLowerCase();
   if (normalized === "*") return allPokemon;
@@ -180,6 +228,11 @@ function selectPokemon(allPokemon, selection) {
   return selected;
 }
 
+/**
+ * Crea o actualiza el diario de referencia, localizándolo por su flag para no
+ * duplicarlo aunque se le haya cambiado el nombre. Su contenido lo arma
+ * referenceJournalHtml().
+ */
 async function upsertReferenceJournal() {
   const name = "Pokémon 5e — Referencia";
   const existing = game.journal.find(journal => journal.getFlag(MODULE_ID, "kind") === "reference");
@@ -198,6 +251,11 @@ async function upsertReferenceJournal() {
   }
 }
 
+/**
+ * HTML del índice del diario, con los enlaces a poke5e.app que localiza
+ * localizedReferenceUrl(). Equivale a lo que muestra reference.mjs, pero dentro
+ * del mundo.
+ */
 function referenceJournalHtml() {
   const links = [
     ["Reglas básicas", "/reference/core-rules"], ["Clase de Entrenador", "/reference/trainer-class"],
@@ -208,15 +266,28 @@ function referenceJournalHtml() {
   return `<h1>Pokémon 5e</h1><p>Referencia de reglas del proyecto Poke5e.</p><ul>${links.map(([label, path]) => `<li><a href="${localizedReferenceUrl(path)}" target="_blank" rel="noopener">${label}</a></li>`).join("")}</ul>`;
 }
 
+/**
+ * Antepone a una ruta de poke5e.app el prefijo del idioma configurado (el inglés
+ * no lleva ninguno). La usan _prepareContext() y referenceJournalHtml().
+ */
 function localizedReferenceUrl(path) {
   const language = game.settings.get(MODULE_ID, "dataLanguage");
   return `https://poke5e.app${language === "en" ? "" : `/${language}`}${path}`;
 }
 
+/**
+ * Recorre una lista en tandas del tamaño indicado y aplica la operación a cada
+ * una. Evita que crear un millar de documentos de golpe bloquee el navegador.
+ * Auxiliar de upsertPackItems().
+ */
 async function inBatches(sources, operation, size = 100) {
   for (let index = 0; index < sources.length; index += size) await operation(sources.slice(index, index + size));
 }
 
+/**
+ * Actualiza el mensaje y la barra de progreso de la ventana. La llaman #import()
+ * en cada tramo y upsertPackItems() en cada tanda.
+ */
 function setStatus(element, message, progress) {
   if (!element) return;
   element.querySelector("span").textContent = message;

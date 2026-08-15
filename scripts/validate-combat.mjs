@@ -1,3 +1,10 @@
+/**
+ * Validador de combat.mjs, ejecutado por `npm run check`. Simula `CONFIG.DND5E`
+ * para comprobar que el registro añade los tipos Pokémon sin pisar los de D&D 5e,
+ * verifica casos conocidos de la tabla (Fuego, Fuego/Volador, Agua/Tierra) y
+ * recorre las 324 combinaciones de tipos asegurando que ninguna quede a la vez
+ * como resistencia y vulnerabilidad.
+ */
 import { POKEMON_TYPES, damageTraitsForPokemonTypes, normalizeMoveDamageTypes, pokemonDefenses, registerPokemonDamageTypes } from "./combat.mjs";
 
 globalThis.CONFIG = { DND5E: { damageTypes: { fire: { label: "Fire (D&D)" } } } };

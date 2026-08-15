@@ -1,11 +1,28 @@
+/**
+ * Flujo completo de captura dentro de la partida: valida objetivo, alcance,
+ * nivel e inventario, reúne el contexto que exigen las reglas, pide la tirada y
+ * traslada al Pokémon salvaje a su nuevo entrenador.
+ *
+ * Las reglas numéricas viven en capture-rules.mjs; aquí queda la interacción.
+ * Como el jugador no puede borrar el actor salvaje ni escribir en otro actor, la
+ * segunda mitad (completeCapture()) la ejecuta siempre el director, en local o a
+ * través del socket. Lo arrancan main.mjs y los botones de captura de
+ * trainer-team.mjs y trainer-actor-sheet.mjs.
+ */
 import { captureDifficulty, captureHasAdvantage, POKEBALL_IDS } from "./capture-rules.mjs";
 import { loadPoke5eData } from "./data-service.mjs";
 import { removeDeployment } from "./deployment.mjs";
 import { MODULE_ID, displayPokemonName, getPokemonItems, trainerLevel, trainerPokeslotLimit } from "./model.mjs";
 import { experienceAtLevel, experienceAward } from "./progression.mjs";
 
+/** Canal de socket del módulo, compartido con status-effects.mjs. */
 const SOCKET = `module.${MODULE_ID}`;
 
+/**
+ * Deja al director escuchando las capturas conseguidas por los jugadores y las
+ * remata con completeCapture(). isResponsibleGm() garantiza que solo uno las
+ * atienda. La llama el hook `ready` de main.mjs.
+ */
 export function registerCaptureSocket() {
   game.socket.on(SOCKET, payload => {
     if (payload?.action !== "completeCapture" || !isResponsibleGm()) return;
@@ -16,6 +33,17 @@ export function registerCaptureSocket() {
   });
 }
 
+/**
+ * Primera mitad de la captura, del lado de quien juega. Comprueba permisos,
+ * objetivo único (selectedPokemonTarget()), PG, nivel frente a trainerLevel(),
+ * alcance de 60 pies y Poké Balls disponibles; pregunta las condiciones con
+ * promptCaptureOptions(); gasta la ball; calcula la CD con captureDifficulty();
+ * tira Trato con Animales, con ventaja si el objetivo está bajo un estado que la
+ * concede, y publica el resultado. Si acierta, remata con completeCapture() o
+ * pide al director que lo haga por socket. Los Pokémon de otro entrenador fallan
+ * siempre, pero consumen la ball.
+ * Es la macro `game.poke5e.captureTarget` y el botón "Capturar objetivo".
+ */
 export async function attemptCapture(trainer) {
   if (!trainer?.isOwner) return ui.notifications.warn("No tienes permiso para usar este entrenador.");
   const targetToken = selectedPokemonTarget();
@@ -107,6 +135,15 @@ export async function attemptCapture(trainer) {
   }
 }
 
+/**
+ * Segunda mitad, siempre en el cliente del director: revalida por su cuenta la
+ * petición (solicitante conectado y dueño del entrenador, objetivo salvaje y
+ * capturable, PG, nivel y tirada) sin fiarse de lo que envía el cliente, copia
+ * el Item Pokémon al entrenador conservando sus datos, decide equipo o reserva
+ * según trainerPokeslotLimit(), retira al salvaje del combate y del mapa y
+ * anuncia la captura con los PX correspondientes. El flag `capturePending`
+ * impide capturar dos veces el mismo objetivo.
+ */
 export async function completeCapture(payload) {
   if (!game.user.isGM) return;
   const requester = game.users.get(payload.userId);
@@ -165,15 +202,28 @@ export async function completeCapture(payload) {
   }
 }
 
+/**
+ * Devuelve el token objetivo si hay exactamente uno seleccionado y es un Pokémon
+ * salvaje o desplegado; si no, null. Primer filtro de attemptCapture().
+ */
 function selectedPokemonTarget() {
   const targets = [...(game.user.targets ?? [])].filter(token => ["wild", "deployed"].includes(token.actor?.getFlag(MODULE_ID, "kind")));
   return targets.length === 1 ? targets[0] : null;
 }
 
+/**
+ * Item Pokémon embebido en un actor salvaje. Versión síncrona que usa
+ * completeCapture(), donde el actor ya está resuelto.
+ */
 function wildPokemonItem(actor) {
   return actor?.items?.find(item => item.getFlag(MODULE_ID, "kind") === "pokemon");
 }
 
+/**
+ * Localiza el Item Pokémon de cualquier objetivo: embebido si es salvaje o, si
+ * es un desplegado, resolviendo el UUID que guarda su flag.
+ * La usa attemptCapture(), que admite ambos casos.
+ */
 async function pokemonItemForActor(actor) {
   const embedded = wildPokemonItem(actor);
   if (embedded) return embedded;
@@ -181,11 +231,23 @@ async function pokemonItemForActor(actor) {
   return uuid ? fromUuid(uuid) : null;
 }
 
+/**
+ * Poké Balls con existencias en el inventario del entrenador, reconocidas por su
+ * `sourceId` contra POKEBALL_IDS. Alimenta el desplegable de
+ * promptCaptureOptions().
+ */
 function availablePokeballs(trainer) {
   return trainer.items.map(item => ({ item, sourceId: item.getFlag(MODULE_ID, "sourceId") }))
     .filter(entry => POKEBALL_IDS.includes(entry.sourceId) && Number(entry.item.system.quantity ?? 1) > 0);
 }
 
+/**
+ * Diálogo de captura: elige Poké Ball y declara las condiciones que algunas
+ * aprovechan (pesca, bajo el agua, oscuridad, turnos de concentración y, solo
+ * para el director, una reducción manual de CD). Devuelve null si se cancela.
+ * Sus respuestas forman el contexto que attemptCapture() pasa a
+ * pokeballAdjustment() (capture-rules.mjs).
+ */
 async function promptCaptureOptions({ species, instance, hp, balls, trainerLevel }) {
   const options = balls.map(({ item }) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)} ×${Number(item.system.quantity ?? 1)}</option>`).join("");
   try {
@@ -225,33 +287,62 @@ async function promptCaptureOptions({ species, instance, hp, balls, trainerLevel
   }
 }
 
+/**
+ * Modificador de una habilidad del entrenador, tolerante con las variantes de
+ * D&D 5e. Da los valores de Trato con Animales (la tirada) y de Naturaleza,
+ * Persuasión y Atletismo (efectos de ciertas Poké Balls).
+ */
 function skillModifier(actor, key) {
   const skill = actor.system.skills?.[key] ?? {};
   return Number(skill.total ?? skill.mod ?? skill.value) || 0;
 }
 
+/**
+ * Modificador de Carisma del Pokémon que el entrenador tenga desplegado, dato
+ * que necesita la Love Ball. Auxiliar del contexto de attemptCapture().
+ */
 function activePokemonCharismaModifier(trainer) {
   const actor = game.actors.find(candidate => candidate.getFlag(MODULE_ID, "kind") === "deployed" && candidate.getFlag(MODULE_ID, "trainerUuid") === trainer.uuid);
   const score = Number(actor?.system.abilities?.cha?.value) || 10;
   return Math.floor((score - 10) / 2);
 }
 
+/**
+ * Estados del objetivo, uniendo los efectos activos del actor con el guardado en
+ * su instancia y normalizándolos. Los consumen captureHasAdvantage() y las Poké
+ * Balls que dependen de un estado.
+ */
 function targetStatuses(actor, instance) {
   return [...new Set([...(actor.statuses ?? []), instance.status].filter(Boolean).map(value => String(value).toLocaleLowerCase()))];
 }
 
+/**
+ * Distancia en pies del token más cercano del entrenador al objetivo, o null si
+ * no tiene ninguno en la escena. attemptCapture() la contrasta con el alcance de
+ * 60 pies.
+ */
 function distanceFromTrainer(trainer, targetToken) {
   const trainerTokens = canvas.tokens?.placeables?.filter(token => token.actor?.id === trainer.id) ?? [];
   if (!trainerTokens.length || !targetToken?.center) return null;
   return Math.min(...trainerTokens.map(token => Number(canvas.grid.measurePath([token.center, targetToken.center]).distance)));
 }
 
+/**
+ * Descuenta una Poké Ball del inventario y borra el Item si era la última.
+ * attemptCapture() la llama antes de tirar, de modo que la ball se gasta tanto
+ * si la captura sale bien como si falla.
+ */
 async function consumePokeball(item) {
   const quantity = Math.max(1, Number(item.system.quantity) || 1);
   if (quantity <= 1) await item.delete();
   else await item.update({ "system.quantity": quantity - 1 });
 }
 
+/**
+ * Publica en el chat el resultado del intento con el desglose completo de la CD
+ * (base, reducción por PG y motivos devueltos por pokeballAdjustment()).
+ * La llama attemptCapture() tanto en éxito como en fallo.
+ */
 async function postCaptureResult({ trainer, species, ballName, difficulty, total, success, advantage }) {
   const details = [
     `CD base ${difficulty.base}`,
@@ -268,6 +359,11 @@ async function postCaptureResult({ trainer, species, ballName, difficulty, total
   });
 }
 
+/**
+ * Mensaje de chat del fallo automático al lanzar una ball a un Pokémon que ya
+ * tiene entrenador. Sustituye a postCaptureResult() en ese caso, en el que ni
+ * siquiera se tira.
+ */
 async function postTrainedPokemonFailure({ trainer, species, ballName }) {
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor: trainer }),
@@ -275,6 +371,10 @@ async function postTrainedPokemonFailure({ trainer, species, ballName }) {
   });
 }
 
+/**
+ * Saca al salvaje capturado de cualquier combate en curso antes de borrar su
+ * actor, para no dejar combatientes huérfanos. Auxiliar de completeCapture().
+ */
 async function removeWildCombatants(actor) {
   for (const combat of game.combats ?? []) {
     const ids = combat.combatants.filter(combatant => combatant.actorId === actor.id).map(combatant => combatant.id);
@@ -282,15 +382,22 @@ async function removeWildCombatants(actor) {
   }
 }
 
+/**
+ * Elige un único director responsable (el de id menor entre los conectados) para
+ * que una captura no se complete varias veces si hay más de uno.
+ * Copia local de la homónima de status-effects.mjs.
+ */
 function isResponsibleGm() {
   const active = game.users.filter(user => user.active && user.isGM).sort((a, b) => a.id.localeCompare(b.id));
   return active[0]?.id === game.user.id;
 }
 
+/** Formatea los PX según el idioma de la interfaz. Auxiliar de completeCapture(). */
 function formatNumber(value) {
   return new Intl.NumberFormat(game.i18n.lang || "es").format(Number(value) || 0);
 }
 
+/** Escapa el texto de los mensajes de chat y del diálogo de captura. */
 function escapeHtml(value) {
   return foundry.utils.escapeHTML(String(value ?? ""));
 }

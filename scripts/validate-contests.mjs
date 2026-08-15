@@ -1,3 +1,10 @@
+/**
+ * Validador de contests.mjs, ejecutado por `npm run check`. Revisa que las más
+ * de 600 entradas de `contest.json` usen categorías y efectos existentes con
+ * Appeal y Jam válidos; comprueba con Acid la lectura de un movimiento definido,
+ * la sugerencia por tipo de uno sin definir, las tres compatibilidades y la
+ * puntuación en crítico, fallo, pifia complementaria e incompatible.
+ */
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { CONTEST_TYPES, contestAppealOutcome, contestCompatibility, contestDetailsForMove } from "./contests.mjs";

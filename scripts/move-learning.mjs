@@ -1,3 +1,14 @@
+/**
+ * Reglas de aprendizaje de movimientos: qué puede aprender una especie, por qué
+ * vía y con qué nivel, y cómo sustituir uno cuando ya conoce cuatro. Módulo puro
+ * sin dependencias, verificado por validate-move-learning.mjs y consumido en su
+ * totalidad por el gestor de movimientos de pokemon-sheet.mjs.
+ */
+
+/**
+ * Correspondencia entre el nivel mínimo y la clave del JSON de especie que lista
+ * los movimientos de ese tramo. Solo la recorre moveEligibility().
+ */
 const LEVEL_GROUPS = [
   [1, "start"],
   [2, "level2"],
@@ -7,8 +18,16 @@ const LEVEL_GROUPS = [
   [18, "level18"]
 ];
 
+/** Movimientos que un Pokémon puede tener aprendidos a la vez. */
 export const MAX_KNOWN_MOVES = 4;
 
+/**
+ * Devuelve la lista de movimientos resultante de aprender uno nuevo: lo añade si
+ * queda hueco y, si no, exige indicar cuál se sustituye. Señala con RangeError
+ * los dos casos que la ficha debe resolver: "replacement-required" (falta elegir
+ * a quién reemplazar) y "legacy-overflow" (datos antiguos con más de
+ * MAX_KNOWN_MOVES). Función pura: quien la llama guarda el resultado.
+ */
 export function applyLearnedMove(knownMoves, newEntry, replacedEntryId = null) {
   const entries = Array.isArray(knownMoves) ? [...knownMoves] : [];
   if (entries.length < MAX_KNOWN_MOVES) return [...entries, newEntry];
@@ -19,6 +38,12 @@ export function applyLearnedMove(knownMoves, newEntry, replacedEntryId = null) {
   return entries;
 }
 
+/**
+ * Determina la relación de una especie con un movimiento: si puede aprenderlo
+ * ya, si podrá más adelante o si es incompatible, junto con las vías que lo
+ * permiten (nivel, MT o huevo). Núcleo de filterMoveCatalog() y de la validación
+ * que hace pokemon-sheet.mjs antes de aprender.
+ */
 export function moveEligibility(species, move, level = 1) {
   const pool = species.moves ?? {};
   const levelRequirements = LEVEL_GROUPS
@@ -42,6 +67,12 @@ export function moveEligibility(species, move, level = 1) {
   };
 }
 
+/**
+ * Prepara el catálogo del gestor de movimientos: anota cada movimiento con
+ * moveEligibility(), lo filtra por texto y categoría (disponibles, futuros o
+ * incompatibles) y lo ordena poniendo delante los ya conocidos y los
+ * disponibles. Solo la usa pokemon-sheet.mjs.
+ */
 export function filterMoveCatalog(moves, species, level, knownIds, filters = {}) {
   const query = String(filters.query ?? "").trim().toLocaleLowerCase();
   const category = filters.category ?? "available";

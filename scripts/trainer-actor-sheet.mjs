@@ -1,3 +1,12 @@
+/**
+ * Ficha de personaje del Entrenador. Extiende la ficha de personaje de D&D 5e
+ * añadiéndole una pestaña "Equipo Pokémon" entre la portada y el resto, sin
+ * alterar nada de lo que el sistema ya presenta.
+ *
+ * Es la ficha predeterminada de los personajes (la registra main.mjs mediante
+ * registerTrainerActorSheet()) y ofrece las mismas acciones que la ventana de
+ * trainer-team.mjs. Su plantilla es `templates/trainer-sheet-team.hbs`.
+ */
 import { MODULE_ID, MODULE_PATH, displayAssetUrl, displayPokemonName, getPokemonItems, trainerPokeslotLimit } from "./model.mjs";
 import { Poke5ePokemonSheet } from "./pokemon-sheet.mjs";
 import { Poke5eSpeciesBrowser } from "./species-browser.mjs";
@@ -7,6 +16,11 @@ import { experienceProgress } from "./progression.mjs";
 
 const CharacterActorSheet = dnd5e.applications.actor.CharacterActorSheet;
 
+/**
+ * Ficha de personaje con pestaña de equipo Pokémon. Declara sus acciones en
+ * DEFAULT_OPTIONS.actions —métodos estáticos privados que reciben `this` ligado
+ * a la ficha— e inserta su parte y su pestaña entre las heredadas.
+ */
 export class Poke5eTrainerActorSheet extends CharacterActorSheet {
   static DEFAULT_OPTIONS = {
     classes: ["poke5e-trainer-sheet"],
@@ -36,6 +50,12 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
     ...super.TABS.slice(1)
   ];
 
+  /**
+   * Añade los datos de la pestaña de equipo y deja el resto de partes tal como
+   * las prepara D&D 5e. Construye tantos huecos como Pokéslots dé
+   * trainerPokeslotLimit() —vacíos incluidos, para dibujar la rejilla— y manda a
+   * la reserva los que sobren. Cada entrada la prepara preparePokemon().
+   */
   async _preparePartContext(partId, context, options) {
     context = await super._preparePartContext(partId, context, options);
     if (partId !== "pokemonTeam") return context;
@@ -58,26 +78,34 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
     };
   }
 
+  /** Item Pokémon de la fila pulsada; base de las acciones de la pestaña. */
   static #item(sheet, target) {
     return sheet.actor.items.get(target.closest("[data-item-id]")?.dataset.itemId);
   }
 
+  /** Acción "Añadir Pokémon": abre el buscador de species-browser.mjs. */
   static #browsePokemon(event, target) {
     const sheet = this;
     new Poke5eSpeciesBrowser({ actor: sheet.actor }).render(true);
   }
 
+  /** Acción "Capturar objetivo": lanza attemptCapture() (capture.mjs). */
   static async #capturePokemon(event, target) {
     const sheet = this;
     await attemptCapture(sheet.actor);
     sheet.render({ force: true });
   }
 
+  /** Acción de abrir la ficha Pokédex del Pokémon de la fila. */
   static #openPokemon(event, target) {
     const item = Poke5eTrainerActorSheet.#item(this, target);
     if (item) new Poke5ePokemonSheet({ pokemonItem: item }).render(true);
   }
 
+  /**
+   * Acción de mover un Pokémon entre equipo y reserva, con el mismo control de
+   * Pokéslots que la ventana de trainer-team.mjs.
+   */
   static async #togglePokemonTeam(event, target) {
     const sheet = this;
     const item = Poke5eTrainerActorSheet.#item(sheet, target);
@@ -93,6 +121,7 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
     sheet.render({ force: true });
   }
 
+  /** Acción de sacar al Pokémon al mapa con deployPokemon(). */
   static async #deployPokemon(event, target) {
     const sheet = this;
     const item = Poke5eTrainerActorSheet.#item(sheet, target);
@@ -101,6 +130,7 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
     sheet.render({ force: true });
   }
 
+  /** Acción de retirar al Pokémon del mapa con recallPokemon(). */
   static async #recallPokemon(event, target) {
     const sheet = this;
     const item = Poke5eTrainerActorSheet.#item(sheet, target);
@@ -110,6 +140,10 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
   }
 }
 
+/**
+ * Registra esta ficha como predeterminada para los actores de tipo personaje.
+ * La llama el hook `init` de main.mjs.
+ */
 export function registerTrainerActorSheet() {
   foundry.applications.apps.DocumentSheetConfig.registerSheet(Actor, MODULE_ID, Poke5eTrainerActorSheet, {
     types: ["character"],
@@ -118,6 +152,12 @@ export function registerTrainerActorSheet() {
   });
 }
 
+/**
+ * Aplana un Item Pokémon para la pestaña: nombre visible, imagen, PG con su
+ * porcentaje para la barra, si está desplegado y el progreso de
+ * experienceProgress(). Homóloga de la de trainer-team.mjs, ajustada a esta
+ * plantilla. Auxiliar de _preparePartContext().
+ */
 function preparePokemon(item) {
   const instance = item.getFlag(MODULE_ID, "instance") ?? {};
   const hpValue = Math.max(0, Number(instance.hp?.value) || 0);

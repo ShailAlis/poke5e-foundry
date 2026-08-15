@@ -1,3 +1,12 @@
+/**
+ * Validador de model.mjs, ejecutado por `npm run check`. Simula los globales de
+ * Foundry (`game` y `foundry.utils`) antes de importar el módulo con `import()`
+ * dinámico —de ahí que no use un import normal— y comprueba, sobre las 1000 y
+ * pico especies reales, la progresión de Pokéslots, el sorteo de sexo con
+ * generador fijo, la migración de URLs de recursos, la conversión de especie a
+ * Pokémon individual (movimientos, PP, PG y sexo) y que la clase Entrenador
+ * enlace todos sus rasgos y mejoras de característica.
+ */
 import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
