@@ -101,6 +101,8 @@ La versión 1.4 añade el modo **Concurso** a las fichas Pokémon. El selector C
 
 La versión 1.7 incorpora un motor de efectos mantenidos ligado a los turnos de combate. Automatiza Drenadoras, Giro Fuego, Acoso, Acua Aro, Arraigo, Cura Salina y Maldición, además de los agarres, jaulas y efectos de miedo con salvación repetida. Los efectos aparecen en el token y en la ficha Pokédex; la concentración se comprueba al recibir daño y los efectos se limpian al expirar, retirarse o terminar el combate.
 
+La versión 1.7.1 corrige el registro de Quemado, Congelado, Paralizado, Envenenado y los demás estados Pokémon después de la inicialización de D&D 5e. También repara automáticamente las etiquetas e identificadores de efectos creados por versiones anteriores, sin confundirlos con el indicador independiente Bloodied.
+
 ## Actualización a 1.2
 
 La versión 1.2 incorpora el asistente guiado de creación de Entrenadores. Los personajes nuevos quedan limitados a la especie Humano y reciben automáticamente su origen regional, bonificaciones, competencias, dote, especialización, equipo inicial y Pokémon inicial. Los personajes existentes no se modifican automáticamente.

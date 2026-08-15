@@ -24,8 +24,8 @@ import { registerOngoingMoveEffects } from "./ongoing-effects.mjs";
 
 /**
  * Arranque temprano: delega el registro de tipos de daño (combat.mjs), fichas
- * (trainer-actor-sheet.mjs, pokemon-actor-sheet.mjs), movimiento de tokens
- * (deployment.mjs) y estados alterados (status-effects.mjs); después declara los
+ * (trainer-actor-sheet.mjs, pokemon-actor-sheet.mjs) y movimiento de tokens
+ * (deployment.mjs); después declara los
  * ajustes del mundo y los menús que abren importer, referencia y los dos
  * generadores exclusivos del director.
  */
@@ -34,7 +34,6 @@ Hooks.once("init", () => {
   registerTrainerActorSheet();
   registerPokemonActorSheet();
   registerPokemonTokenMovement();
-  registerPokemonStatusEffects();
   game.settings.register(MODULE_ID, "darkMode", {
     name: "POKE5E.Settings.DarkMode.Name",
     hint: "POKE5E.Settings.DarkMode.Hint",
@@ -81,11 +80,19 @@ Hooks.once("init", () => {
 });
 
 /**
+ * D&D 5e reconstruye CONFIG.statusEffects durante i18nInit. Registramos los
+ * estados Pokémon después del sistema para que no sean sustituidos por sus
+ * condiciones (por ejemplo, Bloodied).
+ */
+Hooks.once("i18nInit", () => registerPokemonStatusEffects());
+
+/**
  * Mundo ya cargado: aplica el modo oscuro, abre los sockets de captura y estados
  * (capture.mjs y status-effects.mjs), publica la API de macros `game.poke5e` y,
  * solo para el director, lanza las tres migraciones de datos antiguos.
  */
 Hooks.once("ready", () => {
+  registerPokemonStatusEffects();
   applyDarkMode(game.settings.get(MODULE_ID, "darkMode"));
   registerCaptureSocket();
   registerPokemonStatusSocket();

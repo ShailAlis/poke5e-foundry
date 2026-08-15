@@ -44,17 +44,11 @@ export const POKEMON_STATUS_EFFECTS = Object.freeze({
 });
 
 /**
- * Identificadores de los estados no volátiles, precalculados a partir de
- * POKEMON_STATUS_EFFECTS. applyPokemonStatus() los usa para impedir que se
- * acumule más de uno.
- */
-const NON_VOLATILE = new Set(Object.entries(POKEMON_STATUS_EFFECTS).filter(([, value]) => value.nonVolatile).map(([id]) => statusId(id)));
-
-/**
  * Añade los estados del módulo a `CONFIG.statusEffects` mediante
  * pokemonStatusConfig(), sin duplicar los ya presentes y admitiendo las dos
  * formas (array u objeto) que ha tenido esa configuración en Foundry.
- * La llama el hook `init` de main.mjs.
+ * La llama `main.mjs` tras la reconstrucción de D&D 5e en `i18nInit` y de
+ * nuevo en `ready` como comprobación idempotente.
  */
 export function registerPokemonStatusEffects() {
   for (const [id, definition] of Object.entries(POKEMON_STATUS_EFFECTS)) {
@@ -196,9 +190,10 @@ export function pokemonStatusEffectSource(id, { sourceName = "", moveName = "" }
 }
 
 /**
- * Repara los estados de los actores ya desplegados: actualiza los iconos
- * antiguos y vuelve a crear los efectos que consten en el Item del Pokémon pero
- * falten en el actor. Solo la ejecuta el director al arrancar, desde
+ * Repara los estados de los actores ya desplegados: actualiza nombre, icono y
+ * conjunto exacto de identificadores, eliminando asociaciones erróneas como
+ * Bloodied, y vuelve a crear los que consten en el Item pero falten en el actor.
+ * Solo la ejecuta el director al arrancar, desde
  * registerPokemonStatusSocket().
  */
 export async function synchronizePokemonStatusEffects() {
@@ -211,7 +206,18 @@ export async function synchronizePokemonStatusEffects() {
       const definition = POKEMON_STATUS_EFFECTS[id];
       if (!definition) continue;
       existing.add(id);
-      if (effect.icon !== definition.img) updates.push({ _id: effect.id, icon: definition.img, img: definition.img });
+      const expectedStatuses = [statusId(id), ...definition.linked];
+      const actualStatuses = [...(effect.statuses ?? [])];
+      if (effect.name !== definition.name || effect.icon !== definition.img || !sameValues(actualStatuses, expectedStatuses)) {
+        updates.push({
+          _id: effect.id,
+          name: definition.name,
+          icon: definition.img,
+          img: definition.img,
+          description: definition.description,
+          statuses: expectedStatuses
+        });
+      }
     }
     if (updates.length) await actor.updateEmbeddedDocuments("ActiveEffect", updates);
     const pokemonItem = await pokemonItemForActor(actor);
@@ -280,8 +286,9 @@ async function applyPokemonStatus(actor, id, source) {
     return;
   }
   const effectId = statusId(id);
-  if (actor.statuses.has(effectId)) return;
-  if (definition.nonVolatile && [...NON_VOLATILE].some(status => actor.statuses.has(status))) {
+  const activePokemonStatuses = new Set(actor.effects.map(effect => effect.getFlag(MODULE_ID, "status")).filter(Boolean));
+  if (activePokemonStatuses.has(id) || actor.statuses.has(effectId)) return;
+  if (definition.nonVolatile && Object.entries(POKEMON_STATUS_EFFECTS).some(([status, entry]) => entry.nonVolatile && activePokemonStatuses.has(status))) {
     ui.notifications.info(`${actor.name} ya tiene un estado no volátil y no puede recibir ${definition.name.toLocaleLowerCase()}.`);
     return;
   }
@@ -315,9 +322,9 @@ export async function applyEndTurnStatusDamage(actor) {
   if (!actor || Number(actor.system.attributes?.hp?.value) <= 0) return;
   let multiplier = 0;
   let label = "";
-  if (actor.statuses.has(statusId("badly-poisoned"))) { multiplier = 2; label = "envenenamiento grave"; }
-  else if (actor.statuses.has(statusId("poisoned"))) { multiplier = 1; label = "envenenamiento"; }
-  else if (actor.statuses.has(statusId("burned"))) { multiplier = 1; label = "quemadura"; }
+  if (actorHasPokemonStatus(actor, "badly-poisoned")) { multiplier = 2; label = "envenenamiento grave"; }
+  else if (actorHasPokemonStatus(actor, "poisoned")) { multiplier = 1; label = "envenenamiento"; }
+  else if (actorHasPokemonStatus(actor, "burned")) { multiplier = 1; label = "quemadura"; }
   if (!multiplier) return;
   const pokemonItem = await pokemonItemForActor(actor);
   const level = Number(pokemonItem?.getFlag(MODULE_ID, "instance")?.level) || 1;
@@ -408,7 +415,17 @@ function naturalThreshold(sentence) {
  * `CONFIG.statusEffects`. Auxiliar de registerPokemonStatusEffects().
  */
 function pokemonStatusConfig(id, definition) {
-  return { id: statusId(id), name: definition.name, img: definition.img, description: definition.description, flags: { [MODULE_ID]: { pokemonStatus: id } } };
+  const effectId = statusId(id);
+  return {
+    _id: staticStatusDocumentId(id),
+    id: effectId,
+    name: definition.name,
+    img: definition.img,
+    icon: definition.img,
+    description: definition.description,
+    hud: true,
+    flags: { [MODULE_ID]: { pokemonStatus: id } }
+  };
 }
 
 /**
@@ -421,6 +438,18 @@ function status(name, img, description, { nonVolatile = false, immuneTypes = [],
 
 /** Prefija el id de un estado con el del módulo para no chocar con D&D 5e. */
 function statusId(id) { return `${MODULE_ID}-${id}`; }
+/** ID estable de 16 caracteres exigido por los StatusEffectConfig modernos. */
+function staticStatusDocumentId(id) {
+  return (`p5e${String(id).replace(/[^a-zA-Z0-9]/g, "")}0000000000000000`).slice(0, 16);
+}
+/** Compara dos colecciones de identificadores sin depender de su orden. */
+function sameValues(left, right) {
+  return left.length === right.length && left.every(value => right.includes(value));
+}
+/** Comprueba el flag persistente y, como respaldo, el Set de estados del actor. */
+function actorHasPokemonStatus(actor, id) {
+  return actor.effects.some(effect => effect.getFlag(MODULE_ID, "status") === id) || actor.statuses.has(statusId(id));
+}
 /** Escapa texto para los mensajes de chat que genera este archivo. */
 function escapeHtml(value) { return foundry.utils.escapeHTML(String(value ?? "")); }
 /**

@@ -15,6 +15,7 @@ const translated = JSON.parse(fs.readFileSync(new URL("../data/es/moves.json", i
 const effects = id => inferMoveStatusEffects(moves.find(move => move.id === id));
 
 assert.deepEqual(effects("fire-punch"), [{ id: "burned", trigger: "natural", minimum: 19 }]);
+assert.deepEqual(effects("ember"), [{ id: "burned", trigger: "natural", minimum: 19 }]);
 assert.deepEqual(effects("will-o-wisp"), [{ id: "burned", trigger: "hit", minimum: null }]);
 assert.deepEqual(effects("ice-punch"), [{ id: "frozen", trigger: "natural", minimum: 19 }]);
 assert.deepEqual(effects("thunder-punch"), [{ id: "paralyzed", trigger: "natural", minimum: 19 }]);
@@ -23,13 +24,27 @@ assert.equal(effects("toxic-spikes").every(effect => effect.trigger === "manual"
 assert.equal(effects("triple-arrows").every(effect => effect.trigger === "manual"), true);
 assert.equal(effects("yawn").every(effect => effect.trigger === "manual"), true);
 assert.equal(inferMoveStatusEffects(translated.find(move => move.id === "fire-punch"))[0]?.minimum, 19);
+assert.deepEqual(inferMoveStatusEffects(translated.find(move => move.id === "ember")), [{ id: "burned", trigger: "natural", minimum: 19 }]);
 assert.equal(POKEMON_STATUS_EFFECTS.burned.immuneTypes.includes("fire"), true);
 assert.equal(POKEMON_STATUS_EFFECTS.frozen.immuneTypes.includes("ice"), true);
 globalThis.CONST = { ACTIVE_EFFECT_MODES: { MULTIPLY: 1 } };
 globalThis.game = { combat: null };
+globalThis.CONFIG = { statusEffects: [{ id: "bloodied", name: "Bloodied" }] };
 const burnedSource = pokemonStatusEffectSource("burned");
 assert.equal(burnedSource.icon, POKEMON_STATUS_EFFECTS.burned.img);
 assert.equal(burnedSource.img, POKEMON_STATUS_EFFECTS.burned.img);
+assert.deepEqual(burnedSource.statuses, ["poke5e-foundry-burned"]);
+const { registerPokemonStatusEffects } = await import("./status-effects.mjs");
+registerPokemonStatusEffects();
+const registered = CONFIG.statusEffects.find(effect => effect.id === "poke5e-foundry-burned");
+assert.equal(registered.name, "Quemado");
+assert.equal(registered._id.length, 16);
+assert.equal(CONFIG.statusEffects.find(effect => effect.id === "bloodied").name, "Bloodied");
+assert.equal(new Set(CONFIG.statusEffects.map(effect => effect._id).filter(Boolean)).size, Object.keys(POKEMON_STATUS_EFFECTS).length);
+CONFIG.statusEffects = {};
+registerPokemonStatusEffects();
+assert.equal(CONFIG.statusEffects["poke5e-foundry-burned"].name, "Quemado");
+assert.equal(CONFIG.statusEffects["poke5e-foundry-burned"]._id.length, 16);
 assert.ok(moves.filter(move => inferMoveStatusEffects(move).length).length >= 80);
 
 console.log("Pokémon status-effect validation passed.");
