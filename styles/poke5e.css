@@ -424,6 +424,8 @@
 .poke5e-status-chip:focus-within .poke5e-status-tooltip { visibility: visible; opacity: 1; transform: translateY(0); }
 .poke5e-status-panel img { width: 22px; height: 22px; border: 0; }
 .poke5e-status-panel button { width: 1.5rem; height: 1.5rem; margin: 0; padding: 0; border: 0; border-radius: 50%; }
+.poke5e-ongoing-panel { border-color: rgba(41, 128, 239, 0.4); background: rgba(41, 128, 239, 0.09); }
+.poke5e-ongoing-panel small { opacity: 0.75; font-size: 0.7rem; }
 .poke5e-base-abilities { display: grid; grid-template-columns: repeat(6, minmax(70px, 1fr)); gap: 0.45rem; }
 .poke5e-base-abilities label { display: grid; gap: 0.2rem; text-align: center; font-weight: 800; }
 .poke5e-base-abilities select, .poke5e-base-abilities input { width: 100%; text-align: center; }

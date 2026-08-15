@@ -12,6 +12,7 @@ import { MODULE_ID, POKEMON_TOKEN_SCALE, displayPokemonName, portraitUrl, remote
 import { loadPoke5eData } from "./data-service.mjs";
 import { damageTraitsForPokemonTypes } from "./combat.mjs";
 import { pokemonStatusEffectSource } from "./status-effects.mjs";
+import { actorHasRecallLock } from "./ongoing-effects.mjs";
 
 /** Distancia máxima, en pies, entre el entrenador y la casilla de salida. */
 const DEPLOY_RANGE = 10;
@@ -100,13 +101,18 @@ export async function deployPokemon(pokemonItem) {
  * removeDeployment(). Inversa de deployPokemon(); la llaman las fichas y el hook
  * `deleteItem` de main.mjs.
  */
-export async function recallPokemon(pokemonItem, { fainted = false } = {}) {
+export async function recallPokemon(pokemonItem, { fainted = false, forced = false } = {}) {
   const actor = deployedActorFor(pokemonItem);
   if (!actor) return;
+  if (!fainted && !forced && actorHasRecallLock(actor)) {
+    ui.notifications.warn(`${displayPokemonName(pokemonItem)} está inmovilizado por un efecto mantenido y no puede ser retirado voluntariamente.`);
+    return false;
+  }
   await removeDeployment(actor, { deleteTokens: true });
   ui.notifications.info(fainted
     ? `${displayPokemonName(pokemonItem)} ha caído debilitado y ha vuelto con su entrenador.`
     : `${displayPokemonName(pokemonItem)} ha vuelto con su entrenador.`);
+  return true;
 }
 
 /**

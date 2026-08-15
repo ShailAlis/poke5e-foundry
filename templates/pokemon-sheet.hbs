@@ -27,6 +27,11 @@
     <div>{{#each statuses}}<span class="poke5e-status-chip" tabindex="0" aria-label="{{name}}: {{description}}"><img src="{{img}}" alt=""><strong>{{name}}</strong>{{#if ../canEdit}}<button type="button" data-action="remove-status" data-status-id="{{id}}" title="Curar {{name}}"><i class="fa-solid fa-xmark"></i></button>{{/if}}<span class="poke5e-status-tooltip" role="tooltip"><strong>{{name}}</strong><span>{{description}}</span></span></span>{{/each}}</div>
   </section>{{/if}}
 
+  {{#if ongoingEffects.length}}<section class="poke5e-status-panel poke5e-ongoing-panel" aria-label="Efectos mantenidos">
+    <h2><i class="fa-solid fa-hourglass-half"></i> Efectos mantenidos</h2>
+    <div>{{#each ongoingEffects}}<span class="poke5e-status-chip" tabindex="0" aria-label="{{name}}: {{description}}"><img src="{{img}}" alt=""><strong>{{name}}</strong><small>{{remaining}}</small>{{#if ../canEdit}}<button type="button" data-action="remove-ongoing-effect" data-effect-id="{{id}}" title="Terminar {{name}}"><i class="fa-solid fa-xmark"></i></button>{{/if}}<span class="poke5e-status-tooltip" role="tooltip"><strong>{{name}}</strong><span>{{description}}</span><span>{{remaining}}</span></span></span>{{/each}}</div>
+  </section>{{/if}}
+
   <nav class="poke5e-sheet-mode" aria-label="Modo de la ficha">
     <button type="button" data-action="sheet-mode" data-mode="combat" class="{{#if sheetMode.combat}}active{{/if}}"><i class="fa-solid fa-shield-halved"></i> Combate</button>
     <button type="button" data-action="sheet-mode" data-mode="contest" class="{{#if sheetMode.contest}}active{{/if}}"><i class="fa-solid fa-star"></i> Concurso</button>

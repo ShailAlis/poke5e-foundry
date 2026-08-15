@@ -76,10 +76,6 @@ export function registerPokemonStatusSocket() {
     if (payload?.action !== STATUS_SOCKET_ACTION || !isResponsibleGm()) return;
     completeStatusApplication(payload).catch(error => console.error(`${MODULE_ID} | Status application failed`, error));
   });
-  Hooks.on("combatTurnChange", (combat, prior) => {
-    if (!isResponsibleGm() || !prior?.combatantId) return;
-    applyEndTurnStatusDamage(combat.combatants.get(prior.combatantId)?.actor).catch(error => console.error(`${MODULE_ID} | End-turn status damage failed`, error));
-  });
   synchronizePokemonStatusEffects().catch(error => console.error(`${MODULE_ID} | Status icon synchronization failed`, error));
 }
 
@@ -312,10 +308,10 @@ async function persistPokemonStatus(actor, id) {
 /**
  * Daño periódico de veneno y quemadura al terminar el turno, calculado sobre la
  * competencia que corresponde al nivel del Pokémon (doble si está gravemente
- * envenenado). Lo dispara el hook `combatTurnChange` registrado en
- * registerPokemonStatusSocket(), y solo en el cliente del director.
+ * envenenado). Lo invoca ongoing-effects.mjs dentro de su procesamiento
+ * secuencial de `combatTurnChange`, y solo en el cliente del director.
  */
-async function applyEndTurnStatusDamage(actor) {
+export async function applyEndTurnStatusDamage(actor) {
   if (!actor || Number(actor.system.attributes?.hp?.value) <= 0) return;
   let multiplier = 0;
   let label = "";

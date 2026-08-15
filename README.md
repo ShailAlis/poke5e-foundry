@@ -35,6 +35,7 @@ Las versiones posteriores aparecerán al usar **Comprobar actualización** o **A
 - Selector Combate/Concurso en cada ficha Pokémon, con categoría, Appeal, Jam, compatibilidad, efectos y tiradas contra la CD del juez.
 - Tiradas de ataque y daño, cálculo de MOVE, CD y consumo/restauración de PP.
 - Los 18 tipos de daño Pokémon se integran en D&D 5e sin eliminar sus tipos habituales. Las tiradas Pokémon usan el flujo de daño de D&D y aplican automáticamente resistencias, vulnerabilidades e inmunidades a los actores desplegados.
+- Efectos mantenidos de movimientos: daño y curación por turno, agarres y miedo con salvaciones repetidas, duración, concentración, iconos de token y limpieza automática al terminar el combate.
 - Cada Pokémon conserva un sexo generado según la proporción F:M de su especie y muestra sus posibles evoluciones con sus niveles y demás condiciones.
 - Contador de experiencia acumulada, subida automática de nivel, recompensa por derrota y evolución guiada desde la ficha Pokémon.
 - Generador de encuentros exclusivo del director con filtros por bioma, región, tipo, SR y nivel, generación por objetivo de PX y despliegue de salvajes temporales.
@@ -96,6 +97,10 @@ La versión 1.1 incorpora experiencia y evolución, el generador de encuentros s
 
 La versión 1.4 añade el modo **Concurso** a las fichas Pokémon. El selector Combate/Concurso cambia la presentación de los movimientos y permite elegir la categoría actual, consultar Appeal, Jam, compatibilidad y efectos, y realizar pruebas contra la CD del juez. Los movimientos aún no definidos por las reglas originales muestran una alternativa sugerida basada en su tipo.
 
+## Actualización a 1.7
+
+La versión 1.7 incorpora un motor de efectos mantenidos ligado a los turnos de combate. Automatiza Drenadoras, Giro Fuego, Acoso, Acua Aro, Arraigo, Cura Salina y Maldición, además de los agarres, jaulas y efectos de miedo con salvación repetida. Los efectos aparecen en el token y en la ficha Pokédex; la concentración se comprueba al recibir daño y los efectos se limpian al expirar, retirarse o terminar el combate.
+
 ## Actualización a 1.2
 
 La versión 1.2 incorpora el asistente guiado de creación de Entrenadores. Los personajes nuevos quedan limitados a la especie Humano y reciben automáticamente su origen regional, bonificaciones, competencias, dote, especialización, equipo inicial y Pokémon inicial. Los personajes existentes no se modifican automáticamente.
@@ -126,6 +131,7 @@ La arquitectura tiene cuatro capas, de abajo arriba:
 | `move-learning.mjs` | Qué movimientos puede aprender una especie, por qué vía y cuándo. | `moveEligibility`, `filterMoveCatalog`, `applyLearnedMove` |
 | `contests.mjs` | Categorías de concurso, compatibilidad y puntuación de una prueba de Appeal. | `contestDetailsForMove`, `contestCompatibility`, `contestAppealOutcome` |
 | `status-effects.mjs` | Catálogo de estados alterados, deducción desde el texto de un movimiento y su aplicación vía socket. | `POKEMON_STATUS_EFFECTS`, `inferMoveStatusEffects`, `applyMoveStatuses`, `pokemonStatusEffectSource` |
+| `ongoing-effects.mjs` | Efectos mantenidos ligados a turnos, concentración, salvaciones repetidas, daño y curación periódicos. | `ONGOING_MOVE_EFFECTS`, `applyMoveOngoingEffects`, `registerOngoingMoveEffects` |
 | `deployment.mjs` | Saca al mapa un Pokémon del equipo (actor temporal + token) y sincroniza sus PG. | `deployPokemon`, `recallPokemon`, `syncDeploymentHp`, `isAllowedDeployment` |
 | `wild-deployment.mjs` | Igual que `deployment.mjs` pero para Pokémon salvajes, sin entrenador detrás. | `deployWildPokemon`, `wildActorSource` |
 | `capture.mjs` | Flujo completo de captura: alcance, inventario, tirada y traspaso al entrenador. | `attemptCapture`, `completeCapture` |

@@ -17,6 +17,7 @@ import { normalizeMoveDamageTypes, pokemonDefenses, typeLabel } from "./combat.m
 import { deployedActorFor, recallPokemon, syncPokemonIdentityToDeployment } from "./deployment.mjs";
 import { CONTEST_TYPES, contestAppealOutcome, contestCompatibility, contestDetailsForMove, contestTypeOptions } from "./contests.mjs";
 import { applyMoveStatuses, pokemonStatusEntries, pokemonStatusId, removePokemonStatus } from "./status-effects.mjs";
+import { applyMoveOngoingEffects, moveHasImmediateDamage, ongoingEffectEntries, removeOngoingEffect } from "./ongoing-effects.mjs";
 import {
   evolutionReadiness,
   experienceAtLevel,
@@ -134,6 +135,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       },
       heldItem: heldItem ? { ...heldItem, hasCharges: heldItem.charges != null } : null,
       statuses: pokemonStatusEntries({ conditions: [...new Set([...(instance.conditions ?? []), ...activeConditions])] }),
+      ongoingEffects: ongoingEffectEntries(combatActor),
       heldItemOptions: Object.fromEntries([["", "Ninguno"], ...inventoryItems.map(entry => [entry.id, `${entry.name} ×${entry.quantity}`])]),
       moves,
       sheetMode: { id: this.sheetMode, combat: this.sheetMode === "combat", contest: this.sheetMode === "contest" },
@@ -198,6 +200,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     this.element.querySelectorAll("[data-action='restore-pp']").forEach(button => button.addEventListener("click", event => this.#restorePp(event)));
     this.element.querySelectorAll("[data-action='remove-move']").forEach(button => button.addEventListener("click", event => this.#removeMove(event)));
     this.element.querySelectorAll("[data-action='remove-ability']").forEach(button => button.addEventListener("click", event => this.#removeAbility(event)));
+    this.element.querySelectorAll("[data-action='remove-ongoing-effect']").forEach(button => button.addEventListener("click", event => this.#removeOngoingEffect(event)));
     this.element.querySelectorAll("[data-action='learn-move']").forEach(button => button.addEventListener("click", event => this.#learnMove(event)));
     this.element.querySelector("[data-action='toggle-move-manager']")?.addEventListener("click", () => {
       this.moveManagerOpen = !this.moveManagerOpen;
@@ -557,7 +560,8 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const name = displayPokemonName(this.pokemonItem);
     const flavor = `${name} — ${move.name}`;
     const speaker = ChatMessage.getSpeaker({ actor: this.pokemonItem.parent, alias: name });
-    const formula = damageFormula(move, level, moveModifier, species);
+    const combatActor = this.pokemonItem.parent?.getFlag?.(MODULE_ID, "kind") === "wild" ? this.pokemonItem.parent : deployedActorFor(this.pokemonItem);
+    const formula = moveHasImmediateDamage(move) ? damageFormula(move, level, moveModifier, species) : null;
     const damageType = formula ? await chooseDamageType(move) : null;
     if (formula && !damageType) return;
 
@@ -568,7 +572,6 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
 
     let attackResult = null;
     if (move.attack?.scope) {
-      const combatActor = this.pokemonItem.parent?.getFlag?.(MODULE_ID, "kind") === "wild" ? this.pokemonItem.parent : deployedActorFor(this.pokemonItem);
       const disadvantage = ["poisoned", "badly-poisoned", "flinched"].some(id => (instance.conditions ?? []).includes(id) || combatActor?.statuses?.has(pokemonStatusId(id)));
       const attack = await new Roll(`${disadvantage ? "2d20kl" : "1d20"} + @mod + @prof`, { mod: moveModifier, prof: proficiency }).evaluate();
       await attack.toMessage({ speaker, flavor: `${flavor} (${titleCase(move.attack.scope)})` });
@@ -605,6 +608,19 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       }
     }
     await applyMoveStatuses({ move, attack: attackResult, saveDc: 8 + moveModifier + proficiency, sourceActor: this.pokemonItem.parent, sourceName: name });
+    await applyMoveOngoingEffects({
+      move, attack: attackResult, saveDc: 8 + moveModifier + proficiency,
+      sourceOwnerActor: this.pokemonItem.parent, sourceCombatActor: combatActor,
+      sourcePokemonItem: this.pokemonItem, sourceName: name, level, moveModifier,
+      proficiency, sourceTypes: species.type ?? []
+    });
+    this.render({ force: true });
+  }
+
+  /** Retira manualmente un efecto mantenido visible en el actor desplegado. */
+  async #removeOngoingEffect(event) {
+    const actor = this.pokemonItem.parent?.getFlag?.(MODULE_ID, "kind") === "wild" ? this.pokemonItem.parent : deployedActorFor(this.pokemonItem);
+    await removeOngoingEffect(actor, event.currentTarget.dataset.effectId);
     this.render({ force: true });
   }
 
