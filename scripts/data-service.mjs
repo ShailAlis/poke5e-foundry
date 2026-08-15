@@ -12,6 +12,7 @@ import { inferMoveStatusEffects } from "./status-effects.mjs";
 const MODULE_ID = "poke5e-foundry";
 const MODULE_PATH = `modules/${MODULE_ID}`;
 const cache = new Map();
+const SUPPORTED_LANGUAGES = new Set(["en", "es"]);
 
 /**
  * Punto de entrada único al catálogo. Cachea la promesa de load() por idioma,
@@ -19,10 +20,23 @@ const cache = new Map();
  * posteriores son inmediatas.
  */
 export async function loadPoke5eData(language = game.settings.get(MODULE_ID, "dataLanguage")) {
+  language = normalizeDataLanguage(language);
   if (cache.has(language)) return cache.get(language);
   const promise = load(language);
   cache.set(language, promise);
+  promise.catch(() => cache.delete(language));
   return promise;
+}
+
+/** Invalida los catálogos cargados cuando cambia el idioma del mundo. */
+export function clearPoke5eDataCache() {
+  cache.clear();
+}
+
+/** Evita solicitar rutas inexistentes si un mundo conserva un valor antiguo. */
+export function normalizeDataLanguage(language) {
+  const normalized = String(language ?? "").toLowerCase();
+  return SUPPORTED_LANGUAGES.has(normalized) ? normalized : "en";
 }
 
 /**

@@ -11,11 +11,19 @@
   "POKE5E.Menu.Reference.Name": "Pokémon 5e rules",
   "POKE5E.Menu.Reference.Label": "Open reference",
   "POKE5E.Menu.Reference.Hint": "Open the rules, Trainer class, and tools on poke5e.app.",
+  "POKE5E.Menu.Encounter.Name": "Wild encounter generator",
+  "POKE5E.Menu.Encounter.Label": "Open encounter generator",
+  "POKE5E.Menu.Encounter.Hint": "Prepare and deploy wild Pokémon in the active scene.",
+  "POKE5E.Menu.NpcTrainer.Name": "NPC Trainer generator",
+  "POKE5E.Menu.NpcTrainer.Label": "Open Trainer generator",
+  "POKE5E.Menu.NpcTrainer.Hint": "Create complete NPC Trainers with configurable Pokémon teams.",
   "POKE5E.Sheet.Title": "Pokédex: {name}",
   "POKE5E.Sheet.Open": "Open Pokédex",
   "POKE5E.Notifications.GMOnly": "Only the GM can import content.",
   "POKE5E.Notifications.NoActor": "Select a Pokémon belonging to a Trainer.",
   "POKE5E.Notifications.NoPP": "{name} has no PP left for {move}.",
   "POKE5E.Notifications.ImportComplete": "Import complete: {actors} Pokémon and {items} entries.",
-  "POKE5E.Notifications.ImportFailed": "The import could not be completed. Check the console for details."
+  "POKE5E.Notifications.ImportFailed": "The import could not be completed. Check the console for details.",
+  "POKE5E.Notifications.LanguageChanged": "Content language changed. Reloading Pokémon 5e… Reimport the compendiums to update content already created.",
+  "POKE5E.Notifications.LanguageFailed": "The selected language data could not be loaded. The current language has been kept."
 }

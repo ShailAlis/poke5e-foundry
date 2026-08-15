@@ -24,6 +24,7 @@ import { registerOngoingMoveEffects } from "./ongoing-effects.mjs";
 import { loadPokemonEffectIcons } from "./effect-icons.mjs";
 import { registerMoveModifierEffects } from "./move-modifiers.mjs";
 import { restoreHeldItemChargesAfterRest } from "./held-items.mjs";
+import { clearPoke5eDataCache, loadPoke5eData } from "./data-service.mjs";
 
 /**
  * Arranque temprano: delega el registro de tipos de daño (combat.mjs), fichas
@@ -48,7 +49,8 @@ Hooks.once("init", () => {
     hint: "POKE5E.Settings.Language.Hint",
     scope: "world", config: true, type: String,
     choices: { es: "Español", en: "English" },
-    default: game.i18n.lang === "es" ? "es" : "en"
+    default: game.i18n.lang === "es" ? "es" : "en",
+    onChange: changeDataLanguage
   });
   game.settings.register(MODULE_ID, "assetBaseUrl", {
     name: "POKE5E.Settings.Assets.Name",
@@ -65,17 +67,17 @@ Hooks.once("init", () => {
     icon: "fa-solid fa-book-open", type: Poke5eReference, restricted: false
   });
   game.settings.registerMenu(MODULE_ID, "encounterBuilder", {
-    name: "Generador de encuentros salvajes",
-    label: "Abrir generador de encuentros",
-    hint: "Prepara y despliega Pokémon salvajes en la escena activa.",
+    name: "POKE5E.Menu.Encounter.Name",
+    label: "POKE5E.Menu.Encounter.Label",
+    hint: "POKE5E.Menu.Encounter.Hint",
     icon: "fa-solid fa-mountain-sun",
     type: Poke5eEncounterBuilder,
     restricted: true
   });
   game.settings.registerMenu(MODULE_ID, "npcTrainerGenerator", {
-    name: "Generador de Entrenadores NPC",
-    label: "Abrir generador de Entrenadores",
-    hint: "Crea Entrenadores NPC completos con equipos Pokémon configurables.",
+    name: "POKE5E.Menu.NpcTrainer.Name",
+    label: "POKE5E.Menu.NpcTrainer.Label",
+    hint: "POKE5E.Menu.NpcTrainer.Hint",
     icon: "fa-solid fa-users-gear",
     type: Poke5eNpcTrainerGenerator,
     restricted: true
@@ -125,6 +127,24 @@ Hooks.once("ready", async () => {
  */
 function applyDarkMode(enabled) {
   document.body.classList.toggle("poke5e-dark-mode", Boolean(enabled));
+}
+
+/**
+ * Descarta el catálogo anterior y recarga el cliente. Foundry no reconstruye
+ * automáticamente menús, controles de escena ni aplicaciones ya abiertas, por
+ * lo que la recarga garantiza que todo el módulo use el mismo idioma.
+ */
+async function changeDataLanguage(language) {
+  clearPoke5eDataCache();
+  try {
+    await loadPoke5eData(language);
+  } catch (error) {
+    console.error(`${MODULE_ID} | Language data could not be loaded`, error);
+    ui.notifications.error(game.i18n.localize("POKE5E.Notifications.LanguageFailed"));
+    return;
+  }
+  ui.notifications.info(game.i18n.localize("POKE5E.Notifications.LanguageChanged"));
+  setTimeout(() => window.location.reload(), 500);
 }
 
 /**
@@ -366,7 +386,7 @@ function addEncounterSceneControl(controls) {
   const open = () => new Poke5eEncounterBuilder().render(true);
   const tool = {
     name: "poke5e-encounter-builder",
-    title: "Generador de encuentros salvajes",
+    title: game.i18n.localize("POKE5E.Menu.Encounter.Name"),
     icon: "fa-solid fa-mountain-sun",
     button: true,
     visible: true,
@@ -396,7 +416,7 @@ function addNpcTrainerSceneControl(controls) {
   const open = () => new Poke5eNpcTrainerGenerator().render(true);
   const tool = {
     name: "poke5e-npc-trainer-generator",
-    title: "Generador de Entrenadores NPC",
+    title: game.i18n.localize("POKE5E.Menu.NpcTrainer.Name"),
     icon: "fa-solid fa-users-gear",
     button: true,
     visible: true,

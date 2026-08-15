@@ -11,11 +11,19 @@
   "POKE5E.Menu.Reference.Name": "Reglas de Pokémon 5e",
   "POKE5E.Menu.Reference.Label": "Abrir referencia",
   "POKE5E.Menu.Reference.Hint": "Acceso a las reglas, clase de entrenador y herramientas de poke5e.app.",
+  "POKE5E.Menu.Encounter.Name": "Generador de encuentros salvajes",
+  "POKE5E.Menu.Encounter.Label": "Abrir generador de encuentros",
+  "POKE5E.Menu.Encounter.Hint": "Prepara y despliega Pokémon salvajes en la escena activa.",
+  "POKE5E.Menu.NpcTrainer.Name": "Generador de Entrenadores NPC",
+  "POKE5E.Menu.NpcTrainer.Label": "Abrir generador de Entrenadores",
+  "POKE5E.Menu.NpcTrainer.Hint": "Crea Entrenadores NPC completos con equipos Pokémon configurables.",
   "POKE5E.Sheet.Title": "Pokédex: {name}",
   "POKE5E.Sheet.Open": "Abrir Pokédex",
   "POKE5E.Notifications.GMOnly": "Solo el GM puede importar contenido.",
   "POKE5E.Notifications.NoActor": "Selecciona un Pokémon perteneciente a un entrenador.",
   "POKE5E.Notifications.NoPP": "A {name} no le quedan PP para {move}.",
   "POKE5E.Notifications.ImportComplete": "Importación completada: {actors} Pokémon y {items} elementos.",
-  "POKE5E.Notifications.ImportFailed": "La importación no pudo completarse. Revisa la consola para más detalles."
+  "POKE5E.Notifications.ImportFailed": "La importación no pudo completarse. Revisa la consola para más detalles.",
+  "POKE5E.Notifications.LanguageChanged": "Idioma del contenido actualizado. Recargando Pokémon 5e… Vuelve a importar los compendios para actualizar el contenido ya creado.",
+  "POKE5E.Notifications.LanguageFailed": "No se pudieron cargar los datos del idioma seleccionado. Se ha conservado el idioma actual."
 }
