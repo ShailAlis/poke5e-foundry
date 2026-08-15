@@ -36,7 +36,8 @@ Las versiones posteriores aparecerán al usar **Comprobar actualización** o **A
 - Tiradas de ataque y daño, cálculo de MOVE, CD y consumo/restauración de PP.
 - Los 18 tipos de daño Pokémon se integran en D&D 5e sin eliminar sus tipos habituales. Las tiradas Pokémon usan el flujo de daño de D&D y aplican automáticamente resistencias, vulnerabilidades e inmunidades a los actores desplegados.
 - Efectos mantenidos de movimientos: daño y curación por turno, agarres y miedo con salvaciones repetidas, duración, concentración, iconos de token y limpieza automática al terminar el combate.
-- Iconos personalizados opcionales para estados, mejoras y debilitaciones: basta con copiar los WEBP en `assets/icons/effects/`; el módulo los detecta al iniciar y conserva los iconos de Foundry como respaldo.
+- Iconos personalizados opcionales para estados, mejoras y debilitaciones: basta con copiar los PNG en `assets/icons/effects/`; el módulo los detecta al iniciar y conserva los iconos de Foundry como respaldo.
+- Motor de modificadores de movimientos: aplica sobre los tokens bonificadores y penalizadores de ataque, CA, daño, salvaciones, características y velocidad, con duración, concentración y acumulación según cada movimiento.
 - Cada Pokémon conserva un sexo generado según la proporción F:M de su especie y muestra sus posibles evoluciones con sus niveles y demás condiciones.
 - Contador de experiencia acumulada, subida automática de nivel, recompensa por derrota y evolución guiada desde la ficha Pokémon.
 - Generador de encuentros exclusivo del director con filtros por bioma, región, tipo, SR y nivel, generación por objetivo de PX y despliegue de salvajes temporales.
@@ -104,7 +105,11 @@ La versión 1.7 incorpora un motor de efectos mantenidos ligado a los turnos de 
 
 La versión 1.7.1 corrige el registro de Quemado, Congelado, Paralizado, Envenenado y los demás estados Pokémon después de la inicialización de D&D 5e. También repara automáticamente las etiquetas e identificadores de efectos creados por versiones anteriores, sin confundirlos con el indicador independiente Bloodied.
 
-La versión 1.7.2 prepara carpetas separadas para iconos de estados, mejoras y debilitaciones. Los archivos WEBP con los nombres documentados se detectan automáticamente al abrir el mundo y actualizan tanto efectos nuevos como efectos activos de versiones anteriores.
+La versión 1.7.2 prepara carpetas separadas para iconos de estados, mejoras y debilitaciones. Los archivos PNG con los nombres documentados se detectan automáticamente al abrir el mundo y actualizan tanto efectos nuevos como efectos activos de versiones anteriores.
+
+## Actualización a 1.8
+
+La versión 1.8 audita los 830 movimientos e incorpora 115 reglas explícitas de modificadores, además de ampliar los casos de estado que no podían deducirse con seguridad desde el texto. Growl, Leer, Tail Whip, Mud-Slap y efectos equivalentes respetan ahora sus acumulaciones; los buffs, debuffs, cargas y áreas persistentes aparecen sobre el token y en la ficha Pokédex. Las carpetas documentan 146 iconos PNG opcionales.
 
 ## Actualización a 1.2
 

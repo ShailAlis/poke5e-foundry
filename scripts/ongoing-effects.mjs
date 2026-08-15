@@ -281,7 +281,7 @@ function ongoingIconSlot(moveId, target) {
   return { category: "debuffs", id: moveId };
 }
 
-/** Actualiza también los ActiveEffects creados antes de instalar los WEBP. */
+/** Actualiza también los ActiveEffects creados antes de instalar los PNG. */
 async function synchronizeOngoingEffectIcons() {
   if (!isResponsibleGm()) return;
   for (const actor of game.actors) {

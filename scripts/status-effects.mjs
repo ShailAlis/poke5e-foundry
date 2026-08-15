@@ -12,6 +12,7 @@
  */
 import { MODULE_ID } from "./model.mjs";
 import { pokemonEffectIcon } from "./effect-icons.mjs";
+import { attackHitsPokemonTarget, pokemonCombatModifiers } from "./move-modifiers.mjs";
 
 /** Acción del socket con la que un jugador pide al director aplicar estados. */
 const STATUS_SOCKET_ACTION = "applyMoveStatuses";
@@ -26,6 +27,49 @@ const MANUAL_STATUS_MOVES = new Set([
   "sparkling-aria", "spore", "toxic-spikes", "triple-arrows", "twineedle",
   "uproar", "venom-drench", "yawn"
 ]);
+
+/** Casos que el texto libre no puede expresar sin ambigüedad. */
+const EXPLICIT_MOVE_STATUSES = Object.freeze({
+  "alluring-voice": [explicitStatus("confused", "failed-save", { requiresHit: true })],
+  "axe-kick": [explicitStatus("confused", "failed-save", { requiresHit: true })],
+  "baneful-bunker": [explicitStatus("poisoned", "automatic")],
+  "barb-barrage": [explicitStatus("poisoned", "failed-save")],
+  blizzard: [explicitStatus("frozen", "failed-save", { margin: 5 })],
+  "burning-jealousy": [explicitStatus("burned", "failed-save")],
+  chatter: [explicitStatus("confused", "hit")],
+  confide: [explicitStatus("confused", "failed-save")],
+  "confuse-ray": [explicitStatus("confused", "hit")],
+  "dynamic-punch": [explicitStatus("confused", "hit")],
+  "grass-whistle": [explicitStatus("asleep", "failed-save")],
+  hurricane: [explicitStatus("confused", "failed-save", { margin: 5 })],
+  hypnosis: [explicitStatus("asleep", "failed-save")],
+  "ice-beam": [explicitStatus("frozen", "failed-save", { margin: 5 })],
+  "lava-plume": [explicitStatus("burned", "failed-save")],
+  "mortal-spin": [explicitStatus("poisoned", "failed-save")],
+  nuzzle: [explicitStatus("paralyzed", "failed-save", { requiresHit: true })],
+  outrage: [explicitStatus("confused", "manual", { target: "self" })],
+  "petal-dance": [explicitStatus("confused", "manual", { target: "self" })],
+  "poison-gas": [explicitStatus("poisoned", "manual")],
+  "poison-powder": [explicitStatus("poisoned", "failed-save")],
+  psybeam: [explicitStatus("confused", "failed-save", { margin: 5 })],
+  psywave: [explicitStatus("confused", "failed-save")],
+  "raging-fury": [explicitStatus("confused", "manual", { target: "self" })],
+  "relic-song": [explicitStatus("asleep", "failed-save", { margin: 5 })],
+  rest: [explicitStatus("asleep", "automatic", { target: "self" })],
+  "sandsear-storm": [explicitStatus("burned", "failed-save")],
+  "shell-side-arm": [explicitStatus("poisoned", "failed-save", { requiresHit: true })],
+  sludge: [explicitStatus("poisoned", "failed-save", { requiresHit: true })],
+  "sludge-bomb": [explicitStatus("poisoned", "manual")],
+  smog: [explicitStatus("poisoned", "manual")],
+  "stun-spore": [explicitStatus("paralyzed", "failed-save")],
+  supersonic: [explicitStatus("confused", "failed-save")],
+  "sweet-kiss": [explicitStatus("confused", "failed-save")],
+  "teeter-dance": [explicitStatus("confused", "failed-save")],
+  thrash: [explicitStatus("confused", "automatic", { target: "self" })],
+  thunder: [explicitStatus("paralyzed", "failed-save", { margin: 5 })],
+  "thunder-wave": [explicitStatus("paralyzed", "failed-save")],
+  "wildbolt-storm": [explicitStatus("paralyzed", "failed-save")]
+});
 
 /**
  * Catálogo de estados construido con status(): nombre, icono, descripción,
@@ -85,6 +129,7 @@ export function registerPokemonStatusSocket() {
  * applyMoveStatuses().
  */
 export function inferMoveStatusEffects(move) {
+  if (EXPLICIT_MOVE_STATUSES[move?.id]) return EXPLICIT_MOVE_STATUSES[move.id].map(effect => ({ ...effect }));
   const text = [...(move.description ?? []), move.higherLevels ?? ""].filter(Boolean).join(" ");
   const sentences = text.split(/(?<=[.!?])\s+/);
   const effects = [];
@@ -112,42 +157,58 @@ export function inferMoveStatusEffects(move) {
 
 /**
  * Reparte los estados de un movimiento entre los objetivos seleccionados:
- * descarta los que el ataque no alcanza (attackHitsTarget()), tira una sola
+ * descarta los que el ataque no alcanza (attackHitsPokemonTarget()), tira una sola
  * salvación por objetivo con rollTargetSave() y avisa de los estados manuales.
  * Aplica los resultados directamente si quien juega tiene permisos y, si no, los
  * envía por socket al director. La llama pokemon-sheet.mjs tras cada ataque.
  */
-export async function applyMoveStatuses({ move, attack = null, saveDc, sourceActor, sourceName }) {
-  const effects = move.statusEffects ?? inferMoveStatusEffects(move);
-  if (!effects.length) return;
-  const selected = [...(game.user.targets ?? [])];
-  if (!selected.length) {
-    ui.notifications.warn(`${move.name} puede causar estados alterados, pero no hay ningún objetivo seleccionado.`);
-    return;
-  }
+export async function applyMoveStatuses({ move, attack = null, saveDc, sourceActor, sourceCombatActor = null, sourceName }) {
   const saveResults = new Map();
+  const sourceModifiers = pokemonCombatModifiers(sourceCombatActor);
+  const effects = move.statusEffects ?? inferMoveStatusEffects(move);
+  if (!effects.length) return { saveResults };
+  const selectedEffects = effects.filter(effect => effect.target !== "self");
+  const selfEffects = effects.filter(effect => effect.target === "self");
+  const selected = [...(game.user.targets ?? [])];
+  if (selectedEffects.length && !selected.length) {
+    ui.notifications.warn(`${move.name} puede causar estados alterados, pero no hay ningún objetivo seleccionado.`);
+    if (!selfEffects.length) return { saveResults };
+  }
   const targets = [];
   for (const token of selected) {
-    if (attack && !attackHitsTarget(attack, token.actor)) continue;
+    if (attack && !attackHitsPokemonTarget(attack, token.actor)) continue;
     const applicable = [];
-    for (const effect of effects) {
+    for (const effect of selectedEffects) {
       if (effect.trigger === "manual") continue;
+      if (effect.requiresHit && (!attack || !attackHitsPokemonTarget(attack, token.actor))) continue;
       if (effect.trigger === "natural" && (!attack || Number(attack.natural) < Number(effect.minimum))) continue;
+      if (effect.trigger === "hit" && (!attack || !attackHitsPokemonTarget(attack, token.actor))) continue;
       if (effect.trigger === "failed-save") {
         let save = saveResults.get(token.actor.uuid);
         if (!save) {
-          save = await rollTargetSave(token.actor, move, saveDc);
+          save = await rollTargetSave(token.actor, move, saveDc, sourceModifiers);
           saveResults.set(token.actor.uuid, save);
         }
         if (save.success) continue;
+        if (effect.margin && Number(save.dc) - Number(save.total) < Number(effect.margin)) continue;
       }
       applicable.push(effect);
     }
     if (applicable.length) targets.push({ actorUuid: token.actor.uuid, tokenName: token.name, effects: applicable });
   }
+  if (selfEffects.length && sourceCombatActor?.uuid) {
+    const applicable = selfEffects.filter(effect => {
+      if (effect.trigger === "manual") return false;
+      if (effect.trigger === "automatic") return true;
+      if (effect.trigger === "hit") return Boolean(attack);
+      if (effect.trigger === "natural") return Boolean(attack) && Number(attack.natural) >= Number(effect.minimum);
+      return false;
+    });
+    if (applicable.length) targets.push({ actorUuid: sourceCombatActor.uuid, tokenName: sourceName, effects: applicable });
+  }
   const manual = effects.filter(effect => effect.trigger === "manual");
   if (manual.length) ui.notifications.info(`${move.name} contiene un estado contextual que debe resolver el DJ según su descripción.`);
-  if (!targets.length) return;
+  if (!targets.length) return { saveResults };
   const payload = {
     action: STATUS_SOCKET_ACTION,
     userId: game.user.id,
@@ -162,6 +223,7 @@ export async function applyMoveStatuses({ move, attack = null, saveDc, sourceAct
     game.socket.emit(`module.${MODULE_ID}`, payload);
     ui.notifications.info(`Se ha solicitado al DJ aplicar los estados de ${move.name}.`);
   }
+  return { saveResults };
 }
 
 /**
@@ -358,26 +420,26 @@ async function pokemonItemForActor(actor) {
  * pifia y crítico automáticos. Ante una CA ilegible da el impacto por bueno.
  * Auxiliar de applyMoveStatuses().
  */
-function attackHitsTarget(attack, actor) {
-  if (Number(attack.natural) === 1) return false;
-  if (Number(attack.natural) === 20) return true;
-  const ac = Number(actor?.system?.attributes?.ac?.value ?? actor?.system?.attributes?.ac?.flat);
-  return !Number.isFinite(ac) || Number(attack.total) >= ac;
-}
-
 /**
  * Tira la salvación de un objetivo contra un movimiento, eligiendo la
  * característica más favorable de entre las que este permite (Constitución por
  * defecto) según savingThrowModifier(), y publica la tirada en el chat.
  * Auxiliar de applyMoveStatuses().
  */
-async function rollTargetSave(actor, move, dc) {
+async function rollTargetSave(actor, move, dc, sourceModifiers = {}) {
   const attributes = move.save?.attribute?.length ? move.save.attribute : ["con"];
   const choices = attributes.map(key => ({ key, modifier: savingThrowModifier(actor, key) }));
   const chosen = choices.sort((a, b) => b.modifier - a.modifier)[0];
-  const roll = await new Roll("1d20 + @modifier", { modifier: chosen.modifier }).evaluate();
+  const combat = pokemonCombatModifiers(actor);
+  const bonusDice = combat.saveDice.map(formula => ` + ${formula}`).join("");
+  const modifier = chosen.modifier + (combat.saves[chosen.key] ?? 0);
+  const sourceDisadvantage = (sourceModifiers.saveTargetsDisadvantageAbilities ?? []).some(key => attributes.includes(key));
+  const advantage = combat.saveAdvantage || Boolean(sourceModifiers.saveTargetsAdvantage);
+  const disadvantage = combat.saveDisadvantageAbilities.includes(chosen.key) || sourceDisadvantage;
+  const dice = advantage === disadvantage ? "1d20" : advantage ? "2d20kh" : "2d20kl";
+  const roll = await new Roll(`${dice} + @modifier${bonusDice}`, { modifier }).evaluate();
   await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${actor.name} — Salvación ${chosen.key.toUpperCase()} contra ${move.name} (CD ${dc})` });
-  return { total: Number(roll.total) || 0, success: Number(roll.total) >= Number(dc) };
+  return { total: Number(roll.total) || 0, dc: Number(dc), success: Number(roll.total) >= Number(dc) };
 }
 
 /**
@@ -437,7 +499,11 @@ function pokemonStatusConfig(id, definition) {
   };
 }
 
-/** Resuelve el WEBP opcional de un estado y conserva su icono de Foundry como respaldo. */
+function explicitStatus(id, trigger, { target = "selected", requiresHit = false, margin = 0 } = {}) {
+  return Object.freeze({ id, trigger, minimum: null, target, requiresHit, margin });
+}
+
+/** Resuelve el PNG opcional de un estado y conserva su icono de Foundry como respaldo. */
 function statusIcon(id, definition) {
   return pokemonEffectIcon("statuses", id, definition.img);
 }

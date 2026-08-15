@@ -22,6 +22,7 @@ import { Poke5eNpcTrainerGenerator } from "./npc-trainer-generator.mjs";
 import { registerPokemonStatusEffects, registerPokemonStatusSocket } from "./status-effects.mjs";
 import { registerOngoingMoveEffects } from "./ongoing-effects.mjs";
 import { loadPokemonEffectIcons } from "./effect-icons.mjs";
+import { registerMoveModifierEffects } from "./move-modifiers.mjs";
 
 /**
  * Arranque temprano: delega el registro de tipos de daño (combat.mjs), fichas
@@ -99,6 +100,7 @@ Hooks.once("ready", async () => {
   registerCaptureSocket();
   registerPokemonStatusSocket();
   registerOngoingMoveEffects();
+  registerMoveModifierEffects();
   game.poke5e = {
     openImporter: () => new Poke5eImporter().render(true),
     openReference: () => new Poke5eReference().render(true),

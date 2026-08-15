@@ -4,17 +4,20 @@
  * conserva el icono de Foundry como respaldo cuando todavía no se ha añadido.
  */
 import { MODULE_PATH } from "./model.mjs";
+import { modifierIconSlots } from "./move-modifier-rules.mjs";
+
+const slots = (...ids) => Object.freeze([...new Set(ids.flat())].sort());
 
 export const EFFECT_ICON_SLOTS = Object.freeze({
   statuses: Object.freeze([
     "burned", "frozen", "paralyzed", "poisoned", "badly-poisoned", "asleep", "confused", "flinched"
   ]),
-  buffs: Object.freeze(["aqua-ring", "ingrain", "curse-buff", "concentration"]),
-  debuffs: Object.freeze([
+  buffs: slots(["aqua-ring", "ingrain", "curse-buff", "concentration"], modifierIconSlots("buffs")),
+  debuffs: slots([
     "anchor-shot", "bind", "clamp", "constrict", "curse", "fire-spin", "glare", "infestation",
     "leech-seed", "roar", "rock-tomb", "salt-cure", "sand-tomb", "scary-face", "submission",
     "telekinesis", "thunder-cage", "whirlpool", "wrap"
-  ])
+  ], modifierIconSlots("debuffs"))
 });
 
 const loadedIcons = new Map();

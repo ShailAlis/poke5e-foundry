@@ -20,6 +20,10 @@ assert.deepEqual(effects("will-o-wisp"), [{ id: "burned", trigger: "hit", minimu
 assert.deepEqual(effects("ice-punch"), [{ id: "frozen", trigger: "natural", minimum: 19 }]);
 assert.deepEqual(effects("thunder-punch"), [{ id: "paralyzed", trigger: "natural", minimum: 19 }]);
 assert.deepEqual(effects("poison-fang"), [{ id: "badly-poisoned", trigger: "failed-save", minimum: null }]);
+assert.deepEqual(effects("alluring-voice"), [{ id: "confused", trigger: "failed-save", minimum: null, target: "selected", requiresHit: true, margin: 0 }]);
+assert.equal(effects("blizzard")[0].margin, 5);
+assert.equal(effects("rest")[0].target, "self");
+assert.deepEqual(effects("facade"), []);
 assert.equal(effects("toxic-spikes").every(effect => effect.trigger === "manual"), true);
 assert.equal(effects("triple-arrows").every(effect => effect.trigger === "manual"), true);
 assert.equal(effects("yawn").every(effect => effect.trigger === "manual"), true);
@@ -47,4 +51,9 @@ assert.equal(CONFIG.statusEffects["poke5e-foundry-burned"].name, "Quemado");
 assert.equal(CONFIG.statusEffects["poke5e-foundry-burned"]._id.length, 16);
 assert.ok(moves.filter(move => inferMoveStatusEffects(move).length).length >= 80);
 
-console.log("Pokémon status-effect validation passed.");
+const statusMention = /\b(burn(?:ed|t)|frozen|paraly[sz]ed|poisoned|falls? asleep|put .* to sleep|confused|flinches)\b/i;
+const mentionedStatuses = moves.filter(move => [...(move.description ?? []), move.higherLevels ?? ""].filter(value => typeof value === "string").join(" ").match(statusMention));
+const contextualOnly = mentionedStatuses.filter(move => !inferMoveStatusEffects(move).length).map(move => move.id).sort();
+assert.deepEqual(contextualOnly, ["facade", "flame-wheel", "fusion-flare", "venoshock"]);
+
+console.log(`Pokémon status-effect validation passed after auditing ${mentionedStatuses.length} textual candidates.`);

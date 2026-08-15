@@ -18,6 +18,7 @@ import { deployedActorFor, recallPokemon, syncPokemonIdentityToDeployment } from
 import { CONTEST_TYPES, contestAppealOutcome, contestCompatibility, contestDetailsForMove, contestTypeOptions } from "./contests.mjs";
 import { applyMoveStatuses, pokemonStatusEntries, pokemonStatusId, removePokemonStatus } from "./status-effects.mjs";
 import { applyMoveOngoingEffects, moveHasImmediateDamage, ongoingEffectEntries, removeOngoingEffect } from "./ongoing-effects.mjs";
+import { applyMoveModifierEffects, consumeCapturedMoveModifiers, moveModifierEntries, moveModifierIdsToConsume, pokemonCombatModifiers, removeMoveModifier, targetedPokemonModifiers } from "./move-modifiers.mjs";
 import {
   evolutionReadiness,
   experienceAtLevel,
@@ -135,7 +136,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       },
       heldItem: heldItem ? { ...heldItem, hasCharges: heldItem.charges != null } : null,
       statuses: pokemonStatusEntries({ conditions: [...new Set([...(instance.conditions ?? []), ...activeConditions])] }),
-      ongoingEffects: ongoingEffectEntries(combatActor),
+      ongoingEffects: [...ongoingEffectEntries(combatActor), ...moveModifierEntries(combatActor)],
       heldItemOptions: Object.fromEntries([["", "Ninguno"], ...inventoryItems.map(entry => [entry.id, `${entry.name} ×${entry.quantity}`])]),
       moves,
       sheetMode: { id: this.sheetMode, combat: this.sheetMode === "combat", contest: this.sheetMode === "contest" },
@@ -396,6 +397,8 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const instance = this.#instance();
     const held = instance.heldItem;
     if (!held) return;
+    const combatActor = this.pokemonItem.parent?.getFlag?.(MODULE_ID, "kind") === "wild" ? this.pokemonItem.parent : deployedActorFor(this.pokemonItem);
+    if (pokemonCombatModifiers(combatActor).disableHeldItem) return ui.notifications.warn(`${held.name} está bloqueado por un efecto activo.`);
     const berry = String(held.sourceId).endsWith("-berry");
     if (held.charges != null && Number(held.charges) <= 0) return ui.notifications.warn(`${held.name} no tiene cargas.`);
     await ChatMessage.create({
@@ -561,7 +564,12 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const flavor = `${name} — ${move.name}`;
     const speaker = ChatMessage.getSpeaker({ actor: this.pokemonItem.parent, alias: name });
     const combatActor = this.pokemonItem.parent?.getFlag?.(MODULE_ID, "kind") === "wild" ? this.pokemonItem.parent : deployedActorFor(this.pokemonItem);
-    const formula = moveHasImmediateDamage(move) ? damageFormula(move, level, moveModifier, species) : null;
+    const selectedTokens = [...(game.user.targets ?? [])];
+    const combatModifiers = pokemonCombatModifiers(combatActor, { targetUuids: selectedTokens.map(token => token.actor?.uuid).filter(Boolean) });
+    const targetedModifiers = targetedPokemonModifiers(selectedTokens);
+    const consumedModifierIds = moveModifierIdsToConsume(combatActor, "move");
+    const damageMoveModifier = moveModifier * combatModifiers.moveModifierMultiplier;
+    const formula = moveHasImmediateDamage(move) ? damageFormula(move, level, damageMoveModifier, species, combatModifiers.damage) : null;
     const damageType = formula ? await chooseDamageType(move) : null;
     if (formula && !damageType) return;
 
@@ -572,8 +580,16 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
 
     let attackResult = null;
     if (move.attack?.scope) {
-      const disadvantage = ["poisoned", "badly-poisoned", "flinched"].some(id => (instance.conditions ?? []).includes(id) || combatActor?.statuses?.has(pokemonStatusId(id)));
-      const attack = await new Roll(`${disadvantage ? "2d20kl" : "1d20"} + @mod + @prof`, { mod: moveModifier, prof: proficiency }).evaluate();
+      const statusDisadvantage = ["poisoned", "badly-poisoned", "flinched"].some(id => (instance.conditions ?? []).includes(id) || combatActor?.statuses?.has(pokemonStatusId(id)));
+      const powerAbilities = Array.isArray(move.power) ? move.power : [move.power].filter(Boolean);
+      const abilityAdvantage = combatModifiers.attackAdvantageAbilities.some(key => powerAbilities.includes(key));
+      const meleeAdvantage = combatModifiers.meleeAttackAdvantage && move.attack.scope === "melee";
+      const advantage = combatModifiers.attackAdvantage || abilityAdvantage || meleeAdvantage || targetedModifiers.incomingAttackAdvantage;
+      const disadvantage = statusDisadvantage || combatModifiers.attackDisadvantage;
+      const die = advantage === disadvantage ? "1d20" : advantage ? "2d20kh" : "2d20kl";
+      const effectDice = combatModifiers.attackDice.map(formula => ` + ${formula}`).join("");
+      const effectProficiency = combatModifiers.suppressAttackProficiency ? 0 : proficiency;
+      const attack = await new Roll(`${die} + @mod + @prof + @effect${effectDice}`, { mod: moveModifier, prof: effectProficiency, effect: combatModifiers.attack }).evaluate();
       await attack.toMessage({ speaker, flavor: `${flavor} (${titleCase(move.attack.scope)})` });
       attackResult = {
         natural: Number(attack.dice?.[0]?.results?.find(result => result.active)?.result ?? attack.dice?.[0]?.total) || 0,
@@ -607,13 +623,19 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
         await damage.toMessage({ speaker, flavor: `${flavor} — ${typeLabel(damageType)}${burned ? ` · Quemado: menor de ${damageRolls.map(roll => roll.total).join("/")}` : ""}` });
       }
     }
-    await applyMoveStatuses({ move, attack: attackResult, saveDc: 8 + moveModifier + proficiency, sourceActor: this.pokemonItem.parent, sourceName: name });
+    const statusResolution = await applyMoveStatuses({ move, attack: attackResult, saveDc: 8 + moveModifier + proficiency, sourceActor: this.pokemonItem.parent, sourceCombatActor: combatActor, sourceName: name });
     await applyMoveOngoingEffects({
       move, attack: attackResult, saveDc: 8 + moveModifier + proficiency,
       sourceOwnerActor: this.pokemonItem.parent, sourceCombatActor: combatActor,
       sourcePokemonItem: this.pokemonItem, sourceName: name, level, moveModifier,
       proficiency, sourceTypes: species.type ?? []
     });
+    await applyMoveModifierEffects({
+      move, attack: attackResult, saveDc: 8 + moveModifier + proficiency,
+      saveResults: statusResolution?.saveResults,
+      sourceOwnerActor: this.pokemonItem.parent, sourceCombatActor: combatActor, sourceName: name, proficiency
+    });
+    await consumeCapturedMoveModifiers(combatActor, consumedModifierIds);
     this.render({ force: true });
   }
 
@@ -621,6 +643,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
   async #removeOngoingEffect(event) {
     const actor = this.pokemonItem.parent?.getFlag?.(MODULE_ID, "kind") === "wild" ? this.pokemonItem.parent : deployedActorFor(this.pokemonItem);
     await removeOngoingEffect(actor, event.currentTarget.dataset.effectId);
+    await removeMoveModifier(actor, event.currentTarget.dataset.effectId);
     this.render({ force: true });
   }
 
@@ -1007,19 +1030,20 @@ function getMoveModifier(species, move) {
  * Pokémon). Devuelve null si el movimiento no causa daño.
  * La usan prepareMove(), prepareCatalogMove() y #rollMove().
  */
-function damageFormula(move, level, moveModifier, species) {
+function damageFormula(move, level, moveModifier, species, effectDamage = 0) {
   const diceByLevel = move.damage?.dice;
   if (!diceByLevel) return null;
   const tiers = Object.keys(diceByLevel).map(Number).filter(tier => tier <= level).sort((a, b) => b - a);
   const dice = diceByLevel[String(tiers[0] ?? 1)];
   if (!dice) return null;
   const modifier = move.damage.modifier;
-  if (modifier === "MOVE") return appendModifier(dice, moveModifier);
-  if (modifier === "LEVEL") return appendModifier(dice, level);
-  if (typeof modifier === "number") return appendModifier(dice, modifier);
-  if (typeof modifier === "string" && modifier.startsWith("MOVE +")) return appendModifier(dice, moveModifier + (Number(modifier.split("+")[1]) || 0));
-  if (modifier === "MOVE + STAB") return appendModifier(dice, moveModifier + ((species.type ?? []).includes(move.type) ? 2 : 0));
-  return String(dice);
+  let formula = String(dice);
+  if (modifier === "MOVE") formula = appendModifier(dice, moveModifier);
+  else if (modifier === "LEVEL") formula = appendModifier(dice, level);
+  else if (typeof modifier === "number") formula = appendModifier(dice, modifier);
+  else if (typeof modifier === "string" && modifier.startsWith("MOVE +")) formula = appendModifier(dice, moveModifier + (Number(modifier.split("+")[1]) || 0));
+  else if (modifier === "MOVE + STAB") formula = appendModifier(dice, moveModifier + ((species.type ?? []).includes(move.type) ? 2 : 0));
+  return appendModifier(formula, effectDamage);
 }
 
 /** Añade el modificador a la expresión de dados con su signo. Auxiliar de damageFormula(). */
