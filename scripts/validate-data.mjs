@@ -12,12 +12,16 @@
 import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isAvailablePokemon } from "./data-service.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "data");
 const read = async file => JSON.parse(await readFile(resolve(root, file), "utf8"));
 const [pokemon, moves, abilities, items, evolutions] = await Promise.all([
   read("pokemon.json"), read("moves.json"), read("abilities.json"), read("items.json"), read("evolution.json")
 ]);
+
+if (isAvailablePokemon({ number: 0 })) throw new Error("Pokémon numbered 0 must not be available.");
+if (!isAvailablePokemon({ number: 1 })) throw new Error("Numbered Pokémon must remain available.");
 
 const checks = [
   ["Pokémon", pokemon.items, 1000],

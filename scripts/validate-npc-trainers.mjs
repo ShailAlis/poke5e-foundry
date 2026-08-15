@@ -13,6 +13,9 @@ import { SKILLS } from "./trainer-creation-data.mjs";
 
 const pokemon = JSON.parse(fs.readFileSync(new URL("../data/pokemon.json", import.meta.url))).items;
 const evolutions = JSON.parse(fs.readFileSync(new URL("../data/evolution.json", import.meta.url))).items;
+const unnumbered = pokemon.find(entry => Number(entry.number) === 0);
+
+assert.ok(!filterNpcTrainerSpecies(pokemon, { levelMax: 20 }, evolutions).includes(unnumbered));
 
 const grassPoison = filterNpcTrainerSpecies(pokemon, { typePrimary: "grass", typeSecondary: "poison", typeMode: "all", levelMax: 20 }, evolutions);
 assert.ok(grassPoison.length > 0);

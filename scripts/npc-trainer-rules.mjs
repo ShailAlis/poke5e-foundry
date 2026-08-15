@@ -101,6 +101,7 @@ export function filterNpcTrainerSpecies(species, filters = {}, evolutions = []) 
   const automaticSrMax = filters.respectControlLimit === true ? trainerControlSr(filters.trainerLevel, filters.path) : Infinity;
   const effectiveSrMax = hasNumber(filters.srMax) ? Math.min(Number(filters.srMax), automaticSrMax) : automaticSrMax;
   return species.filter(entry => {
+    if (Number(entry.number) <= 0) return false;
     const types = entry.type ?? [];
     const regions = [...(entry.habitat?.regions ?? []), entry.habitat?.nativeRegion].filter(Boolean);
     const biomes = entry.habitat?.biomes ?? [];

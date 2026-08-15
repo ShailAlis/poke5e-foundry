@@ -95,6 +95,7 @@ export class Poke5eImporter extends HandlebarsApplicationMixin(ApplicationV2) {
         setStatus(status, "Actualizando compendio de especies…", 15);
         const selected = selectPokemon(data.pokemon, options.pokemonIds);
         const pack = await ensurePack("species");
+        await removeUnavailableSpecies(pack);
         itemCount += await upsertPackItems(pack, selected.map(species => speciesItemSource(
           species,
           data.movesById,
@@ -155,6 +156,17 @@ async function ensurePack(key) {
   }
   if (pack.locked) await pack.configure({ locked: false });
   return pack;
+}
+
+/** Elimina del compendio las antiguas especies del módulo cuyo número de Pokédex sea 0. */
+async function removeUnavailableSpecies(pack) {
+  const speciesPath = `flags.${MODULE_ID}.species`;
+  const index = await pack.getIndex({ fields: [`flags.${MODULE_ID}.kind`, `${speciesPath}.number`] });
+  const ids = [...index.values()]
+    .filter(entry => foundry.utils.getProperty(entry, `flags.${MODULE_ID}.kind`) === "species")
+    .filter(entry => Number(foundry.utils.getProperty(entry, `${speciesPath}.number`)) === 0)
+    .map(entry => entry._id);
+  if (ids.length) await Item.implementation.deleteDocuments(ids, { pack: pack.collection });
 }
 
 /**

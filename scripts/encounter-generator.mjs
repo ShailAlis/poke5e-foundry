@@ -31,6 +31,7 @@ export const MAX_ENCOUNTER_POKEMON = 20;
 export function filterEncounterSpecies(species, filters = {}) {
   const query = String(filters.query ?? "").trim().toLocaleLowerCase();
   return species.filter(entry => {
+    if (Number(entry.number) <= 0) return false;
     const types = entry.type ?? [];
     const biomes = entry.habitat?.biomes ?? [];
     const regions = [...(entry.habitat?.regions ?? []), entry.habitat?.nativeRegion].filter(Boolean);

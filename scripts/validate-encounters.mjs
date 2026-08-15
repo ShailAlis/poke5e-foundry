@@ -20,8 +20,10 @@ const pokemon = JSON.parse(await readFile(new URL("../data/pokemon.json", import
 const moves = JSON.parse(await readFile(new URL("../data/moves.json", import.meta.url), "utf8")).moves;
 const movesById = new Map(moves.map(move => [move.id, move]));
 const bulbasaur = pokemon.find(entry => entry.id === "bulbasaur");
+const unnumbered = pokemon.find(entry => Number(entry.number) === 0);
 
 assert(filterEncounterSpecies(pokemon, { biome: "forest", type: "grass", levelMax: 5 }).includes(bulbasaur));
+assert(!filterEncounterSpecies(pokemon, { levelMax: 20 }).includes(unnumbered));
 assert(!filterEncounterSpecies(pokemon, { biome: "ocean", type: "grass", levelMax: 5 }).includes(bulbasaur));
 assert(naturalMovesAtLevel(bulbasaur, 1).includes("tackle"));
 assert(naturalMovesAtLevel(bulbasaur, 6).includes("vine-whip"));

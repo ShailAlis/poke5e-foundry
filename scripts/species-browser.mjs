@@ -63,7 +63,8 @@ export class Poke5eSpeciesBrowser extends HandlebarsApplicationMixin(Application
     const catalog = data.pokemon.map(species => catalogEntry(bySourceId.get(species.id), species));
     for (const entry of indexed) {
       const id = sourceId(entry);
-      if (id && !bundledIds.has(id)) catalog.push(catalogEntry(entry));
+      const customEntry = catalogEntry(entry);
+      if (id && !bundledIds.has(id) && customEntry.number > 0) catalog.push(customEntry);
     }
 
     const query = this.filters.query.trim().toLocaleLowerCase();

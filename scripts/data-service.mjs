@@ -56,6 +56,9 @@ async function load(language) {
     abilities = mergeTranslation(abilities, abilitiesLocal.items);
     items = mergeTranslation(items, itemsLocal.items);
   }
+  const availablePokemon = pokemon.items.filter(isAvailablePokemon);
+  const availablePokemonIds = new Set(availablePokemon.map(value => value.id));
+  const availableEvolutions = evolutions.items.filter(evolution => availablePokemonIds.has(evolution.from) && availablePokemonIds.has(evolution.to));
   const contestById = new Map(contests.items.map(value => [value.id, value]));
   const contestEffectsById = new Map(contestEffects.items.map(value => [String(value.id), value]));
   moves = moves.map(move => {
@@ -64,25 +67,30 @@ async function load(language) {
     return { ...move, contest: { ...contest, effect: contestEffectsById.get(String(contest.effect)) ?? contest.effect } };
   });
   const evolutionsByFrom = new Map();
-  for (const evolution of evolutions.items) {
+  for (const evolution of availableEvolutions) {
     const entries = evolutionsByFrom.get(evolution.from) ?? [];
     entries.push(evolution);
     evolutionsByFrom.set(evolution.from, entries);
   }
   return {
-    pokemon: pokemon.items,
+    pokemon: availablePokemon,
     moves,
     abilities,
     items,
     contestEffects: contestEffects.items,
-    evolutions: evolutions.items,
+    evolutions: availableEvolutions,
     evolutionsByFrom,
-    pokemonById: new Map(pokemon.items.map(value => [value.id, value])),
+    pokemonById: new Map(availablePokemon.map(value => [value.id, value])),
     movesById: new Map(moves.map(value => [value.id, value])),
     abilitiesById: new Map(abilities.map(value => [value.id, value])),
     itemsById: new Map(items.map(value => [value.id, value])),
     contestEffectsById
   };
+}
+
+/** Las entradas sin número oficial de Pokédex no se ofrecen como especies jugables. */
+export function isAvailablePokemon(species) {
+  return Number(species?.number) > 0;
 }
 
 /**
