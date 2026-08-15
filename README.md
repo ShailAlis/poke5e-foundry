@@ -114,6 +114,8 @@ La versión 1.8 audita los 830 movimientos e incorpora 115 reglas explícitas de
 
 La versión 1.8.1 incorpora avances para Entrenadores y Pokémon, reacciones y efectos de objetos equipados, cambio de idioma con recarga coherente, aprendizaje mediante MT/MO condicionado por el inventario y una economía unificada en Pokédólares.
 
+La versión 1.8.2 añade una sección propia para los Pokémon en la ficha de Entrenador y clasifica correctamente como rasgos de clase las capacidades concedidas por Entrenador, incluyendo la migración de actores existentes.
+
 ## Actualización a 1.2
 
 La versión 1.2 incorpora el asistente guiado de creación de Entrenadores. Los personajes nuevos quedan limitados a la especie Humano y reciben automáticamente su origen regional, bonificaciones, competencias, dote, especialización, equipo inicial y Pokémon inicial. Los personajes existentes no se modifican automáticamente.
