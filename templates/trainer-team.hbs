@@ -9,6 +9,12 @@
     {{#if canEdit}}<div class="poke5e-team-header-actions"><button type="button" class="bright" data-action="capture-target"><i class="fa-solid fa-circle-dot"></i> Capturar objetivo</button><button type="button" data-action="browse-species"><i class="fa-solid fa-plus"></i> Añadir desde Pokédex</button></div>{{/if}}
   </header>
 
+  <section class="poke5e-currency-panel">
+    <i class="fa-solid fa-coins"></i>
+    <label><span>Pokédólares</span><input type="number" min="0" step="1" value="{{pokedollars}}" data-poke5e-pokedollars {{#unless canEdit}}disabled{{/unless}}></label>
+    <strong>₽</strong>
+  </section>
+
   <section>
     <div class="poke5e-section-title"><h2>Equipo activo</h2><span>{{teamCount}} / {{maxTeamSize}}</span></div>
     <div class="poke5e-team-grid">

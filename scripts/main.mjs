@@ -25,6 +25,7 @@ import { loadPokemonEffectIcons } from "./effect-icons.mjs";
 import { registerMoveModifierEffects } from "./move-modifiers.mjs";
 import { restoreHeldItemChargesAfterRest } from "./held-items.mjs";
 import { clearPoke5eDataCache, loadPoke5eData } from "./data-service.mjs";
+import { configurePokedollarEconomy } from "./economy.mjs";
 
 /**
  * Arranque temprano: delega el registro de tipos de daño (combat.mjs), fichas
@@ -34,6 +35,7 @@ import { clearPoke5eDataCache, loadPoke5eData } from "./data-service.mjs";
  * generadores exclusivos del director.
  */
 Hooks.once("init", () => {
+  configurePokedollarEconomy();
   registerPokemonDamageTypes();
   registerTrainerActorSheet();
   registerPokemonActorSheet();
@@ -89,7 +91,10 @@ Hooks.once("init", () => {
  * estados Pokémon después del sistema para que no sean sustituidos por sus
  * condiciones (por ejemplo, Bloodied).
  */
-Hooks.once("i18nInit", () => registerPokemonStatusEffects());
+Hooks.once("i18nInit", () => {
+  configurePokedollarEconomy();
+  registerPokemonStatusEffects();
+});
 
 /**
  * Mundo ya cargado: aplica el modo oscuro, abre los sockets de captura y estados

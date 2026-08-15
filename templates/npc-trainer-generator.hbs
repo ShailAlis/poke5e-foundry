@@ -87,7 +87,7 @@
         <label><span>Tipo de Poké Ball</span><select data-config="ballType">{{selectOptions ballOptions selected=config.ballType}}</select></label>
         <label><span>Cantidad de Balls</span><input type="number" min="0" max="99" value="{{config.ballCount}}" data-config="ballCount"></label>
         <label><span>Pociones</span><input type="number" min="0" max="99" value="{{config.potionCount}}" data-config="potionCount"></label>
-        <label><span>Dinero</span><input type="number" min="0" value="{{config.money}}" data-config="money"></label>
+        <label><span>Pokédólares (₽)</span><input type="number" min="0" step="1" value="{{config.money}}" data-config="money"></label>
         <label><span>Carpeta de actores</span><input type="text" value="{{config.folderName}}" data-config="folderName"></label>
         <label><span>Permiso jugadores</span><select data-config="ownership">{{selectOptions ownershipOptions selected=config.ownership}}</select></label>
         <label><span>Disposición token</span><select data-config="disposition">{{selectOptions dispositionOptions selected=config.disposition}}</select></label>

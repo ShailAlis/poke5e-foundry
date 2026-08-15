@@ -14,6 +14,7 @@ import { Poke5eSpeciesBrowser } from "./species-browser.mjs";
 import { Poke5ePokemonSheet } from "./pokemon-sheet.mjs";
 import { deployPokemon, recallPokemon, deployedActorFor, syncPokemonIdentityToDeployment } from "./deployment.mjs";
 import { attemptCapture } from "./capture.mjs";
+import { pokedollars, updatePokedollars } from "./economy.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin, DialogV2 } = foundry.applications.api;
 
@@ -57,6 +58,7 @@ export class Poke5eTrainerTeam extends HandlebarsApplicationMixin(ApplicationV2)
     return {
       actor: this.actor,
       canEdit: this.actor.isOwner,
+      pokedollars: pokedollars(this.actor),
       team,
       reserve,
       gear,
@@ -80,6 +82,10 @@ export class Poke5eTrainerTeam extends HandlebarsApplicationMixin(ApplicationV2)
     this.element.querySelectorAll("[data-action='recall']").forEach(button => button.addEventListener("click", event => this.#recall(event)));
     this.element.querySelectorAll("[data-action='remove']").forEach(button => button.addEventListener("click", event => this.#remove(event)));
     this.element.querySelectorAll("[data-field]").forEach(input => input.addEventListener("change", event => this.#updateField(event)));
+    this.element.querySelector("[data-poke5e-pokedollars]")?.addEventListener("change", async event => {
+      await updatePokedollars(this.actor, event.currentTarget.value);
+      this.render({ force: true });
+    });
   }
 
   /**

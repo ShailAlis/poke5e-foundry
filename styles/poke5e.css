@@ -113,6 +113,12 @@
 .poke5e-import-status { display: grid; gap: 0.3rem; margin-block: 0.8rem; }
 .poke5e-import-status progress { width: 100%; accent-color: var(--poke-red); }
 .poke5e-actions { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
+.poke5e-currency-panel { display: flex; align-items: center; gap: 0.55rem; width: fit-content; padding: 0.55rem 0.75rem; border: 1px solid rgba(239, 199, 47, 0.5); border-radius: 9px; background: rgba(239, 199, 47, 0.12); }
+.poke5e-currency-panel > i, .poke5e-currency-panel > strong { color: #a87900; font-size: 1.15rem; }
+.poke5e-currency-panel label { display: flex; align-items: center; gap: 0.5rem; font-weight: 800; }
+.poke5e-currency-panel input { width: 9rem; text-align: right; }
+.poke5e-trainer-sheet .poke5e-unused-currency { display: none !important; }
+.poke5e-trainer-sheet .poke5e-pokedollars::after { content: " ₽"; font-weight: 800; }
 .poke5e-actions.inline { justify-content: flex-end; }
 
 .poke5e-reference-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin-bottom: 1rem; }

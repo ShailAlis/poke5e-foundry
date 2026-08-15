@@ -25,5 +25,6 @@
   "POKE5E.Notifications.ImportComplete": "Import complete: {actors} Pokémon and {items} entries.",
   "POKE5E.Notifications.ImportFailed": "The import could not be completed. Check the console for details.",
   "POKE5E.Notifications.LanguageChanged": "Content language changed. Reloading Pokémon 5e… Reimport the compendiums to update content already created.",
-  "POKE5E.Notifications.LanguageFailed": "The selected language data could not be loaded. The current language has been kept."
+  "POKE5E.Notifications.LanguageFailed": "The selected language data could not be loaded. The current language has been kept.",
+  "POKE5E.Currency.Name": "Pokédollars"
 }

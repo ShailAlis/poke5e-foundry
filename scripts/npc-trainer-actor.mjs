@@ -15,6 +15,7 @@ import { MODULE_ID, gearItemSource, pokemonItemSourceFromSpecies, portraitUrl, s
 import { NATURES, ORIGINS, SKILLS, SPECIALIZATIONS } from "./trainer-creation-data.mjs";
 import { NPC_ARCHETYPES, NPC_TRAINER_PATHS, npcTrainerAbilities, npcTrainerHitPoints, randomNpcTrainerName } from "./npc-trainer-rules.mjs";
 import { chooseTokenPosition } from "./wild-deployment.mjs";
+import { pokedollarCurrency } from "./economy.mjs";
 
 /**
  * Icono por defecto de cada arquetipo, usado como retrato e imagen de token
@@ -86,7 +87,7 @@ export async function createNpcTrainerActor(config, team, data, index = 0) {
         age: String(config.age || ""),
         biography: { value: biographyHtml(config, origin, specialization, path, team, data) }
       },
-      currency: { gp: Math.max(0, Number(config.money) || 0) },
+      currency: pokedollarCurrency(config.money),
       traits: { languages: { value: [], custom: `Común; ${origin.language}` } }
     },
     items,

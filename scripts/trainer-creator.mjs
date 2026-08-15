@@ -18,6 +18,7 @@ import {
   speciesItemSource, trainerClassSource, trainerFeatureSources
 } from "./model.mjs";
 import { ABILITIES, CLASS_SKILLS, NATURES, ORIGINS, POINT_BUY_COSTS, SKILLS, SPECIALIZATIONS, STANDARD_ARRAY, resolveBaseAbilities, resolveTrainerCreation } from "./trainer-creation-data.mjs";
+import { pokedollarCurrency } from "./economy.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 /**
@@ -280,6 +281,7 @@ export async function applyTrainerCreation(actor, selection, rules) {
   const selectedAbility = (species.abilities ?? []).find(entry => entry.id === selection.ability && !entry.hidden);
   if (!selectedAbility) throw new Error("La habilidad inicial no es válida.");
   const roll = await new Roll("1000 + 100 * 4d4").evaluate();
+  const initialCurrency = pokedollarCurrency(roll.total);
   const updates = {
     name: String(selection.name).trim(),
     "system.details.gender": String(selection.gender ?? ""),
@@ -290,7 +292,7 @@ export async function applyTrainerCreation(actor, selection, rules) {
     "system.attributes.movement.walk": 30,
     "system.attributes.movement.swim": selection.environment === "coast" ? 30 : 0,
     "system.attributes.movement.climb": selection.environment === "mountain" ? 10 : 0,
-    "system.currency.gp": Number(roll.total) || 0,
+    ...Object.fromEntries(Object.entries(initialCurrency).map(([denomination, value]) => [`system.currency.${denomination}`, value])),
     [`flags.${MODULE_ID}.trainerCreation`]: { ...selection, completed: true, version: 1, human: true }
   };
   for (const [ability, value] of Object.entries(rules.abilities)) updates[`system.abilities.${ability}.value`] = value;

@@ -13,6 +13,7 @@ import { Poke5eSpeciesBrowser } from "./species-browser.mjs";
 import { deployPokemon, deployedActorFor, recallPokemon } from "./deployment.mjs";
 import { attemptCapture } from "./capture.mjs";
 import { experienceProgress } from "./progression.mjs";
+import { adaptTrainerCurrencyFields, pokedollars, updatePokedollars } from "./economy.mjs";
 
 const CharacterActorSheet = dnd5e.applications.actor.CharacterActorSheet;
 
@@ -68,6 +69,7 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
       pokemon: {
         allCount: all.length,
         canEdit: this.actor.isOwner,
+        pokedollars: pokedollars(this.actor),
         maxTeamSize,
         reserve: [...all.filter(entry => !entry.instance.inTeam), ...active.slice(maxTeamSize).map(entry => ({ ...entry, overflow: true }))],
         slots: Array.from({ length: maxTeamSize }, (_, index) => team[index]
@@ -76,6 +78,16 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
         teamCount: team.length
       }
     };
+  }
+
+  /** Adapta los campos monetarios nativos y conecta el saldo de la pestaña. */
+  _onRender(context, options) {
+    super._onRender(context, options);
+    adaptTrainerCurrencyFields(this.element);
+    this.element.querySelector("[data-poke5e-pokedollars]")?.addEventListener("change", async event => {
+      await updatePokedollars(this.actor, event.currentTarget.value);
+      this.render({ force: true });
+    });
   }
 
   /** Item Pokémon de la fila pulsada; base de las acciones de la pestaña. */
