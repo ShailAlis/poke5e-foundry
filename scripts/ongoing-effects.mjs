@@ -1,6 +1,8 @@
 /**
  * Efectos mantenidos de movimientos Pokémon. Los representa como ActiveEffects
  * visibles sobre el token y resuelve sus pulsos al inicio o al final del turno.
+ * El mismo secuenciador ejecuta los objetos de fin de turno y hace avanzar el
+ * bloqueo temporal de los objetos Elegidos.
  *
  * Las definiciones son deliberadamente explícitas: el texto libre sirve para
  * mostrarlas, pero las reglas temporales no se infieren para evitar aplicar
@@ -9,8 +11,9 @@
 import { loadPoke5eData } from "./data-service.mjs";
 import { MODULE_ID } from "./model.mjs";
 import { typeLabel } from "./combat.mjs";
-import { applyEndTurnStatusDamage } from "./status-effects.mjs";
+import { applyEndTurnStatusDamage, applyPokemonStatus } from "./status-effects.mjs";
 import { pokemonEffectIcon } from "./effect-icons.mjs";
+import { advanceHeldItemTurn, heldItemEndTurnEffect, postHeldItemMessage } from "./held-items.mjs";
 
 const SOCKET_ACTION = "applyOngoingMoveEffects";
 const KIND = "ongoing-move";
@@ -104,7 +107,11 @@ export function resolveOngoingMoveEffect(move, { level = 1, moveModifier = 0, pr
   };
 }
 
-/** Registra socket, turnos, concentración, curación y limpieza del combate. */
+/**
+ * Registra socket, turnos, concentración, curación y limpieza del combate. En
+ * cada cambio de turno ordena estados, objetos, efectos mantenidos y caducidad
+ * de objetos Elegidos para que todos usen una única secuencia del director.
+ */
 export function registerOngoingMoveEffects() {
   game.socket.on(`module.${MODULE_ID}`, payload => {
     if (payload?.action !== SOCKET_ACTION || !isResponsibleGm()) return;
@@ -116,7 +123,9 @@ export function registerOngoingMoveEffects() {
     const currentActor = current?.combatantId ? combat.combatants.get(current.combatantId)?.actor : null;
     try {
       await applyEndTurnStatusDamage(previousActor);
+      await applyEndTurnHeldItemEffect(previousActor);
       await processOngoingEffects(previousActor, "end");
+      await advanceHeldItemTurn(previousActor);
       await processOngoingEffects(currentActor, "start");
     } catch (error) {
       console.error(`${MODULE_ID} | Ongoing turn processing failed`, error);
@@ -129,6 +138,39 @@ export function registerOngoingMoveEffects() {
     clearCombatEffects(combat).catch(error => console.error(`${MODULE_ID} | Ongoing combat cleanup failed`, error));
   });
   synchronizeOngoingEffectIcons().catch(error => console.error(`${MODULE_ID} | Ongoing effect icon synchronization failed`, error));
+}
+
+/**
+ * Aplica Lodo Negro, Llamaesfera y Toxiesfera al final del turno del portador.
+ * Los estados pasan por applyPokemonStatus() para respetar inmunidades y bayas;
+ * el daño de Lodo Negro se escribe en el actor y activa la sincronización de PG.
+ */
+async function applyEndTurnHeldItemEffect(actor) {
+  if (!actor || Number(actor.system.attributes?.hp?.value) <= 0) return;
+  const pokemonItem = await pokemonItemForActor(actor);
+  const held = pokemonItem?.getFlag(MODULE_ID, "instance")?.heldItem;
+  if (!pokemonItem || !held) return;
+  const effect = heldItemEndTurnEffect({ sourceId: held.sourceId, pokemonTypes: actor.getFlag(MODULE_ID, "pokemonTypes") ?? [] });
+  if (!effect) return;
+  if (effect.status) {
+    await applyPokemonStatus(actor, effect.status, { sourceName: actor.name, moveName: held.name });
+    return;
+  }
+  if (effect.damageFormula) {
+    const roll = await new Roll(effect.damageFormula).evaluate();
+    await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${held.name} · Daño ${typeLabel(effect.damageType)}` });
+    const hp = actor.system.attributes.hp;
+    const damage = Math.max(0, Number(roll.total) || 0);
+    await actor.update({ "system.attributes.hp.value": Math.max(0, Number(hp.value) - damage) });
+    await postHeldItemMessage(pokemonItem, held, `Inflige ${damage} de daño de ${typeLabel(effect.damageType)} al final del turno.`);
+  }
+}
+
+/** Localiza el Item Pokémon que respalda a un actor salvaje o desplegado. */
+async function pokemonItemForActor(actor) {
+  const uuid = actor?.getFlag?.(MODULE_ID, "pokemonItemUuid");
+  if (uuid) return fromUuid(uuid);
+  return actor?.items?.find(item => item.getFlag(MODULE_ID, "kind") === "pokemon") ?? null;
 }
 
 /**

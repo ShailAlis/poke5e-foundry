@@ -11,7 +11,7 @@ import { Poke5ePokemonSheet } from "./pokemon-sheet.mjs";
 import { Poke5eReference } from "./reference.mjs";
 import { Poke5eTrainerTeam } from "./trainer-team.mjs";
 import { MODULE_ID, displayAssetUrl, getPokemonItems, normalizeDroppedSpecies, randomGenderForRatio, trainerPokeslotLimit } from "./model.mjs";
-import { cleanDeploymentActor, recallPokemon, registerPokemonTokenMovement, syncDeploymentHp, syncPokemonHpToDeployment } from "./deployment.mjs";
+import { cleanDeploymentActor, recallPokemon, registerPokemonTokenMovement, syncDeploymentHp, syncPokemonHeldItemToDeployment, syncPokemonHpToDeployment } from "./deployment.mjs";
 import { registerTrainerActorSheet } from "./trainer-actor-sheet.mjs";
 import { migratePokemonActorSheets, registerPokemonActorSheet } from "./pokemon-actor-sheet.mjs";
 import { damageTraitsForPokemonTypes, registerPokemonDamageTypes } from "./combat.mjs";
@@ -23,6 +23,7 @@ import { registerPokemonStatusEffects, registerPokemonStatusSocket } from "./sta
 import { registerOngoingMoveEffects } from "./ongoing-effects.mjs";
 import { loadPokemonEffectIcons } from "./effect-icons.mjs";
 import { registerMoveModifierEffects } from "./move-modifiers.mjs";
+import { restoreHeldItemChargesAfterRest } from "./held-items.mjs";
 
 /**
  * Arranque temprano: delega el registro de tipos de daño (combat.mjs), fichas
@@ -189,25 +190,40 @@ Hooks.on("getHeaderControlsApplicationV2", (application, controls) => {
 
 /**
  * Propaga a la ficha del entrenador los PG que cambian en un actor desplegado o
- * salvaje, mediante syncDeploymentHp() (deployment.mjs). El sentido inverso lo
- * cubre el hook `updateItem`.
+ * salvaje mediante syncDeploymentHp() (deployment.mjs), que también resuelve
+ * los objetos activados por una bajada de PG. Solo el cliente que originó la
+ * actualización abre reacciones, evitando diálogos duplicados. El sentido
+ * inverso lo cubre el hook `updateItem`.
  */
-Hooks.on("updateActor", (actor, changes) => {
+Hooks.on("updateActor", (actor, changes, options, userId) => {
   if (!["deployed", "wild"].includes(actor.getFlag(MODULE_ID, "kind"))) return;
+  if (userId && userId !== game.user.id) return;
   if (foundry.utils.hasProperty(changes, "system.attributes.hp") || foundry.utils.hasProperty(changes, "system.attributes.hp.value") || foundry.utils.hasProperty(changes, "system.attributes.hp.max")) {
     syncDeploymentHp(actor).catch(error => console.error(`${MODULE_ID} | HP sync failed`, error));
   }
 });
 
 /**
- * Contrapartida del hook `updateActor`: lleva los PG editados en la ficha del
- * Pokémon a su actor desplegado con syncPokemonHpToDeployment() (deployment.mjs).
+ * Contrapartida del hook `updateActor`: lleva al actor desplegado los PG
+ * editados en la ficha y vuelve a calcular los efectos del objeto cuando cambia
+ * la instancia, mediante las dos sincronizaciones de deployment.mjs.
  */
 Hooks.on("updateItem", (item, changes) => {
   if (item.getFlag(MODULE_ID, "kind") !== "pokemon") return;
   if (foundry.utils.hasProperty(changes, `flags.${MODULE_ID}.instance.hp`) || foundry.utils.hasProperty(changes, `flags.${MODULE_ID}.instance`)) {
     syncPokemonHpToDeployment(item).catch(error => console.error(`${MODULE_ID} | Pokémon HP sync failed`, error));
   }
+  if (foundry.utils.hasProperty(changes, `flags.${MODULE_ID}.instance.heldItem`) || foundry.utils.hasProperty(changes, `flags.${MODULE_ID}.instance`)) {
+    syncPokemonHeldItemToDeployment(item).catch(error => console.error(`${MODULE_ID} | Held item sync failed`, error));
+  }
+});
+
+/**
+ * Delega `dnd5e.restCompleted` en held-items.mjs: el descanso largo actúa como
+ * amanecer para las cargas y el corto permite reparar el Globo Helio.
+ */
+Hooks.on("dnd5e.restCompleted", (actor, result, config) => {
+  restoreHeldItemChargesAfterRest(actor, config).catch(error => console.error(`${MODULE_ID} | Held item rest reset failed`, error));
 });
 
 /** Retira del mapa el token de un Pokémon cuyo Item se ha borrado (deployment.mjs). */

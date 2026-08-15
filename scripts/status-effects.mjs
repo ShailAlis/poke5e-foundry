@@ -1,7 +1,8 @@
 /**
  * Estados alterados Pokémon: los define como efectos de Foundry, deduce del
  * texto de cada movimiento cuáles aplica, los reparte entre los objetivos
- * seleccionados y resuelve el daño de fin de turno.
+ * seleccionados, resuelve el daño de fin de turno y ofrece las reacciones de
+ * Cinta Focus y bayas cuando acaba de aplicar un estado compatible.
  *
  * Los jugadores no pueden modificar actores ajenos, así que las peticiones
  * viajan por socket hasta el director responsable (isResponsibleGm()), que las
@@ -13,6 +14,7 @@
 import { MODULE_ID } from "./model.mjs";
 import { pokemonEffectIcon } from "./effect-icons.mjs";
 import { attackHitsPokemonTarget, pokemonCombatModifiers } from "./move-modifiers.mjs";
+import { confirmHeldItemReaction, consumeHeldItem, heldItemId, postHeldItemMessage, statusBerryMatches } from "./held-items.mjs";
 
 /** Acción del socket con la que un jugador pide al director aplicar estados. */
 const STATUS_SOCKET_ACTION = "applyMoveStatuses";
@@ -345,9 +347,10 @@ async function completeStatusApplication(payload) {
  * Aplica un estado concreto a un actor: descarta las inmunidades por tipo
  * (pokemonTypes()), los duplicados y los no volátiles cuando ya hay otro; crea
  * el efecto con pokemonStatusEffectSource(), lo guarda en el Item con
- * persistPokemonStatus() si es no volátil y lo anuncia en el chat.
+ * persistPokemonStatus() si es no volátil, lo anuncia en el chat y finalmente
+ * delega en resolveHeldItemStatusReaction() para el objeto equipado.
  */
-async function applyPokemonStatus(actor, id, source) {
+export async function applyPokemonStatus(actor, id, source) {
   const definition = POKEMON_STATUS_EFFECTS[id];
   if (!definition) return;
   const types = pokemonTypes(actor);
@@ -368,6 +371,34 @@ async function applyPokemonStatus(actor, id, source) {
   await ChatMessage.create({
     content: `<div class="dnd5e chat-card poke5e-status-card"><header class="card-header"><h3>${escapeHtml(actor.name)}: ${escapeHtml(definition.name)}</h3></header><p>${escapeHtml(source.moveName)} aplica <strong>${escapeHtml(definition.name)}</strong>.</p><p>${escapeHtml(definition.description)}</p></div>`
   });
+  await resolveHeldItemStatusReaction(actor, id);
+}
+
+/**
+ * Resuelve Cinta Focus y las bayas que reaccionan al estado recién aplicado.
+ * Las bayas siempre piden confirmación; Cinta Focus realiza su tirada obligatoria.
+ */
+async function resolveHeldItemStatusReaction(actor, status) {
+  const pokemonItem = await pokemonItemForActor(actor);
+  if (!pokemonItem) return;
+  const instance = pokemonItem.getFlag(MODULE_ID, "instance") ?? {};
+  const held = instance.heldItem;
+  const id = heldItemId(held?.sourceId);
+  if (id === "focus-band" && status === "flinched") {
+    const roll = await new Roll("1d20").evaluate();
+    await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${held.name} · Evitar retroceso (10+)` });
+    if (Number(roll.total) >= 10) {
+      await removePokemonStatus(pokemonItem, status);
+      await postHeldItemMessage(pokemonItem, held, "La tirada tiene éxito y evita el retroceso.");
+    }
+    return;
+  }
+  if (!statusBerryMatches(id, status)) return;
+  const confirmed = await confirmHeldItemReaction(held.name, `<p>${escapeHtml(actor.name)} acaba de sufrir ${escapeHtml(POKEMON_STATUS_EFFECTS[status]?.name ?? status)}. ¿Consumir ${escapeHtml(held.name)} para curarlo?</p>`);
+  if (!confirmed) return;
+  await removePokemonStatus(pokemonItem, status);
+  await consumeHeldItem(pokemonItem, id);
+  await postHeldItemMessage(pokemonItem, held, `Se consume como reacción y cura ${POKEMON_STATUS_EFFECTS[status]?.name ?? status}.`);
 }
 
 /**

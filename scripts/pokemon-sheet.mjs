@@ -5,8 +5,8 @@
  * experiencia y la evolución, los objetos equipados y los estados alterados.
  *
  * Casi no contiene reglas propias: las toma de move-learning.mjs, combat.mjs,
- * contests.mjs, progression.mjs y status-effects.mjs, y aquí solo las presenta y
- * guarda el resultado en el flag `instance` del Item. La abren trainer-team.mjs,
+ * contests.mjs, progression.mjs, status-effects.mjs y held-items.mjs, y aquí
+ * las presenta y guarda el resultado en el flag `instance` del Item. La abren trainer-team.mjs,
  * trainer-actor-sheet.mjs, pokemon-actor-sheet.mjs y main.mjs. Su plantilla es
  * `templates/pokemon-sheet.hbs`.
  */
@@ -14,11 +14,25 @@ import { loadPoke5eData } from "./data-service.mjs";
 import { MODULE_ID, MODULE_PATH, displayPokemonName, gearItemSource, portraitUrl } from "./model.mjs";
 import { MAX_KNOWN_MOVES, applyLearnedMove, filterMoveCatalog, moveEligibility } from "./move-learning.mjs";
 import { normalizeMoveDamageTypes, pokemonDefenses, typeLabel } from "./combat.mjs";
-import { deployedActorFor, recallPokemon, syncPokemonIdentityToDeployment } from "./deployment.mjs";
+import { deployedActorFor, recallPokemon, syncPokemonHeldItemToDeployment, syncPokemonIdentityToDeployment } from "./deployment.mjs";
 import { CONTEST_TYPES, contestAppealOutcome, contestCompatibility, contestDetailsForMove, contestTypeOptions } from "./contests.mjs";
 import { applyMoveStatuses, pokemonStatusEntries, pokemonStatusId, removePokemonStatus } from "./status-effects.mjs";
 import { applyMoveOngoingEffects, moveHasImmediateDamage, ongoingEffectEntries, removeOngoingEffect } from "./ongoing-effects.mjs";
 import { applyMoveModifierEffects, consumeCapturedMoveModifiers, moveModifierEntries, moveModifierIdsToConsume, pokemonCombatModifiers, removeMoveModifier, targetedPokemonModifiers } from "./move-modifiers.mjs";
+import {
+  activateHeldItem,
+  applyPostMoveHeldItemEffects,
+  choiceHeldItemAllowsMove,
+  heldItemActorAdjustments,
+  heldItemEffectiveMove,
+  heldItemEffectiveTypes,
+  heldItemId,
+  heldItemInitialCharges,
+  heldItemMoveModifiers,
+  lockChoiceHeldItem,
+  resolvePokemonHpBerryReaction,
+  tryLeppaBerryReaction
+} from "./held-items.mjs";
 import {
   evolutionReadiness,
   experienceAtLevel,
@@ -79,17 +93,25 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
    * guardados en la instancia con los activos en el actor del mapa—, objetos del
    * inventario que puede equipar, evoluciones con prepareEvolutions() y los
    * datos del modo Concurso. Usa las características de la instancia si las
-   * tiene, para reflejar las mejoras ganadas al evolucionar.
+   * tiene y aplica tipos, CA y modificadores de movimiento del objeto equipado
+   * para que la vista previa coincida con las tiradas reales.
    */
   async _prepareContext() {
     const data = await loadPoke5eData();
     const species = this.pokemonItem.getFlag(MODULE_ID, "species") ?? {};
     const instance = this.pokemonItem.getFlag(MODULE_ID, "instance") ?? {};
-    const combatSpecies = { ...species, attributes: instance.attributes ?? species.attributes ?? {} };
+    const heldItem = instance.heldItem ?? null;
+    const effectiveTypes = heldItemEffectiveTypes({
+      sourceId: heldItem?.sourceId,
+      speciesId: species.id,
+      baseTypes: species.type ?? [],
+      abilities: instance.abilities ?? []
+    });
+    const combatSpecies = { ...species, type: effectiveTypes, attributes: instance.attributes ?? species.attributes ?? {} };
     const level = Number(instance.level) || 1;
     const moves = (instance.moves ?? []).map(entry => {
       const move = data.movesById.get(entry.moveId);
-      return move ? prepareMove(entry, move, combatSpecies, level, data.contestEffectsById, this.contestType) : null;
+      return move ? prepareMove(entry, move, combatSpecies, level, data.contestEffectsById, this.contestType, heldItem) : null;
     }).filter(Boolean);
     const knownMoveIds = new Set((instance.moves ?? []).map(entry => entry.moveId));
     const catalog = this.moveManagerOpen
@@ -103,9 +125,9 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const abilityScores = Object.entries(combatSpecies.attributes).map(([key, score]) => ({
       key: key.toUpperCase(), score, modifier: signed(Math.floor((Number(score) - 10) / 2))
     }));
-    const defenses = pokemonDefenses(species.type);
+    const defenses = pokemonDefenses(effectiveTypes);
     const experience = experienceProgress(instance.experience, level);
-    const heldItem = instance.heldItem ?? null;
+    const heldActor = heldItemActorAdjustments({ sourceId: heldItem?.sourceId, speciesId: species.id, charges: heldItem?.charges, state: heldItem?.state });
     const combatActor = this.pokemonItem.parent?.getFlag?.(MODULE_ID, "kind") === "wild" ? this.pokemonItem.parent : deployedActorFor(this.pokemonItem);
     const activeConditions = Object.keys({ burned: 1, frozen: 1, paralyzed: 1, poisoned: 1, "badly-poisoned": 1, asleep: 1, confused: 1, flinched: 1 })
       .filter(id => combatActor?.statuses?.has(pokemonStatusId(id)));
@@ -163,9 +185,9 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       },
       abilities,
       abilityScores,
-      types: (species.type ?? []).map(type => ({ id: type, label: titleCase(type) })),
+      types: effectiveTypes.map(type => ({ id: type, label: titleCase(type) })),
       hp: instance.hp,
-      ac: instance.ac ?? species.ac,
+      ac: (Number(instance.ac ?? species.ac) || 10) + heldActor.ac,
       speeds: prepareSpeeds(species.speed),
       gender: prepareGender(instance.gender, species.gender),
       captureBall: instance.caughtWith ? (data.itemsById.get(instance.caughtWith)?.name ?? instance.caughtWith) : "",
@@ -285,7 +307,8 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
    * evolutionReadiness(), pide confirmación y el reparto de puntos de
    * característica con promptEvolution(), lo valida con applyAbilityAllocation(),
    * retira al Pokémon del mapa y reescribe el Item con la nueva especie:
-   * conserva el daño recibido al ampliar los PG máximos, actualiza CA,
+   * primero rechaza la acción si lleva Mineral Evolutivo; si procede, conserva
+   * el daño recibido al ampliar los PG máximos, actualiza CA,
    * características, habilidades (evolvedAbilities()), nombre e imagen.
    */
   async #evolve(event) {
@@ -296,6 +319,9 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const target = data.pokemonById.get(evolution?.to);
     if (!evolution || !target) return ui.notifications.error("No se encontraron los datos de esta evolución.");
     const instance = this.#instance();
+    if (heldItemId(instance.heldItem?.sourceId) === "eviolite") {
+      return ui.notifications.warn(`${instance.heldItem.name} impide que este Pokémon evolucione mientras lo lleve equipado.`);
+    }
     const readiness = evolutionReadiness(evolution, {
       level: instance.level,
       gender: instance.gender,
@@ -330,12 +356,22 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
   }
 
   /**
-   * Edita los PG acotándolos entre 0 y el máximo. El hook `updateItem` de
-   * main.mjs propaga el cambio al mapa mediante syncPokemonHpToDeployment().
+   * Edita los PG acotándolos entre 0 y el máximo. Antes de guardar ofrece una
+   * baya curativa si la bajada cruza la mitad; si se consume, guarda curación y
+   * retirada del objeto juntas. El hook `updateItem` de main.mjs propaga el
+   * resultado al mapa mediante syncPokemonHpToDeployment().
    */
   async #changeHp(event) {
     const instance = this.#instance();
-    instance.hp.value = Math.max(0, Math.min(Number(instance.hp.max) || 1, Number(event.currentTarget.value) || 0));
+    const previousHp = Math.max(0, Number(instance.hp.value) || 0);
+    const nextHp = Math.max(0, Math.min(Number(instance.hp.max) || 1, Number(event.currentTarget.value) || 0));
+    const reaction = await resolvePokemonHpBerryReaction(this.pokemonItem, previousHp, nextHp);
+    if (reaction.handled) {
+      await syncPokemonHeldItemToDeployment(this.pokemonItem);
+      this.render({ force: true });
+      return;
+    }
+    instance.hp.value = nextHp;
     await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
     this.render({ force: true });
   }
@@ -360,8 +396,8 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
   /**
    * Equipa o retira el objeto que lleva el Pokémon, moviendo la unidad entre el
    * inventario del entrenador y la instancia: devuelve el anterior con
-   * returnHeldItem(), descuenta el nuevo con decrementInventoryItem() y le fija
-   * sus cargas con initialHeldItemCharges().
+   * returnHeldItem(), descuenta el nuevo con decrementInventoryItem(), le fija
+   * sus cargas con heldItemInitialCharges() y sincroniza sus ajustes al actor.
    */
   async #equipHeldItem(event) {
     const trainer = this.pokemonItem.parent;
@@ -381,46 +417,43 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
         name: selected.name,
         img: selected.img,
         description: (definition?.description ?? []).join("\n"),
-        charges: initialHeldItemCharges(sourceId, definition)
+        charges: heldItemInitialCharges(sourceId, definition)
       };
       await decrementInventoryItem(selected);
     } else delete instance.heldItem;
     await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
+    await syncPokemonHeldItemToDeployment(this.pokemonItem);
     this.render({ force: true });
   }
 
   /**
-   * Usa el objeto equipado: publica su efecto en el chat, gasta una carga y, si
-   * es una baya, la consume por completo. Su contraparte es #restoreHeldItem().
+   * Usa voluntariamente el objeto equipado mediante activateHeldItem(): cura PG,
+   * estados o PP y consume cargas/bayas cuando la regla lo exige; los objetos
+   * sin resolución directa solo publican su descripción. Respeta los efectos que
+   * bloquean objetos y sincroniza el resultado al actor desplegado.
    */
   async #useHeldItem() {
-    const instance = this.#instance();
-    const held = instance.heldItem;
+    const held = this.#instance().heldItem;
     if (!held) return;
     const combatActor = this.pokemonItem.parent?.getFlag?.(MODULE_ID, "kind") === "wild" ? this.pokemonItem.parent : deployedActorFor(this.pokemonItem);
     if (pokemonCombatModifiers(combatActor).disableHeldItem) return ui.notifications.warn(`${held.name} está bloqueado por un efecto activo.`);
-    const berry = String(held.sourceId).endsWith("-berry");
-    if (held.charges != null && Number(held.charges) <= 0) return ui.notifications.warn(`${held.name} no tiene cargas.`);
-    await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor: this.pokemonItem.parent, alias: displayPokemonName(this.pokemonItem) }),
-      content: `<div class="dnd5e chat-card"><header class="card-header"><h3>${escapeHtml(displayPokemonName(this.pokemonItem))} usa ${escapeHtml(held.name)}</h3></header><p>${escapeHtml(held.description || "Aplica el efecto descrito por el objeto.")}</p></div>`
-    });
-    if (berry) delete instance.heldItem;
-    else if (held.charges != null) held.charges = Math.max(0, Number(held.charges) - 1);
-    await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
+    await activateHeldItem(this.pokemonItem, { removeStatus: id => removePokemonStatus(this.pokemonItem, id) });
+    await syncPokemonHeldItemToDeployment(this.pokemonItem);
     this.render({ force: true });
   }
 
   /**
-   * Devuelve al objeto equipado sus cargas iniciales, típicamente tras un
-   * descanso. Contraparte de #useHeldItem().
+   * Devuelve manualmente al objeto equipado sus cargas iniciales y sincroniza el
+   * actor. El reinicio normal por descanso lo realiza el hook de main.mjs; este
+   * control se conserva como herramienta explícita de ficha.
    */
   async #restoreHeldItem() {
     const instance = this.#instance();
     if (!instance.heldItem) return;
     const data = await loadPoke5eData();
-    instance.heldItem.charges = initialHeldItemCharges(instance.heldItem.sourceId, data.itemsById.get(instance.heldItem.sourceId));
+    instance.heldItem.charges = heldItemInitialCharges(instance.heldItem.sourceId, data.itemsById.get(instance.heldItem.sourceId));
     await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
+    await syncPokemonHeldItemToDeployment(this.pokemonItem);
     this.render({ force: true });
   }
 
@@ -537,29 +570,43 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
   }
 
   /**
-   * Ejecuta un movimiento en modo Combate. Comprueba los PP y los descuenta;
-   * calcula MOVE con getMoveModifier() y la competencia por nivel; según el
+   * Ejecuta un movimiento en modo Combate. Comprueba los PP y los descuenta,
+   * ofreciendo Baya Zanama al llegar a 0; calcula MOVE con getMoveModifier(),
+   * competencia y modificadores del objeto equipado; según el
    * movimiento tira ataque (con desventaja si está envenenado o amedrentado),
    * anuncia una CD de salvación o solo publica su descripción; tira el daño con
    * el DamageRoll de D&D 5e —pidiendo el tipo con chooseDamageType() cuando hay
    * varios y quedándose con la menor de dos tiradas si está quemado— y termina
-   * repartiendo los estados con applyMoveStatuses(). Su gemela para concursos es
-   * #rollContestMove().
+   * repartiendo estados y efectos mantenidos, resolviendo Campana Concha o
+   * Vidaesfera y guardando el bloqueo de los objetos Elegidos. Su gemela para
+   * concursos es #rollContestMove().
    */
   async #rollMove(event) {
     const data = await loadPoke5eData();
     const instance = this.#instance();
     const entry = instance.moves.find(candidate => candidate.id === event.currentTarget.dataset.moveEntryId);
-    const move = data.movesById.get(entry?.moveId);
-    if (!entry || !move) return;
+    const catalogMove = data.movesById.get(entry?.moveId);
+    if (!entry || !catalogMove) return;
     if (Number(entry.pp.max) > 0 && Number(entry.pp.value) <= 0) {
-      return ui.notifications.warn(game.i18n.format("POKE5E.Notifications.NoPP", { name: displayPokemonName(this.pokemonItem), move: move.name }));
+      return ui.notifications.warn(game.i18n.format("POKE5E.Notifications.NoPP", { name: displayPokemonName(this.pokemonItem), move: catalogMove.name }));
     }
     const storedSpecies = this.pokemonItem.getFlag(MODULE_ID, "species");
-    const species = { ...storedSpecies, attributes: instance.attributes ?? storedSpecies.attributes ?? {} };
+    const effectiveTypes = heldItemEffectiveTypes({
+      sourceId: instance.heldItem?.sourceId, speciesId: storedSpecies.id,
+      baseTypes: storedSpecies.type ?? [], abilities: instance.abilities ?? []
+    });
+    const species = { ...storedSpecies, type: effectiveTypes, attributes: instance.attributes ?? storedSpecies.attributes ?? {} };
+    const move = heldItemEffectiveMove(catalogMove, { sourceId: instance.heldItem?.sourceId, speciesId: storedSpecies.id });
     const level = Number(instance.level) || 1;
-    const moveModifier = getMoveModifier(species, move);
     const proficiency = 2 + Math.floor((level - 1) / 4);
+    const heldProfile = heldItemMoveModifiers({
+      sourceId: instance.heldItem?.sourceId, speciesId: storedSpecies.id, speciesTypes: effectiveTypes,
+      move, proficiency, hasDamage: moveHasImmediateDamage(move)
+    });
+    if (!heldProfile.allowed) return ui.notifications.warn(`${instance.heldItem.name} solo permite usar movimientos que causen daño.`);
+    if (!choiceHeldItemAllowsMove(instance.heldItem, move.id)) return ui.notifications.warn(`${instance.heldItem.name} impide usar un movimiento distinto hasta el final del siguiente turno.`);
+    const moveModifier = getMoveModifier(species, move) + heldProfile.moveModifierBonus;
+    const attackMoveModifier = moveModifier * heldProfile.attackMoveMultiplier;
     const name = displayPokemonName(this.pokemonItem);
     const flavor = `${name} — ${move.name}`;
     const speaker = ChatMessage.getSpeaker({ actor: this.pokemonItem.parent, alias: name });
@@ -568,14 +615,15 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const combatModifiers = pokemonCombatModifiers(combatActor, { targetUuids: selectedTokens.map(token => token.actor?.uuid).filter(Boolean) });
     const targetedModifiers = targetedPokemonModifiers(selectedTokens);
     const consumedModifierIds = moveModifierIdsToConsume(combatActor, "move");
-    const damageMoveModifier = moveModifier * combatModifiers.moveModifierMultiplier;
-    const formula = moveHasImmediateDamage(move) ? damageFormula(move, level, damageMoveModifier, species, combatModifiers.damage) : null;
+    const damageMoveModifier = moveModifier * heldProfile.damageMoveMultiplier * combatModifiers.moveModifierMultiplier;
+    const formula = moveHasImmediateDamage(move) ? damageFormula(move, level, damageMoveModifier, species, combatModifiers.damage + heldProfile.damage, heldProfile.stab) : null;
     const damageType = formula ? await chooseDamageType(move) : null;
     if (formula && !damageType) return;
 
     if (Number(entry.pp.max) > 0) {
       entry.pp.value = Math.max(0, Number(entry.pp.value) - 1);
       await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
+      if (Number(entry.pp.value) === 0) await tryLeppaBerryReaction(this.pokemonItem, entry.id);
     }
 
     let attackResult = null;
@@ -589,14 +637,16 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       const die = advantage === disadvantage ? "1d20" : advantage ? "2d20kh" : "2d20kl";
       const effectDice = combatModifiers.attackDice.map(formula => ` + ${formula}`).join("");
       const effectProficiency = combatModifiers.suppressAttackProficiency ? 0 : proficiency;
-      const attack = await new Roll(`${die} + @mod + @prof + @effect${effectDice}`, { mod: moveModifier, prof: effectProficiency, effect: combatModifiers.attack }).evaluate();
+      const attack = await new Roll(`${die} + @mod + @prof + @effect${effectDice}`, { mod: attackMoveModifier, prof: effectProficiency, effect: combatModifiers.attack + heldProfile.attack }).evaluate();
       await attack.toMessage({ speaker, flavor: `${flavor} (${titleCase(move.attack.scope)})` });
+      const natural = Number(attack.dice?.[0]?.results?.find(result => result.active)?.result ?? attack.dice?.[0]?.total) || 0;
       attackResult = {
-        natural: Number(attack.dice?.[0]?.results?.find(result => result.active)?.result ?? attack.dice?.[0]?.total) || 0,
-        total: Number(attack.total) || 0
+        natural,
+        total: Number(attack.total) || 0,
+        critical: natural >= Math.max(1, 20 - heldProfile.criticalRange)
       };
     } else if (move.save) {
-      const dc = 8 + moveModifier + proficiency;
+      const dc = 8 + attackMoveModifier + proficiency;
       const attributes = (move.save.attribute ?? []).map(key => key.toUpperCase()).join("/");
       await ChatMessage.create({ speaker, content: `<div class="dnd5e chat-card"><header class="card-header"><h3>${escapeHtml(flavor)}</h3></header><p><strong>Salvación ${escapeHtml(attributes)} CD ${dc}</strong></p>${moveDescription(move)}</div>` });
     } else {
@@ -606,8 +656,9 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       const DamageRoll = CONFIG.Dice?.DamageRoll;
       if (DamageRoll) {
         const burned = damageType !== "healing" && (instance.conditions ?? []).includes("burned");
-        const damageRolls = [await new DamageRoll(formula, {}, { type: damageType }).evaluate()];
-        if (burned) damageRolls.push(await new DamageRoll(formula, {}, { type: damageType }).evaluate());
+        const damageOptions = { type: damageType, critical: Boolean(attackResult?.critical) };
+        const damageRolls = [await new DamageRoll(formula, {}, damageOptions).evaluate()];
+        if (burned) damageRolls.push(await new DamageRoll(formula, {}, damageOptions).evaluate());
         const damage = damageRolls.reduce((lowest, candidate) => Number(candidate.total) < Number(lowest.total) ? candidate : lowest);
         const rollType = damageType === "healing" ? "healing" : "damage";
         await damage.toMessage({
@@ -623,19 +674,21 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
         await damage.toMessage({ speaker, flavor: `${flavor} — ${typeLabel(damageType)}${burned ? ` · Quemado: menor de ${damageRolls.map(roll => roll.total).join("/")}` : ""}` });
       }
     }
-    const statusResolution = await applyMoveStatuses({ move, attack: attackResult, saveDc: 8 + moveModifier + proficiency, sourceActor: this.pokemonItem.parent, sourceCombatActor: combatActor, sourceName: name });
+    const statusResolution = await applyMoveStatuses({ move, attack: attackResult, saveDc: 8 + attackMoveModifier + proficiency, sourceActor: this.pokemonItem.parent, sourceCombatActor: combatActor, sourceName: name });
     await applyMoveOngoingEffects({
-      move, attack: attackResult, saveDc: 8 + moveModifier + proficiency,
+      move, attack: attackResult, saveDc: 8 + attackMoveModifier + proficiency,
       sourceOwnerActor: this.pokemonItem.parent, sourceCombatActor: combatActor,
       sourcePokemonItem: this.pokemonItem, sourceName: name, level, moveModifier,
       proficiency, sourceTypes: species.type ?? []
     });
     await applyMoveModifierEffects({
-      move, attack: attackResult, saveDc: 8 + moveModifier + proficiency,
+      move, attack: attackResult, saveDc: 8 + attackMoveModifier + proficiency,
       saveResults: statusResolution?.saveResults,
       sourceOwnerActor: this.pokemonItem.parent, sourceCombatActor: combatActor, sourceName: name, proficiency
     });
     await consumeCapturedMoveModifiers(combatActor, consumedModifierIds);
+    if (formula) await applyPostMoveHeldItemEffects(this.pokemonItem, heldProfile, proficiency);
+    if (await lockChoiceHeldItem(this.pokemonItem, move.id)) await syncPokemonHeldItemToDeployment(this.pokemonItem);
     this.render({ force: true });
   }
 
@@ -895,27 +948,34 @@ function evolutionConditionLabel(condition, data) {
 /**
  * Prepara un movimiento aprendido para la plantilla: PP, bonificador de ataque o
  * CD de salvación calculados con getMoveModifier() y la competencia por nivel,
- * fórmula de daño de damageFormula(), datos de concurso y un aviso si dejó de
- * ser compatible con la especie (por ejemplo tras evolucionar).
+ * fórmula de daño de damageFormula(), modificaciones del objeto equipado,
+ * datos de concurso y un aviso si dejó de ser compatible con la especie.
  * Auxiliar de _prepareContext(); su gemela para el catálogo es prepareCatalogMove().
  */
-function prepareMove(entry, move, species, level, effectsById, contestType) {
-  const modifier = getMoveModifier(species, move);
+function prepareMove(entry, move, species, level, effectsById, contestType, heldItem = null) {
   const proficiency = 2 + Math.floor((level - 1) / 4);
-  const eligibility = moveEligibility(species, move, level);
+  const effectiveMove = heldItemEffectiveMove(move, { sourceId: heldItem?.sourceId, speciesId: species.id });
+  const profile = heldItemMoveModifiers({
+    sourceId: heldItem?.sourceId, speciesId: species.id, speciesTypes: species.type ?? [],
+    move: effectiveMove, proficiency, hasDamage: moveHasImmediateDamage(effectiveMove)
+  });
+  const modifier = getMoveModifier(species, effectiveMove) + profile.moveModifierBonus;
+  const attackModifier = modifier * profile.attackMoveMultiplier;
+  const damageModifier = modifier * profile.damageMoveMultiplier;
+  const eligibility = moveEligibility(species, effectiveMove, level);
   return {
     entryId: entry.id,
-    name: move.name,
-    type: move.type ?? "normal",
-    time: move.time ?? "—",
-    range: move.range ?? "—",
-    description: moveDescription(move),
+    name: effectiveMove.name,
+    type: effectiveMove.type ?? "normal",
+    time: effectiveMove.time ?? "—",
+    range: effectiveMove.range ?? "—",
+    description: moveDescription(effectiveMove),
     pp: entry.pp,
     hasPp: Number(entry.pp?.max) > 0,
-    attackBonus: move.attack?.scope ? signed(modifier + proficiency) : null,
-    saveDc: move.save ? 8 + modifier + proficiency : null,
-    damage: damageFormula(move, level, modifier, species) ?? "—",
-    contest: prepareContestDisplay(move, effectsById, contestType),
+    attackBonus: effectiveMove.attack?.scope ? signed(attackModifier + proficiency + profile.attack) : null,
+    saveDc: effectiveMove.save ? 8 + attackModifier + proficiency : null,
+    damage: damageFormula(effectiveMove, level, damageModifier, species, profile.damage, profile.stab) ?? "—",
+    contest: prepareContestDisplay(effectiveMove, effectsById, contestType),
     learningMethods: eligibility.methods,
     learningWarning: eligibility.compatible && !eligibility.availableNow
       ? `Requiere nivel ${eligibility.requiredLevel}`
@@ -1027,10 +1087,12 @@ function getMoveModifier(species, move) {
  * Compone la fórmula de daño: elige los dados del tramo de nivel alcanzado y le
  * suma el modificador que indique el movimiento (MOVE, LEVEL, un número fijo,
  * "MOVE + n" o "MOVE + STAB", que añade 2 si el tipo coincide con el del
- * Pokémon). Devuelve null si el movimiento no causa daño.
+ * Pokémon). `effectDamage` incorpora bonos una vez por movimiento y
+ * `heldItemStab` amplía el STAB de objetos compatibles. Devuelve null si el
+ * movimiento no causa daño.
  * La usan prepareMove(), prepareCatalogMove() y #rollMove().
  */
-function damageFormula(move, level, moveModifier, species, effectDamage = 0) {
+function damageFormula(move, level, moveModifier, species, effectDamage = 0, heldItemStab = 0) {
   const diceByLevel = move.damage?.dice;
   if (!diceByLevel) return null;
   const tiers = Object.keys(diceByLevel).map(Number).filter(tier => tier <= level).sort((a, b) => b - a);
@@ -1042,7 +1104,7 @@ function damageFormula(move, level, moveModifier, species, effectDamage = 0) {
   else if (modifier === "LEVEL") formula = appendModifier(dice, level);
   else if (typeof modifier === "number") formula = appendModifier(dice, modifier);
   else if (typeof modifier === "string" && modifier.startsWith("MOVE +")) formula = appendModifier(dice, moveModifier + (Number(modifier.split("+")[1]) || 0));
-  else if (modifier === "MOVE + STAB") formula = appendModifier(dice, moveModifier + ((species.type ?? []).includes(move.type) ? 2 : 0));
+  else if (modifier === "MOVE + STAB") formula = appendModifier(dice, moveModifier + ((species.type ?? []).includes(move.type) ? 2 + heldItemStab : 0));
   return appendModifier(formula, effectDamage);
 }
 
@@ -1222,19 +1284,6 @@ async function returnHeldItem(trainer, heldItem, data) {
   if (existing) return existing.update({ "system.quantity": Math.max(0, Number(existing.system.quantity) || 0) + 1 });
   const definition = data.itemsById.get(heldItem.sourceId);
   if (definition) return trainer.createEmbeddedDocuments("Item", [gearItemSource(definition)]);
-}
-
-/**
- * Cargas iniciales de un objeto equipado: 1 para la Banda Focus (que
- * syncDeploymentHp() consume en deployment.mjs) y, si no, las que mencione su
- * descripción; null si el objeto no las usa. La usan #equipHeldItem() y
- * #restoreHeldItem().
- */
-function initialHeldItemCharges(sourceId, definition) {
-  if (sourceId === "focus-sash") return 1;
-  const text = (definition?.description ?? []).join(" ");
-  const match = text.match(/(?:has|tiene)\s+(\d+)\s+(?:charges?|cargas?)/i);
-  return match ? Number(match[1]) : null;
 }
 
 /** Formatea las cifras de experiencia según el idioma de la interfaz. */

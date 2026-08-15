@@ -1,7 +1,8 @@
 /**
  * Despliegue de los Pokémon del equipo en el mapa. Traduce un Item Pokémon a un
  * actor NPC temporal con su token, controla dónde puede aparecer, mantiene
- * sincronizados PG y nombre en ambos sentidos y borra el actor al retirarlo.
+ * sincronizados PG, nombre y efectos del objeto equipado en ambos sentidos, y
+ * borra el actor al retirarlo.
  *
  * Sus funciones de sincronización las disparan los hooks de main.mjs; las de
  * desplegar y retirar, los botones de trainer-team.mjs, trainer-actor-sheet.mjs
@@ -13,6 +14,14 @@ import { loadPoke5eData } from "./data-service.mjs";
 import { damageTraitsForPokemonTypes } from "./combat.mjs";
 import { pokemonStatusEffectSource } from "./status-effects.mjs";
 import { actorHasRecallLock } from "./ongoing-effects.mjs";
+import {
+  confirmHeldItemReaction,
+  heldItemActorAdjustments,
+  heldItemEffectiveTypes,
+  heldItemHpResolution,
+  postHeldItemMessage,
+  rollHeldItemFormula
+} from "./held-items.mjs";
 
 /** Distancia máxima, en pies, entre el entrenador y la casilla de salida. */
 const DEPLOY_RANGE = 10;
@@ -116,11 +125,12 @@ export async function recallPokemon(pokemonItem, { fainted = false, forced = fal
 }
 
 /**
- * Copia los PG del actor desplegado o salvaje al Item del Pokémon. Antes aplica
- * la Banda Focus: si el golpe lo dejaría a 0 PG y le queda carga, lo deja en 1 y
- * gasta el objeto. Si un Pokémon desplegado queda a 0 PG, guarda ese estado y lo
- * devuelve a su entrenador. La dispara el hook `updateActor` de main.mjs; el
- * sentido contrario lo cubre syncPokemonHpToDeployment().
+ * Copia los PG del actor desplegado o salvaje al Item del Pokémon y pasa la
+ * bajada por heldItemHpResolution(): reduce daño con Mineral Evolutivo, rompe
+ * Globo Helio, aplica Banda Focus y ofrece las reacciones de bayas curativas y
+ * Botón Escape. Después sincroniza la corrección al actor o retira al Pokémon
+ * debilitado. La dispara `updateActor` de main.mjs; el sentido contrario lo
+ * cubre syncPokemonHpToDeployment().
  */
 export async function syncDeploymentHp(actor) {
   const kind = actor.getFlag(MODULE_ID, "kind");
@@ -130,20 +140,59 @@ export async function syncDeploymentHp(actor) {
   if (!item) return;
   const instance = foundry.utils.deepClone(item.getFlag(MODULE_ID, "instance"));
   const actorHp = Number(actor.system.attributes.hp.value) || 0;
-  if (actorHp <= 0 && Number(instance.hp?.value) > 0 && instance.heldItem?.sourceId === "focus-sash" && Number(instance.heldItem.charges) > 0) {
-    instance.heldItem.charges = 0;
-    instance.hp = { value: 1, max: Number(actor.system.attributes.hp.max) || instance.hp.max };
-    await item.setFlag(MODULE_ID, "instance", instance);
-    await actor.update({ "system.attributes.hp.value": 1 });
-    await ChatMessage.create({ content: `<div class="dnd5e chat-card"><p><strong>${foundry.utils.escapeHTML(displayPokemonName(item))}</strong> resiste con 1 PG gracias a su Banda Focus. Su carga se ha consumido.</p></div>` });
-    return;
+  const maximumHp = Number(actor.system.attributes.hp.max) || instance.hp.max;
+  const species = item.getFlag(MODULE_ID, "species") ?? {};
+  const held = instance.heldItem;
+  let hasEvolution = false;
+  if (String(held?.sourceId ?? "").toLocaleLowerCase() === "eviolite") {
+    const data = await loadPoke5eData();
+    hasEvolution = Boolean(data.evolutionsByFrom.get(species.id)?.length);
+  }
+  const resolution = heldItemHpResolution({
+    sourceId: held?.sourceId,
+    charges: held?.charges,
+    previousHp: instance.hp?.value,
+    nextHp: actorHp,
+    maximumHp,
+    hasEvolution
+  });
+  let resolvedHp = resolution.hp;
+  let ejectButtonActivated = false;
+  if (held && resolution.charges !== held.charges) held.charges = resolution.charges;
+  if (kind === "deployed" && String(held?.sourceId ?? "").toLocaleLowerCase() === "eject-button" && Number(held.charges) > 0 && resolution.damage > 0) {
+    ejectButtonActivated = await confirmHeldItemReaction(held.name, `<p>${foundry.utils.escapeHTML(displayPokemonName(item))} ha recibido daño. Si procede de un ataque, ¿consumir una carga para retirarlo como acción gratuita?</p>`);
+    if (ejectButtonActivated) held.charges = 0;
+  }
+  if (held && resolution.reaction) {
+    const confirmed = await confirmHeldItemReaction(held.name, `<p>${foundry.utils.escapeHTML(displayPokemonName(item))} ha bajado de la mitad de sus PG. ¿Consumir ${foundry.utils.escapeHTML(held.name)}?</p>`);
+    if (confirmed) {
+      const amount = resolution.reaction.formula
+        ? await rollHeldItemFormula(item, resolution.reaction.formula, `${held.name} · Reacción de curación`)
+        : resolution.reaction.healing;
+      const healed = Math.min(Math.max(0, Number(amount) || 0), Math.max(0, maximumHp - resolvedHp));
+      resolvedHp += healed;
+      delete instance.heldItem;
+      await postHeldItemMessage(item, held, `Se consume como reacción y recupera ${healed} PG.`);
+    }
   }
   instance.hp = {
-    value: actorHp,
-    max: Number(actor.system.attributes.hp.max) || instance.hp.max
+    value: resolvedHp,
+    max: maximumHp
   };
   await item.setFlag(MODULE_ID, "instance", instance);
-  if (kind === "deployed" && actorHp <= 0) await recallPokemon(item, { fainted: true });
+  if (resolvedHp !== actorHp) await actor.update({ "system.attributes.hp.value": resolvedHp });
+  for (const event of resolution.events) {
+    if (event.type === "damage-reduction") await postHeldItemMessage(item, held, `Reduce el daño recibido en ${event.amount}.`);
+    if (event.type === "air-balloon-popped") await postHeldItemMessage(item, held, "El Globo Helio se rompe al recibir daño y pierde su inmunidad a Tierra.");
+    if (event.type === "focus-sash") await postHeldItemMessage(item, held, "La Banda Focus consume su carga y permite resistir con 1 PG.");
+  }
+  if (ejectButtonActivated) {
+    await postHeldItemMessage(item, held, "Consume su carga y devuelve al portador con su entrenador.");
+    await recallPokemon(item, { forced: true });
+    return;
+  }
+  if (resolution.events.some(event => event.type === "air-balloon-popped")) await syncPokemonHeldItemToDeployment(item);
+  if (kind === "deployed" && resolvedHp <= 0) await recallPokemon(item, { fainted: true });
 }
 
 /**
@@ -160,6 +209,59 @@ export async function syncPokemonHpToDeployment(item) {
   const current = actor.system.attributes.hp;
   if (Number(current.value) === Number(hp.value) && Number(current.max) === Number(hp.max)) return;
   await actor.update({ "system.attributes.hp.value": Number(hp.value) || 0, "system.attributes.hp.max": Number(hp.max) || 1 });
+}
+
+/**
+ * Recalcula en el actor temporal los efectos persistentes del objeto equipado:
+ * CA, iniciativa, movimiento, tipos/afinidades y la ficha descriptiva del
+ * propio objeto. Se usa al equipar, consumir, romper, restaurar o expirar un
+ * objeto sin retirar al Pokémon del mapa.
+ */
+export async function syncPokemonHeldItemToDeployment(item) {
+  const actor = item.parent?.documentName === "Actor" && item.parent.getFlag(MODULE_ID, "kind") === "wild"
+    ? item.parent : deployedActorFor(item);
+  if (!actor) return;
+  const species = item.getFlag(MODULE_ID, "species") ?? {};
+  const instance = item.getFlag(MODULE_ID, "instance") ?? {};
+  const held = instance.heldItem;
+  const types = heldItemEffectiveTypes({
+    sourceId: held?.sourceId, speciesId: species.id,
+    baseTypes: species.type ?? [], abilities: instance.abilities ?? []
+  });
+  const adjustments = heldItemActorAdjustments({ sourceId: held?.sourceId, speciesId: species.id, charges: held?.charges, state: held?.state });
+  const traits = damageTraitsForPokemonTypes(types);
+  if (adjustments.groundImmunity && !traits.di.value.includes("ground")) traits.di.value.push("ground");
+  const movement = { walk: 0, fly: 0, swim: 0, burrow: 0, climb: 0, units: "ft", hover: false };
+  for (const speed of species.speed ?? []) {
+    const key = { walking: "walk", flying: "fly", swimming: "swim", burrowing: "burrow", climbing: "climb" }[speed.type];
+    if (key) movement[key] = Math.max(movement[key], Number(speed.value) || 0);
+    if (speed.type === "hover") { movement.hover = true; movement.fly = Math.max(movement.fly, Number(speed.value) || 0); }
+  }
+  if (adjustments.speed) {
+    for (const key of ["walk", "fly", "swim", "burrow", "climb"]) if (movement[key] > 0) movement[key] += adjustments.speed;
+  }
+  await actor.update({
+    "system.attributes.ac.calc": "flat",
+    "system.attributes.ac.flat": (Number(instance.ac ?? species.ac) || 10) + adjustments.ac,
+    "system.attributes.init.bonus": String(adjustments.initiative || ""),
+    "system.attributes.movement": movement,
+    "system.traits.dr": traits.dr,
+    "system.traits.dv": traits.dv,
+    "system.traits.di": traits.di,
+    "system.details.type.custom": `Pokémon (${types.join(" / ")})`,
+    [`flags.${MODULE_ID}.pokemonTypes`]: types
+  });
+  const embedded = actor.items.filter(entry => entry.getFlag(MODULE_ID, "kind") === "held-item");
+  if (embedded.length) await actor.deleteEmbeddedDocuments("Item", embedded.map(entry => entry.id));
+  if (held) {
+    await actor.createEmbeddedDocuments("Item", [{
+      name: held.name,
+      type: "feat",
+      img: held.img || "icons/svg/item-bag.svg",
+      system: { description: { value: `<p>${foundry.utils.escapeHTML(held.description ?? "")}</p>`, chat: "" } },
+      flags: { [MODULE_ID]: { kind: "held-item", sourceId: held.sourceId } }
+    }]);
+  }
 }
 
 /**
@@ -361,15 +463,24 @@ function rectanglesOverlap(a, b) {
  * instancia, tamaño y escala del token, afinidades de
  * damageTraitsForPokemonTypes(), sprite (shiny incluido), movimientos y objeto
  * equipado como Items, estados activos vía pokemonStatusEffectSource(), permisos
- * heredados del entrenador y el bono por especialización de tipo. Deja en los
- * flags el enlace de vuelta al Item y al entrenador. Solo la usa deployPokemon();
- * wild-deployment.mjs tiene su equivalente para los salvajes.
+ * heredados del entrenador y el bono por especialización de tipo. Antes de
+ * construirlo aplica tipos, CA, iniciativa, inmunidad y movimiento derivados
+ * del objeto mediante held-items.mjs. Deja en los flags el enlace de vuelta al
+ * Item y al entrenador. Solo la usa deployPokemon(); wild-deployment.mjs tiene
+ * su equivalente para los salvajes.
  */
 async function deployedActorSource(pokemonItem) {
   const data = await loadPoke5eData();
   const trainer = pokemonItem.parent;
   const species = pokemonItem.getFlag(MODULE_ID, "species");
   const instance = pokemonItem.getFlag(MODULE_ID, "instance");
+  const effectiveTypes = heldItemEffectiveTypes({
+    sourceId: instance.heldItem?.sourceId, speciesId: species.id,
+    baseTypes: species.type ?? [], abilities: instance.abilities ?? []
+  });
+  const heldAdjustments = heldItemActorAdjustments({
+    sourceId: instance.heldItem?.sourceId, speciesId: species.id, charges: instance.heldItem?.charges, state: instance.heldItem?.state
+  });
   const pokemonAttributes = instance.attributes ?? species.attributes ?? {};
   const abilities = {};
   for (const key of ["str", "dex", "con", "int", "wis", "cha"]) {
@@ -381,6 +492,9 @@ async function deployedActorSource(pokemonItem) {
     if (key) movement[key] = Math.max(movement[key], Number(speed.value) || 0);
     if (speed.type === "hover") { movement.hover = true; movement.fly = Math.max(movement.fly, Number(speed.value) || 0); }
   }
+  if (heldAdjustments.speed) {
+    for (const key of ["walk", "fly", "swim", "burrow", "climb"]) if (movement[key] > 0) movement[key] += heldAdjustments.speed;
+  }
   const senseRanges = { darkvision: 0, blindsight: 0, tremorsense: 0, truesight: 0 };
   for (const sense of species.senses ?? []) {
     const key = sense.type === "tremmorsense" ? "tremorsense" : sense.type;
@@ -388,9 +502,10 @@ async function deployedActorSource(pokemonItem) {
   }
   const tokenSize = { tiny: 0.5, small: 1, medium: 1, large: 2, huge: 3, gargantuan: 4 }[species.size] ?? 1;
   const size = { tiny: "tiny", small: "sm", medium: "med", large: "lg", huge: "huge", gargantuan: "grg" }[species.size] ?? "med";
-  const damageTraits = damageTraitsForPokemonTypes(species.type);
+  const damageTraits = damageTraitsForPokemonTypes(effectiveTypes);
+  if (heldAdjustments.groundImmunity && !damageTraits.di.value.includes("ground")) damageTraits.di.value.push("ground");
   const trainerSpecialization = trainer.getFlag(MODULE_ID, "trainerCreation")?.specialization;
-  const specializationBonus = (species.type ?? []).includes(trainerSpecialization) ? 1 : 0;
+  const specializationBonus = effectiveTypes.includes(trainerSpecialization) ? 1 : 0;
   const moveItems = (instance.moves ?? []).map(entry => data.movesById.get(entry.moveId)).filter(Boolean).map(move => ({
     name: move.name,
     type: "feat",
@@ -425,14 +540,15 @@ async function deployedActorSource(pokemonItem) {
       abilities,
       bonuses: { abilities: { check: "", save: "", skill: specializationBonus ? String(specializationBonus) : "" } },
       attributes: {
-        ac: { calc: "flat", flat: Number(instance.ac) || Number(species.ac) || 10 },
+        ac: { calc: "flat", flat: (Number(instance.ac) || Number(species.ac) || 10) + heldAdjustments.ac },
+        init: { bonus: String(heldAdjustments.initiative || "") },
         hp: { value: Number(instance.hp?.value) || 0, max: Number(instance.hp?.max) || Number(species.hp) || 1 },
         movement,
         senses: { ranges: senseRanges, units: "ft", special: "" }
       },
       details: {
         cr: Math.min(Number(species.sr) || 0, 30),
-        type: { value: "custom", custom: `Pokémon (${(species.type ?? []).join(" / ")})` },
+        type: { value: "custom", custom: `Pokémon (${effectiveTypes.join(" / ")})` },
         biography: { value: `<p>${foundry.utils.escapeHTML(species.description ?? "")}</p>` }
       },
       traits: { size, ...damageTraits }
@@ -446,7 +562,7 @@ async function deployedActorSource(pokemonItem) {
         pokemonItemUuid: pokemonItem.uuid,
         trainerUuid: trainer.uuid,
         speciesId: species.id,
-        pokemonTypes: species.type ?? []
+        pokemonTypes: effectiveTypes
       }
     }
   };

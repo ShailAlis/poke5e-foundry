@@ -34,6 +34,7 @@ Las versiones posteriores aparecerán al usar **Comprobar actualización** o **A
 - Gestor de movimientos por especie: distingue ataques disponibles, futuros, aprendibles mediante MT o huevo e incompatibles, y bloquea aprendizajes no válidos.
 - Selector Combate/Concurso en cada ficha Pokémon, con categoría, Appeal, Jam, compatibilidad, efectos y tiradas contra la CD del juez.
 - Tiradas de ataque y daño, cálculo de MOVE, CD y consumo/restauración de PP.
+- Objetos equipados con reglas automáticas basadas en poke5e.app: curación y estados mediante bayas con confirmación, cargas y descansos, Banda Focus, Globo Helio, Mineral Evolutivo, modificadores de movimiento y efectos de fin de turno. Los objetos sin una resolución automática compatible siguen pudiendo equiparse y usarse como referencia.
 - Los 18 tipos de daño Pokémon se integran en D&D 5e sin eliminar sus tipos habituales. Las tiradas Pokémon usan el flujo de daño de D&D y aplican automáticamente resistencias, vulnerabilidades e inmunidades a los actores desplegados.
 - Efectos mantenidos de movimientos: daño y curación por turno, agarres y miedo con salvaciones repetidas, duración, concentración, iconos de token y limpieza automática al terminar el combate.
 - Iconos personalizados opcionales para estados, mejoras y debilitaciones: basta con copiar los PNG en `assets/icons/effects/`; el módulo los detecta al iniciar y conserva los iconos de Foundry como respaldo.
@@ -122,7 +123,7 @@ Todo el código vive en `scripts/`, en módulos ES sin paso de build. Cada archi
 La arquitectura tiene cuatro capas, de abajo arriba:
 
 1. **Núcleo** (`model.mjs`, `data-service.mjs`) — convierte los JSON de `data/` en documentos de Foundry y los cachea.
-2. **Reglas** (`combat.mjs`, `progression.mjs`, `capture-rules.mjs`, `move-learning.mjs`, `contests.mjs`, `status-effects.mjs`, `encounter-generator.mjs`, `npc-trainer-rules.mjs`, `trainer-creation-data.mjs`) — cálculos puros, casi sin depender de los globales de Foundry; son los que verifican los `validate-*.mjs` en Node.
+2. **Reglas** (`combat.mjs`, `progression.mjs`, `capture-rules.mjs`, `move-learning.mjs`, `contests.mjs`, `status-effects.mjs`, `held-items.mjs`, `encounter-generator.mjs`, `npc-trainer-rules.mjs`, `trainer-creation-data.mjs`) — cálculos puros, casi sin depender de los globales de Foundry; son los que verifican los `validate-*.mjs` en Node.
 3. **Documentos y mapa** (`deployment.mjs`, `wild-deployment.mjs`, `capture.mjs`) — traducen Pokémon entre Item embebido, actor temporal y token.
 4. **Interfaz** (fichas, generadores, asistente, importador) — presenta las reglas y escribe el resultado en `flags.<módulo>.instance`.
 
@@ -141,6 +142,7 @@ La arquitectura tiene cuatro capas, de abajo arriba:
 | `move-learning.mjs` | Qué movimientos puede aprender una especie, por qué vía y cuándo. | `moveEligibility`, `filterMoveCatalog`, `applyLearnedMove` |
 | `contests.mjs` | Categorías de concurso, compatibilidad y puntuación de una prueba de Appeal. | `contestDetailsForMove`, `contestCompatibility`, `contestAppealOutcome` |
 | `status-effects.mjs` | Catálogo de estados alterados, deducción desde el texto de un movimiento y su aplicación vía socket. | `POKEMON_STATUS_EFFECTS`, `inferMoveStatusEffects`, `applyMoveStatuses`, `pokemonStatusEffectSource` |
+| `held-items.mjs` | Reglas y resolución de objetos equipados: bayas, cargas, descansos, modificadores, reacciones y efectos de turno. | `heldItemHpResolution`, `heldItemMoveModifiers`, `activateHeldItem`, `restoreHeldItemChargesAfterRest` |
 | `ongoing-effects.mjs` | Efectos mantenidos ligados a turnos, concentración, salvaciones repetidas, daño y curación periódicos. | `ONGOING_MOVE_EFFECTS`, `applyMoveOngoingEffects`, `registerOngoingMoveEffects` |
 | `deployment.mjs` | Saca al mapa un Pokémon del equipo (actor temporal + token) y sincroniza sus PG. | `deployPokemon`, `recallPokemon`, `syncDeploymentHp`, `isAllowedDeployment` |
 | `wild-deployment.mjs` | Igual que `deployment.mjs` pero para Pokémon salvajes, sin entrenador detrás. | `deployWildPokemon`, `wildActorSource` |
@@ -171,6 +173,7 @@ La arquitectura tiene cuatro capas, de abajo arriba:
 | Los niveles de experiencia o la recompensa por derrota | `progression.mjs` → `EXPERIENCE_BY_LEVEL`, `experienceAward` |
 | La dificultad o el efecto de una Poké Ball | `capture-rules.mjs` → `pokeballAdjustment`, `captureDifficulty` |
 | Qué estados provoca un movimiento y cómo se detectan | `status-effects.mjs` → `inferMoveStatusEffects`, `MANUAL_STATUS_MOVES` |
+| Qué hace un objeto equipado y cuándo se activa | `held-items.mjs` → `heldItemHpResolution`, `heldItemMoveModifiers`, `activateHeldItem` |
 | Cuándo puede aprenderse un movimiento | `move-learning.mjs` → `moveEligibility` |
 | La puntuación de una prueba de concurso | `contests.mjs` → `contestAppealOutcome` |
 | Los Pokéslots por nivel de Entrenador | `model.mjs` → `trainerPokeslotsForLevel` |
