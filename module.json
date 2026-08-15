@@ -2,7 +2,7 @@
   "id": "poke5e-foundry",
   "title": "Pokémon 5e for Foundry VTT",
   "description": "Pokémon 5e para D&D 5e: clase de Entrenador, compendios de especies, movimientos, habilidades y objetos; equipos embebidos, ficha Pokédex y tiradas con PP.",
-  "version": "1.8.2",
+  "version": "1.8.3",
   "compatibility": {
     "minimum": "13.347",
     "verified": "14"
