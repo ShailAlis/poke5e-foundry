@@ -10,6 +10,7 @@ import { loadPoke5eData } from "./data-service.mjs";
 import { MODULE_ID } from "./model.mjs";
 import { typeLabel } from "./combat.mjs";
 import { applyEndTurnStatusDamage } from "./status-effects.mjs";
+import { pokemonEffectIcon } from "./effect-icons.mjs";
 
 const SOCKET_ACTION = "applyOngoingMoveEffects";
 const KIND = "ongoing-move";
@@ -127,6 +128,7 @@ export function registerOngoingMoveEffects() {
     if (!isResponsibleGm()) return;
     clearCombatEffects(combat).catch(error => console.error(`${MODULE_ID} | Ongoing combat cleanup failed`, error));
   });
+  synchronizeOngoingEffectIcons().catch(error => console.error(`${MODULE_ID} | Ongoing effect icon synchronization failed`, error));
 }
 
 /**
@@ -238,6 +240,8 @@ async function completeOngoingApplication(payload) {
 }
 
 function effectSource(move, rule, payload, linkId) {
+  const iconSlot = ongoingIconSlot(move.id, rule.target);
+  const icon = pokemonEffectIcon(iconSlot.category, iconSlot.id, rule.icon);
   const changes = rule.movementZero
     ? ["walk", "fly", "swim", "burrow", "climb"].map(type => ({ key: `system.attributes.movement.${type}`, mode: CONST.ACTIVE_EFFECT_MODES.OVERRIDE, value: 0, priority: 30 }))
     : (rule.changes ?? []);
@@ -250,10 +254,11 @@ function effectSource(move, rule, payload, linkId) {
     sourcePokemonItemUuid: payload.sourcePokemonItemUuid, sourceTrainerUuid: payload.sourceTrainerUuid,
     sourceName: payload.sourceName, linkId, description: rule.description,
     repeatSave: rule.repeatSave ?? null, saveDc: Number(payload.saveDc) || 10,
-    statuses: rule.statuses ?? [], recallLock: Boolean(rule.recallLock)
+    statuses: rule.statuses ?? [], recallLock: Boolean(rule.recallLock),
+    iconCategory: iconSlot.category, iconId: iconSlot.id
   };
   return {
-    name: move.name, img: rule.icon, icon: rule.icon, description: rule.description,
+    name: move.name, img: icon, icon, description: rule.description,
     statuses: rule.statuses ?? [],
     changes, duration: rule.timing ? {} : { rounds: 10, startRound: game.combat?.round ?? 0, startTurn: game.combat?.turn ?? 0 },
     flags: { [MODULE_ID]: { kind: KIND, ongoing } }
@@ -262,10 +267,44 @@ function effectSource(move, rule, payload, linkId) {
 
 function concentrationSource(move, rule, payload, linkId) {
   const description = `Concentración de ${payload.sourceName} para mantener ${move.name}.`;
+  const icon = pokemonEffectIcon("buffs", "concentration", "icons/svg/aura.svg");
   return {
-    name: `Concentración: ${move.name}`, img: "icons/svg/aura.svg", icon: "icons/svg/aura.svg", description,
-    flags: { [MODULE_ID]: { kind: CONCENTRATION_KIND, ongoing: { moveId: move.id, moveName: move.name, concentration: true, sourceCombatActorUuid: payload.sourceCombatActorUuid, sourcePokemonItemUuid: payload.sourcePokemonItemUuid, linkId, description } } }
+    name: `Concentración: ${move.name}`, img: icon, icon, description,
+    flags: { [MODULE_ID]: { kind: CONCENTRATION_KIND, ongoing: { moveId: move.id, moveName: move.name, concentration: true, sourceCombatActorUuid: payload.sourceCombatActorUuid, sourcePokemonItemUuid: payload.sourcePokemonItemUuid, linkId, description, iconCategory: "buffs", iconId: "concentration" } } }
   };
+}
+
+/** Clasifica cada efecto para buscar su icono en buffs/ o debuffs/. */
+function ongoingIconSlot(moveId, target) {
+  if (["aqua-ring", "ingrain"].includes(moveId)) return { category: "buffs", id: moveId };
+  if (moveId === "curse" && target === "self") return { category: "buffs", id: "curse-buff" };
+  return { category: "debuffs", id: moveId };
+}
+
+/** Actualiza también los ActiveEffects creados antes de instalar los WEBP. */
+async function synchronizeOngoingEffectIcons() {
+  if (!isResponsibleGm()) return;
+  for (const actor of game.actors) {
+    const updates = [];
+    for (const effect of actor.effects) {
+      const kind = effect.getFlag(MODULE_ID, "kind");
+      if (![KIND, CONCENTRATION_KIND].includes(kind)) continue;
+      const ongoing = effect.getFlag(MODULE_ID, "ongoing") ?? {};
+      let slot;
+      if (kind === CONCENTRATION_KIND) slot = { category: "buffs", id: "concentration" };
+      else if (ongoing.iconCategory && ongoing.iconId) slot = { category: ongoing.iconCategory, id: ongoing.iconId };
+      else slot = ongoingIconSlot(ongoing.moveId, ongoing.moveId === "curse" && effect.changes?.length ? "self" : "selected");
+      const fallback = ONGOING_MOVE_EFFECTS[ongoing.moveId]?.icon ?? effect.img ?? effect.icon;
+      const icon = pokemonEffectIcon(slot.category, slot.id, fallback);
+      if ((effect.img ?? effect.icon) === icon && ongoing.iconCategory === slot.category && ongoing.iconId === slot.id) continue;
+      updates.push({
+        _id: effect.id, img: icon, icon,
+        [`flags.${MODULE_ID}.ongoing.iconCategory`]: slot.category,
+        [`flags.${MODULE_ID}.ongoing.iconId`]: slot.id
+      });
+    }
+    if (updates.length) await actor.updateEmbeddedDocuments("ActiveEffect", updates);
+  }
 }
 
 async function processOngoingEffects(actor, timing) {

@@ -11,6 +11,7 @@
  * token con sus estados previos).
  */
 import { MODULE_ID } from "./model.mjs";
+import { pokemonEffectIcon } from "./effect-icons.mjs";
 
 /** Acción del socket con la que un jugador pide al director aplicar estados. */
 const STATUS_SOCKET_ACTION = "applyMoveStatuses";
@@ -54,8 +55,10 @@ export function registerPokemonStatusEffects() {
   for (const [id, definition] of Object.entries(POKEMON_STATUS_EFFECTS)) {
     const config = pokemonStatusConfig(id, definition);
     if (Array.isArray(CONFIG.statusEffects)) {
-      if (!CONFIG.statusEffects.some(entry => entry.id === config.id)) CONFIG.statusEffects.push(config);
-    } else if (!CONFIG.statusEffects[config.id]) CONFIG.statusEffects[config.id] = config;
+      const existing = CONFIG.statusEffects.find(entry => entry.id === config.id);
+      if (existing) Object.assign(existing, config);
+      else CONFIG.statusEffects.push(config);
+    } else CONFIG.statusEffects[config.id] = { ...(CONFIG.statusEffects[config.id] ?? {}), ...config };
   }
 }
 
@@ -172,10 +175,11 @@ export function pokemonStatusEffectSource(id, { sourceName = "", moveName = "" }
   const definition = POKEMON_STATUS_EFFECTS[id];
   if (!definition) return null;
   const effectId = statusId(id);
+  const icon = statusIcon(id, definition);
   return {
     name: definition.name,
-    icon: definition.img,
-    img: definition.img,
+    icon,
+    img: icon,
     description: definition.description,
     statuses: [effectId, ...definition.linked],
     changes: id === "paralyzed" ? ["walk", "fly", "swim", "burrow", "climb"].map(type => ({
@@ -205,15 +209,16 @@ export async function synchronizePokemonStatusEffects() {
       const id = effect.getFlag(MODULE_ID, "status");
       const definition = POKEMON_STATUS_EFFECTS[id];
       if (!definition) continue;
+      const icon = statusIcon(id, definition);
       existing.add(id);
       const expectedStatuses = [statusId(id), ...definition.linked];
       const actualStatuses = [...(effect.statuses ?? [])];
-      if (effect.name !== definition.name || effect.icon !== definition.img || !sameValues(actualStatuses, expectedStatuses)) {
+      if (effect.name !== definition.name || (effect.img ?? effect.icon) !== icon || !sameValues(actualStatuses, expectedStatuses)) {
         updates.push({
           _id: effect.id,
           name: definition.name,
-          icon: definition.img,
-          img: definition.img,
+          icon,
+          img: icon,
           description: definition.description,
           statuses: expectedStatuses
         });
@@ -232,7 +237,10 @@ export async function synchronizePokemonStatusEffects() {
  * descripción para la ficha. La usa pokemon-sheet.mjs.
  */
 export function pokemonStatusEntries(instance) {
-  return [...new Set(instance?.conditions ?? [])].map(id => ({ id, ...POKEMON_STATUS_EFFECTS[id] })).filter(entry => entry.name);
+  return [...new Set(instance?.conditions ?? [])].map(id => {
+    const definition = POKEMON_STATUS_EFFECTS[id];
+    return definition ? { id, ...definition, img: statusIcon(id, definition) } : { id };
+  }).filter(entry => entry.name);
 }
 
 /** Expone statusId() fuera del módulo; lo usa pokemon-sheet.mjs para los iconos. */
@@ -416,16 +424,22 @@ function naturalThreshold(sentence) {
  */
 function pokemonStatusConfig(id, definition) {
   const effectId = statusId(id);
+  const icon = statusIcon(id, definition);
   return {
     _id: staticStatusDocumentId(id),
     id: effectId,
     name: definition.name,
-    img: definition.img,
-    icon: definition.img,
+    img: icon,
+    icon,
     description: definition.description,
     hud: true,
     flags: { [MODULE_ID]: { pokemonStatus: id } }
   };
+}
+
+/** Resuelve el WEBP opcional de un estado y conserva su icono de Foundry como respaldo. */
+function statusIcon(id, definition) {
+  return pokemonEffectIcon("statuses", id, definition.img);
 }
 
 /**

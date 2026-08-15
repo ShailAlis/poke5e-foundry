@@ -36,6 +36,7 @@ Las versiones posteriores aparecerán al usar **Comprobar actualización** o **A
 - Tiradas de ataque y daño, cálculo de MOVE, CD y consumo/restauración de PP.
 - Los 18 tipos de daño Pokémon se integran en D&D 5e sin eliminar sus tipos habituales. Las tiradas Pokémon usan el flujo de daño de D&D y aplican automáticamente resistencias, vulnerabilidades e inmunidades a los actores desplegados.
 - Efectos mantenidos de movimientos: daño y curación por turno, agarres y miedo con salvaciones repetidas, duración, concentración, iconos de token y limpieza automática al terminar el combate.
+- Iconos personalizados opcionales para estados, mejoras y debilitaciones: basta con copiar los WEBP en `assets/icons/effects/`; el módulo los detecta al iniciar y conserva los iconos de Foundry como respaldo.
 - Cada Pokémon conserva un sexo generado según la proporción F:M de su especie y muestra sus posibles evoluciones con sus niveles y demás condiciones.
 - Contador de experiencia acumulada, subida automática de nivel, recompensa por derrota y evolución guiada desde la ficha Pokémon.
 - Generador de encuentros exclusivo del director con filtros por bioma, región, tipo, SR y nivel, generación por objetivo de PX y despliegue de salvajes temporales.
@@ -102,6 +103,8 @@ La versión 1.4 añade el modo **Concurso** a las fichas Pokémon. El selector C
 La versión 1.7 incorpora un motor de efectos mantenidos ligado a los turnos de combate. Automatiza Drenadoras, Giro Fuego, Acoso, Acua Aro, Arraigo, Cura Salina y Maldición, además de los agarres, jaulas y efectos de miedo con salvación repetida. Los efectos aparecen en el token y en la ficha Pokédex; la concentración se comprueba al recibir daño y los efectos se limpian al expirar, retirarse o terminar el combate.
 
 La versión 1.7.1 corrige el registro de Quemado, Congelado, Paralizado, Envenenado y los demás estados Pokémon después de la inicialización de D&D 5e. También repara automáticamente las etiquetas e identificadores de efectos creados por versiones anteriores, sin confundirlos con el indicador independiente Bloodied.
+
+La versión 1.7.2 prepara carpetas separadas para iconos de estados, mejoras y debilitaciones. Los archivos WEBP con los nombres documentados se detectan automáticamente al abrir el mundo y actualizan tanto efectos nuevos como efectos activos de versiones anteriores.
 
 ## Actualización a 1.2
 

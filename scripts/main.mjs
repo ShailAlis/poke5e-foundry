@@ -21,6 +21,7 @@ import { Poke5eTrainerCreator, enforceHumanActorSource, isHumanSpecies } from ".
 import { Poke5eNpcTrainerGenerator } from "./npc-trainer-generator.mjs";
 import { registerPokemonStatusEffects, registerPokemonStatusSocket } from "./status-effects.mjs";
 import { registerOngoingMoveEffects } from "./ongoing-effects.mjs";
+import { loadPokemonEffectIcons } from "./effect-icons.mjs";
 
 /**
  * Arranque temprano: delega el registro de tipos de daño (combat.mjs), fichas
@@ -91,7 +92,8 @@ Hooks.once("i18nInit", () => registerPokemonStatusEffects());
  * (capture.mjs y status-effects.mjs), publica la API de macros `game.poke5e` y,
  * solo para el director, lanza las tres migraciones de datos antiguos.
  */
-Hooks.once("ready", () => {
+Hooks.once("ready", async () => {
+  await loadPokemonEffectIcons();
   registerPokemonStatusEffects();
   applyDarkMode(game.settings.get(MODULE_ID, "darkMode"));
   registerCaptureSocket();
