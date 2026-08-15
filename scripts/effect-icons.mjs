@@ -1,6 +1,6 @@
 /**
  * Iconos personalizados para estados, mejoras y debilitaciones. Al arrancar
- * prueba si existe cada archivo WEBP documentado bajo assets/icons/effects y
+ * prueba si existe cada archivo PNG documentado bajo assets/icons/effects y
  * conserva el icono de Foundry como respaldo cuando todavía no se ha añadido.
  */
 import { MODULE_PATH } from "./model.mjs";
@@ -19,7 +19,7 @@ export const EFFECT_ICON_SLOTS = Object.freeze({
 
 const loadedIcons = new Map();
 
-/** Busca en paralelo los WEBP disponibles. Se vuelve a ejecutar al recargar el mundo. */
+/** Busca en paralelo los PNG disponibles. Se vuelve a ejecutar al recargar el mundo. */
 export async function loadPokemonEffectIcons() {
   loadedIcons.clear();
   await Promise.all(Object.entries(EFFECT_ICON_SLOTS).flatMap(([category, ids]) => ids.map(async id => {
@@ -41,5 +41,5 @@ export function pokemonEffectIcon(category, id, fallback = "icons/svg/aura.svg")
 
 /** Ruta convencional que el usuario debe respetar al copiar cada imagen. */
 export function customEffectIconPath(category, id) {
-  return `${MODULE_PATH}/assets/icons/effects/${category}/${id}.webp`;
+  return `${MODULE_PATH}/assets/icons/effects/${category}/${id}.png`;
 }
