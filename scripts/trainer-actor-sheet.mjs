@@ -80,6 +80,39 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
     };
   }
 
+  /** Añade una sección nativa para los Pokémon antes de «Otros rasgos». */
+  async _prepareFeaturesContext(context, options) {
+    context = await super._prepareFeaturesContext(context, options);
+    if (context.sections?.some(section => section.id === "pokemon")) return context;
+    const otherIndex = context.sections?.findIndex(section => section.id === "other") ?? -1;
+    const reference = context.sections?.[otherIndex] ?? context.sections?.[0];
+    if (!reference) return context;
+    const section = {
+      columns: reference.columns,
+      dataset: { "group-origin": "pokemon" },
+      groups: { origin: "pokemon" },
+      id: "pokemon",
+      items: [],
+      label: "POKE5E.Features.Pokemon",
+      order: 2500
+    };
+    context.sections.splice(otherIndex < 0 ? context.sections.length : otherIndex, 0, section);
+    return context;
+  }
+
+  /** Asigna cada Item Pokémon o rasgo del Entrenador a su sección correcta. */
+  async _prepareItemFeature(item, context) {
+    await super._prepareItemFeature(item, context);
+    const kind = item.getFlag(MODULE_ID, "kind");
+    if (kind === "pokemon") {
+      context.groups.origin = "pokemon";
+      return;
+    }
+    if (!isTrainerClassFeature(item)) return;
+    const trainerClass = this.actor.itemTypes.class.find(entry => entry.system.identifier === "trainer" || entry.getFlag(MODULE_ID, "kind")?.includes("trainer-class"));
+    context.groups.origin = trainerClass?.system.identifier ?? "trainer";
+  }
+
   /** Adapta los campos monetarios nativos y conecta el saldo de la pestaña. */
   _onRender(context, options) {
     super._onRender(context, options);
@@ -162,6 +195,34 @@ export function registerTrainerActorSheet() {
     makeDefault: true,
     label: "Pokémon 5e — Ficha de Entrenador"
   });
+}
+
+/**
+ * Corrige los rasgos creados antes de que el módulo guardase explícitamente su
+ * origen de clase. La agrupación visual también funciona antes de migrarlos.
+ */
+export async function migrateTrainerFeatureGroups() {
+  if (!game.user.isGM) return;
+  for (const actor of game.actors.filter(entry => entry.type === "character")) {
+    const updates = actor.items.filter(item => isTrainerClassFeature(item)
+      && (item.getFlag(MODULE_ID, "featureOrigin") !== "trainer" || item.system.type?.value !== "class")).map(item => ({
+      _id: item.id,
+      "system.type.value": "class",
+      "system.type.subtype": "",
+      [`flags.${MODULE_ID}.featureOrigin`]: "trainer"
+    }));
+    if (updates.length) await actor.updateEmbeddedDocuments("Item", updates);
+  }
+}
+
+function isTrainerClassFeature(item) {
+  if (item.type !== "feat") return false;
+  if (item.getFlag(MODULE_ID, "featureOrigin") === "trainer") return true;
+  const kind = String(item.getFlag(MODULE_ID, "kind") ?? "");
+  const sourceId = String(item.getFlag(MODULE_ID, "sourceId") ?? "");
+  return kind === "trainer-feature"
+    || kind === "trainer-creation-feature"
+    || /^(trainer-creation-(license|pokedex|pokeball-proficiency|pokeslots|specialization)|npc-(specialization|path)-)/.test(sourceId);
 }
 
 /**

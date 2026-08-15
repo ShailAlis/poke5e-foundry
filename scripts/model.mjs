@@ -173,7 +173,7 @@ export function trainerFeatureSources() {
       requirements: `Entrenador ${entry.level}`,
       type: { value: "class", subtype: "" }
     },
-    flags: { [MODULE_ID]: { kind: "trainer-feature", sourceId: `trainer-feature-${entry.id}`, level: entry.level } }
+    flags: { [MODULE_ID]: { kind: "trainer-feature", sourceId: `trainer-feature-${entry.id}`, level: entry.level, featureOrigin: "trainer" } }
   }));
 }
 

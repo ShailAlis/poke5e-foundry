@@ -203,12 +203,18 @@ function originSource(origin) {
  */
 function specializationSource(specialization) {
   const effect = specialization.skill ? `Competencia o Pericia en ${SKILLS[specialization.skill]}.` : `+1 a ${specialization.ability.toUpperCase()}.`;
-  return simpleItem(`Especialización: ${specialization.name}`, "feat", `npc-specialization-${specialization.type}`, `${effect} Sus Pokémon de tipo ${specialization.type} obtienen +1 a sus pruebas de habilidad.`, "icons/svg/upgrade.svg");
+  return trainerClassFeatureSource(simpleItem(`Especialización: ${specialization.name}`, "feat", `npc-specialization-${specialization.type}`, `${effect} Sus Pokémon de tipo ${specialization.type} obtienen +1 a sus pruebas de habilidad.`, "icons/svg/upgrade.svg"));
 }
 
 /** Item descriptivo del Camino de Entrenador, tomado de NPC_TRAINER_PATHS. */
 function pathSource(path) {
-  return simpleItem(`Camino: ${path.name}`, "feat", `npc-path-${path.id}`, path.description, "icons/svg/book.svg");
+  return trainerClassFeatureSource(simpleItem(`Camino: ${path.name}`, "feat", `npc-path-${path.id}`, path.description, "icons/svg/book.svg"));
+}
+
+function trainerClassFeatureSource(source) {
+  source.system.type = { value: "class", subtype: "" };
+  source.flags[MODULE_ID].featureOrigin = "trainer";
+  return source;
 }
 
 /**

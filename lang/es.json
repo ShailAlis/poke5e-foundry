@@ -26,5 +26,6 @@
   "POKE5E.Notifications.ImportFailed": "La importación no pudo completarse. Revisa la consola para más detalles.",
   "POKE5E.Notifications.LanguageChanged": "Idioma del contenido actualizado. Recargando Pokémon 5e… Vuelve a importar los compendios para actualizar el contenido ya creado.",
   "POKE5E.Notifications.LanguageFailed": "No se pudieron cargar los datos del idioma seleccionado. Se ha conservado el idioma actual.",
-  "POKE5E.Currency.Name": "Pokédólares"
+  "POKE5E.Currency.Name": "Pokédólares",
+  "POKE5E.Features.Pokemon": "Pokémon"
 }

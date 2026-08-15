@@ -387,7 +387,7 @@ function specializationSource(rules) {
   const effect = rules.specialization.ability
     ? `Aumenta ${ABILITIES[rules.specialization.ability]} en 1, hasta un máximo de 20.`
     : `Obtienes competencia en ${SKILLS[rules.specialization.skill]}; si ya la tenías, obtienes Pericia.`;
-  return creationItem(`Especialización: ${rules.specialization.name}`, "feat", "specialization", `<p>${effect}</p><p>Los Pokémon de tipo ${titleCase(rules.specialization.type)} obtienen +1 a todas sus pruebas de habilidad.</p>`, "icons/svg/upgrade.svg");
+  return trainerClassFeatureSource(creationItem(`Especialización: ${rules.specialization.name}`, "feat", "specialization", `<p>${effect}</p><p>Los Pokémon de tipo ${titleCase(rules.specialization.type)} obtienen +1 a todas sus pruebas de habilidad.</p>`, "icons/svg/upgrade.svg"));
 }
 
 /**
@@ -436,11 +436,17 @@ function levelOneFeatureSources() {
   for (const source of features) source.flags[MODULE_ID].kind = `${CREATION_KIND_PREFIX}feature`;
   return [
     ...features,
-    creationItem("Licencia de Entrenador", "feat", "license", "<p>Autoriza a capturar Pokémon y permite acceder a servicios de Centros Pokémon y Poké Mart.</p>"),
-    creationItem("Pokédex", "feat", "pokedex", "<p>Como acción adicional, identifica un Pokémon a 60 pies, registra su especie y revela su SR base y datos breves.</p>"),
-    creationItem("Competencia con Poké Balls", "feat", "pokeball-proficiency", "<p>Eres competente con Poké Balls y puedes utilizarlas para realizar intentos de captura.</p>"),
-    creationItem("Pokéslots (3)", "feat", "pokeslots", "<p>Puedes llevar a tu Pokémon inicial y otros dos Pokémon en el equipo activo.</p>")
+    trainerClassFeatureSource(creationItem("Licencia de Entrenador", "feat", "license", "<p>Autoriza a capturar Pokémon y permite acceder a servicios de Centros Pokémon y Poké Mart.</p>")),
+    trainerClassFeatureSource(creationItem("Pokédex", "feat", "pokedex", "<p>Como acción adicional, identifica un Pokémon a 60 pies, registra su especie y revela su SR base y datos breves.</p>")),
+    trainerClassFeatureSource(creationItem("Competencia con Poké Balls", "feat", "pokeball-proficiency", "<p>Eres competente con Poké Balls y puedes utilizarlas para realizar intentos de captura.</p>")),
+    trainerClassFeatureSource(creationItem("Pokéslots (3)", "feat", "pokeslots", "<p>Puedes llevar a tu Pokémon inicial y otros dos Pokémon en el equipo activo.</p>"))
   ];
+}
+
+function trainerClassFeatureSource(source) {
+  source.system.type = { value: "class", subtype: "" };
+  source.flags[MODULE_ID].featureOrigin = "trainer";
+  return source;
 }
 
 /**

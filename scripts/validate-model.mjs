@@ -73,6 +73,7 @@ for (const species of pokemon) {
 }
 const trainerFeatures = trainerFeatureSources();
 if (trainerFeatures.length !== TRAINER_FEATURES.filter(entry => entry.grant).length) throw new Error("Invalid Trainer feature count.");
+if (trainerFeatures.some(source => source.system.type?.value !== "class" || source.flags[MODULE_ID].featureOrigin !== "trainer")) throw new Error("Trainer features must retain their class origin.");
 const featureUuids = new Map(trainerFeatures.map((source, index) => [source.flags[MODULE_ID].sourceId, `Compendium.world.poke5e-progression.Item.feature${index}`]));
 const trainerClass = trainerClassSource(featureUuids);
 if (trainerClass.type !== "class" || trainerClass.system.identifier !== "trainer") throw new Error("Invalid Trainer class source.");
