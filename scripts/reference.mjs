@@ -38,18 +38,18 @@ export class Poke5eReference extends HandlebarsApplicationMixin(ApplicationV2) {
     return {
       isGM: game.user.isGM,
       links: [
-        ["Reglas básicas", `${base}/reference/core-rules`, "fa-solid fa-dice-d20"],
-        ["Clase de Entrenador", `${base}/reference/trainer-class`, "fa-solid fa-user"],
-        ["Caminos de Entrenador", `${base}/reference/trainer-paths`, "fa-solid fa-road"],
-        ["Especializaciones", `${base}/reference/specializations`, "fa-solid fa-star"],
-        ["Combate", `${base}/reference/combat`, "fa-solid fa-burst"],
-        ["Tipos de daño", `${base}/reference/damage-types`, "fa-solid fa-shield-halved"],
-        ["Capturar Pokémon", `${base}/reference/catching-pokemon`, "fa-solid fa-circle-dot"],
-        ["Pokédex", `${base}/pokemon`, "fa-solid fa-list"],
-        ["Movimientos", `${base}/moves`, "fa-solid fa-wand-magic-sparkles"],
-        ["Objetos", `${base}/items`, "fa-solid fa-bag-shopping"],
-        ["Generador de encuentros", `${base}/encounter-tool`, "fa-solid fa-mountain-sun"]
-      ].map(([label, url, icon]) => ({ label, url, icon }))
+        ["POKE5E.Reference.CoreRules", `${base}/reference/core-rules`, "fa-solid fa-dice-d20"],
+        ["POKE5E.Importer.TrainerClass", `${base}/reference/trainer-class`, "fa-solid fa-user"],
+        ["POKE5E.Reference.TrainerPaths", `${base}/reference/trainer-paths`, "fa-solid fa-road"],
+        ["POKE5E.Reference.Specializations", `${base}/reference/specializations`, "fa-solid fa-star"],
+        ["POKE5E.Reference.Combat", `${base}/reference/combat`, "fa-solid fa-burst"],
+        ["POKE5E.Reference.DamageTypes", `${base}/reference/damage-types`, "fa-solid fa-shield-halved"],
+        ["POKE5E.Reference.Catching", `${base}/reference/catching-pokemon`, "fa-solid fa-circle-dot"],
+        ["POKE5E.Reference.Pokedex", `${base}/pokemon`, "fa-solid fa-list"],
+        ["POKE5E.Common.Moves", `${base}/moves`, "fa-solid fa-wand-magic-sparkles"],
+        ["POKE5E.Common.Items", `${base}/items`, "fa-solid fa-bag-shopping"],
+        ["POKE5E.Reference.EncounterGenerator", `${base}/encounter-tool`, "fa-solid fa-mountain-sun"]
+      ].map(([label, url, icon]) => ({ label: game.i18n.localize(label), url, icon }))
     };
   }
 

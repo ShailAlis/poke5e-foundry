@@ -32,7 +32,7 @@ export class Poke5eTrainerCreator extends HandlebarsApplicationMixin(Application
   static DEFAULT_OPTIONS = {
     id: "poke5e-trainer-creator",
     classes: ["poke5e", "poke5e-trainer-creator"],
-    window: { title: "Crear Entrenador Pokémon", icon: "fa-solid fa-user-plus", resizable: true },
+    window: { title: "POKE5E.Creator.WindowTitle", icon: "fa-solid fa-user-plus", resizable: true },
     position: { width: 800, height: 760 }
   };
 
@@ -112,9 +112,9 @@ export class Poke5eTrainerCreator extends HandlebarsApplicationMixin(Application
       baseAbilityPointBuy: this.selection.baseAbilityMethod === "point-buy",
       baseAbilityManual: this.selection.baseAbilityMethod === "manual",
       baseAbilityMethods: [
-        option("standard", "Conjunto estándar (15, 14, 13, 12, 10, 8)", this.selection.baseAbilityMethod),
-        option("point-buy", "Compra de puntos (27 puntos)", this.selection.baseAbilityMethod),
-        option("manual", "Valores manuales / tirados", this.selection.baseAbilityMethod)
+        option("standard", game.i18n.localize("POKE5E.Creator.StandardArray"), this.selection.baseAbilityMethod),
+        option("point-buy", game.i18n.localize("POKE5E.Creator.PointBuy"), this.selection.baseAbilityMethod),
+        option("manual", game.i18n.localize("POKE5E.Creator.ManualScores"), this.selection.baseAbilityMethod)
       ],
       baseAbilityFields: Object.entries(ABILITIES).map(([key, label]) => {
         const inputName = `baseAbility${key.charAt(0).toUpperCase()}${key.slice(1)}`;
@@ -137,20 +137,20 @@ export class Poke5eTrainerCreator extends HandlebarsApplicationMixin(Application
       selectedClassSkillCount: this.selection.classSkills.length,
       hasSpecialization: Boolean(specialization),
       grantedSkills: [
-        { source: "Clase", label: SKILLS.ani },
-        origin?.skill ? { source: `Origen · ${origin.name}`, label: SKILLS[origin.skill] } : null,
-        specialization?.skill ? { source: `Especialización · ${specialization.name}`, label: SKILLS[specialization.skill] } : null
+        { source: game.i18n.localize("POKE5E.Creator.Class"), label: SKILLS.ani },
+        origin?.skill ? { source: game.i18n.format("POKE5E.Creator.OriginSource", { origin: origin.name }), label: SKILLS[origin.skill] } : null,
+        specialization?.skill ? { source: game.i18n.format("POKE5E.Creator.SpecializationSource", { specialization: specialization.name }), label: SKILLS[specialization.skill] } : null
       ].filter(Boolean),
-      specializationAbilityBonus: specialization?.ability ? `La especialización concede +1 a ${ABILITIES[specialization.ability]}; no elimina ninguna habilidad de la lista.` : "",
+      specializationAbilityBonus: specialization?.ability ? game.i18n.format("POKE5E.Creator.SpecializationAbilityBonus", { ability: ABILITIES[specialization.ability] }) : "",
       extraSkillOptions: Object.entries(SKILLS).map(([value, label]) => ({ value, label, selected: this.selection.extraSkills.includes(value) })),
       specializations: SPECIALIZATIONS.map(entry => ({
-        ...option(entry.type, `${entry.name} · tipo ${titleCase(entry.type)}`, this.selection.specialization),
-        effect: entry.ability ? `+1 ${ABILITIES[entry.ability]}` : `Competencia o Pericia: ${SKILLS[entry.skill]}`
+        ...option(entry.type, game.i18n.format("POKE5E.Creator.SpecializationLabel", { name: entry.name, type: titleCase(entry.type) }), this.selection.specialization),
+        effect: entry.ability ? `+1 ${ABILITIES[entry.ability]}` : game.i18n.format("POKE5E.Creator.ProficiencyOrExpertise", { skill: SKILLS[entry.skill] })
       })),
       isHoenn: origin?.id === "hoennian", isKanto: origin?.id === "kantoan", isUnova: origin?.id === "unovan",
       environmentOptions: [
-        ["coast", "Costa · velocidad de nado"], ["desert", "Desierto · resistencia al calor"],
-        ["forest", "Bosque · ocultarse entre follaje"], ["mountain", "Montaña · escalada 10 pies"]
+        ["coast", game.i18n.localize("POKE5E.Creator.EnvironmentCoast")], ["desert", game.i18n.localize("POKE5E.Creator.EnvironmentDesert")],
+        ["forest", game.i18n.localize("POKE5E.Creator.EnvironmentForest")], ["mountain", game.i18n.localize("POKE5E.Creator.EnvironmentMountain")]
       ].map(([value, label]) => option(value, label, this.selection.environment)),
       starters, starter: starter ? { ...starter, img: portraitUrl(starter) } : null, starterAbilities: abilities,
       natures: NATURES.map(value => option(value, value, this.selection.nature)),
@@ -158,7 +158,7 @@ export class Poke5eTrainerCreator extends HandlebarsApplicationMixin(Application
       hasConstitutionSave: resolved?.savingThrows.includes("con") ?? false,
       resolutionError,
       abilitySummary: resolved ? Object.entries(resolved.abilities).map(([key, value]) => `${ABILITIES[key]} ${value}`).join(" · ") : "",
-      skillSummary: resolved ? Object.entries(resolved.proficiencyRanks).map(([key, rank]) => `${SKILLS[key]}${rank === 2 ? " (Pericia)" : ""}`).join(", ") : ""
+      skillSummary: resolved ? Object.entries(resolved.proficiencyRanks).map(([key, rank]) => `${SKILLS[key]}${rank === 2 ? game.i18n.localize("POKE5E.Creator.ExpertiseSuffix") : ""}`).join(", ") : ""
     };
   }
 
@@ -247,17 +247,17 @@ export class Poke5eTrainerCreator extends HandlebarsApplicationMixin(Application
       rules = resolveTrainerCreation(this.selection);
       validateStarter(this.selection);
     } catch (error) { return ui.notifications.warn(error.message); }
-    if (!this.actor?.isOwner) return ui.notifications.error("No tienes permiso para configurar este Entrenador.");
+    if (!this.actor?.isOwner) return ui.notifications.error(game.i18n.localize("POKE5E.Creator.NoPermission"));
     this.saving = true;
     this.render({ force: true });
     try {
       await applyTrainerCreation(this.actor, this.selection, rules);
-      ui.notifications.info(`${this.selection.name} ha sido creado como Entrenador humano de nivel 1.`);
+      ui.notifications.info(game.i18n.format("POKE5E.Creator.Created", { name: this.selection.name }));
       await this.close();
       this.actor.sheet?.render(true);
     } catch (error) {
       console.error(`${MODULE_ID} | Trainer creation failed`, error);
-      ui.notifications.error(`No se pudo completar el Entrenador: ${error.message}`);
+      ui.notifications.error(game.i18n.format("POKE5E.Creator.Failed", { error: error.message }));
       this.saving = false;
       this.render({ force: true });
     }
@@ -413,7 +413,7 @@ async function trainerClassCreationSource(selection) {
 async function trainerFeatureUuids() {
   const pack = getPack("progression");
   if (!pack) {
-    ui.notifications.warn("Importa el compendio de progresión para enlazar automáticamente los rasgos futuros de Entrenador.");
+    ui.notifications.warn(game.i18n.localize("POKE5E.Creator.ImportProgression"));
     return new Map();
   }
   const index = await pack.getIndex({ fields: [`flags.${MODULE_ID}.sourceId`, `flags.${MODULE_ID}.kind`] });

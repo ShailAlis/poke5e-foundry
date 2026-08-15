@@ -47,7 +47,7 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
 
   static TABS = [
     ...super.TABS.slice(0, 1),
-    { tab: "pokemonTeam", label: "Equipo Pokémon", icon: "fa-solid fa-circle-dot" },
+    { tab: "pokemonTeam", label: "POKE5E.Team.WindowTitle", icon: "fa-solid fa-circle-dot" },
     ...super.TABS.slice(1)
   ];
 
@@ -159,7 +159,7 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
     const teamCount = getPokemonItems(sheet.actor).filter(entry => entry.getFlag(MODULE_ID, "instance")?.inTeam).length;
     const maxTeamSize = trainerPokeslotLimit(sheet.actor);
     if (!instance.inTeam && teamCount >= maxTeamSize) {
-      return ui.notifications.warn(`Los Pokéslots de este entrenador permiten un máximo de ${maxTeamSize} Pokémon activos.`);
+      return ui.notifications.warn(game.i18n.format("POKE5E.Team.MaximumActive", { max: maxTeamSize }));
     }
     instance.inTeam = !instance.inTeam;
     await item.setFlag(MODULE_ID, "instance", instance);
@@ -193,7 +193,7 @@ export function registerTrainerActorSheet() {
   foundry.applications.apps.DocumentSheetConfig.registerSheet(Actor, MODULE_ID, Poke5eTrainerActorSheet, {
     types: ["character"],
     makeDefault: true,
-    label: "Pokémon 5e — Ficha de Entrenador"
+    label: "POKE5E.Sheets.Trainer"
   });
 }
 

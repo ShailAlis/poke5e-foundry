@@ -333,10 +333,10 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const species = this.pokemonItem.getFlag(MODULE_ID, "species") ?? {};
     const evolution = (data.evolutionsByFrom.get(species.id) ?? []).find(entry => entry.id === evolutionId);
     const target = data.pokemonById.get(evolution?.to);
-    if (!evolution || !target) return ui.notifications.error("No se encontraron los datos de esta evolución.");
+    if (!evolution || !target) return ui.notifications.error(game.i18n.localize("POKE5E.PokemonNotifications.EvolutionMissing"));
     const instance = this.#instance();
     if (heldItemId(instance.heldItem?.sourceId) === "eviolite") {
-      return ui.notifications.warn(`${instance.heldItem.name} impide que este Pokémon evolucione mientras lo lleve equipado.`);
+      return ui.notifications.warn(game.i18n.format("POKE5E.PokemonNotifications.EvolutionBlocked", { item: instance.heldItem.name }));
     }
     const readiness = evolutionReadiness(evolution, {
       level: instance.level,
@@ -344,13 +344,13 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       knownMoveIds: (instance.moves ?? []).map(entry => entry.moveId),
       movesById: data.movesById
     });
-    if (!readiness.available) return ui.notifications.warn("Este Pokémon aún no cumple las condiciones verificables para evolucionar.");
+    if (!readiness.available) return ui.notifications.warn(game.i18n.localize("POKE5E.PokemonNotifications.NotReadyToEvolve"));
     const asiPoints = Number(evolution.effects?.find(effect => effect.type === "asi")?.value) || 0;
     const allocation = await promptEvolution({ evolution, target, data, instance, species, asiPoints, manual: readiness.manual });
     if (!allocation) return;
     const currentAttributes = foundry.utils.deepClone(instance.attributes ?? species.attributes ?? {});
     if (!applyAbilityAllocation(currentAttributes, allocation, asiPoints)) {
-      return ui.notifications.warn(`Debes distribuir exactamente ${asiPoints} puntos; máximo 4 por característica y ninguna puede superar 20.`);
+      return ui.notifications.warn(game.i18n.format("POKE5E.PokemonNotifications.InvalidAbilityIncrease", { points: asiPoints }));
     }
     await recallPokemon(this.pokemonItem);
     const missingHp = Math.max(0, Number(instance.hp?.max) - Number(instance.hp?.value));
@@ -367,7 +367,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       [`flags.${MODULE_ID}.species`]: foundry.utils.deepClone(target),
       [`flags.${MODULE_ID}.instance`]: instance
     });
-    ui.notifications.info(`${displayPokemonName(this.pokemonItem)} ha evolucionado a ${target.name}.`);
+    ui.notifications.info(game.i18n.format("POKE5E.PokemonNotifications.Evolved", { pokemon: displayPokemonName(this.pokemonItem), target: target.name }));
     this.render({ force: true });
   }
 
@@ -452,7 +452,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const held = this.#instance().heldItem;
     if (!held) return;
     const combatActor = this.pokemonItem.parent?.getFlag?.(MODULE_ID, "kind") === "wild" ? this.pokemonItem.parent : deployedActorFor(this.pokemonItem);
-    if (pokemonCombatModifiers(combatActor).disableHeldItem) return ui.notifications.warn(`${held.name} está bloqueado por un efecto activo.`);
+    if (pokemonCombatModifiers(combatActor).disableHeldItem) return ui.notifications.warn(game.i18n.format("POKE5E.PokemonNotifications.HeldItemBlocked", { item: held.name }));
     await activateHeldItem(this.pokemonItem, { removeStatus: id => removePokemonStatus(this.pokemonItem, id) });
     await syncPokemonHeldItemToDeployment(this.pokemonItem);
     this.render({ force: true });
@@ -520,12 +520,12 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const moveId = event.currentTarget.dataset.moveId;
     const data = await loadPoke5eData();
     const move = data.movesById.get(moveId);
-    if (!move) return ui.notifications.error("No se encontró el movimiento.");
+    if (!move) return ui.notifications.error(game.i18n.localize("POKE5E.PokemonNotifications.MoveMissing"));
     const instance = this.#instance();
     const species = this.pokemonItem.getFlag(MODULE_ID, "species") ?? {};
     const eligibility = moveEligibility(species, move, Number(instance.level) || 1, { machineIds: trainerMoveMachineIds(this.pokemonItem.parent) });
     if (!eligibility.availableNow) return notifyMoveUnavailable(move, eligibility);
-    if (instance.moves.some(entry => entry.moveId === move.id)) return ui.notifications.warn("Este Pokémon ya conoce ese movimiento.");
+    if (instance.moves.some(entry => entry.moveId === move.id)) return ui.notifications.warn(game.i18n.localize("POKE5E.PokemonNotifications.MoveKnown"));
     if (!await this.#addMove(instance, move, data.movesById)) return;
     await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
     this.render({ force: true });
@@ -548,16 +548,16 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const sourceId = document.getFlag(MODULE_ID, "sourceId");
     const instance = this.#instance();
     if (kind === "move") {
-      if (instance.moves.some(entry => entry.moveId === sourceId)) return ui.notifications.warn("Este Pokémon ya conoce ese movimiento.");
+      if (instance.moves.some(entry => entry.moveId === sourceId)) return ui.notifications.warn(game.i18n.localize("POKE5E.PokemonNotifications.MoveKnown"));
       const move = document.getFlag(MODULE_ID, "move");
-      if (!move?.id) return ui.notifications.error("El movimiento no contiene datos válidos.");
+      if (!move?.id) return ui.notifications.error(game.i18n.localize("POKE5E.PokemonNotifications.InvalidMove"));
       const species = this.pokemonItem.getFlag(MODULE_ID, "species") ?? {};
       const eligibility = moveEligibility(species, move, Number(instance.level) || 1, { machineIds: trainerMoveMachineIds(this.pokemonItem.parent) });
       if (!eligibility.availableNow) return notifyMoveUnavailable(move, eligibility);
       const data = await loadPoke5eData();
       if (!await this.#addMove(instance, move, data.movesById)) return;
     } else if (kind === "ability") {
-      if (instance.abilities.includes(sourceId)) return ui.notifications.warn("Este Pokémon ya tiene esa habilidad.");
+      if (instance.abilities.includes(sourceId)) return ui.notifications.warn(game.i18n.localize("POKE5E.PokemonNotifications.AbilityKnown"));
       instance.abilities.push(sourceId);
     } else return;
     await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
@@ -573,7 +573,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
    */
   async #addMove(instance, move, movesById) {
     if (instance.moves.length > MAX_KNOWN_MOVES) {
-      ui.notifications.warn(`Este Pokémon conoce ${instance.moves.length} movimientos de una versión anterior. Debe olvidar movimientos hasta quedarse con cuatro antes de aprender otro.`);
+      ui.notifications.warn(game.i18n.format("POKE5E.PokemonNotifications.LegacyMoves", { count: instance.moves.length }));
       return false;
     }
     let replacedEntryId = null;
@@ -619,8 +619,8 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       sourceId: instance.heldItem?.sourceId, speciesId: storedSpecies.id, speciesTypes: effectiveTypes,
       move, proficiency, hasDamage: moveHasImmediateDamage(move)
     });
-    if (!heldProfile.allowed) return ui.notifications.warn(`${instance.heldItem.name} solo permite usar movimientos que causen daño.`);
-    if (!choiceHeldItemAllowsMove(instance.heldItem, move.id)) return ui.notifications.warn(`${instance.heldItem.name} impide usar un movimiento distinto hasta el final del siguiente turno.`);
+    if (!heldProfile.allowed) return ui.notifications.warn(game.i18n.format("POKE5E.PokemonNotifications.DamagingMovesOnly", { item: instance.heldItem.name }));
+    if (!choiceHeldItemAllowsMove(instance.heldItem, move.id)) return ui.notifications.warn(game.i18n.format("POKE5E.PokemonNotifications.ChoiceLocked", { item: instance.heldItem.name }));
     const moveModifier = getMoveModifier(species, move) + heldProfile.moveModifierBonus;
     const attackMoveModifier = moveModifier * heldProfile.attackMoveMultiplier;
     const name = displayPokemonName(this.pokemonItem);
@@ -768,7 +768,7 @@ function contestRollMethods(species, move, proficiency) {
   const performanceProficient = (species.skills ?? []).includes("performance");
   const methods = [{
     id: "performance",
-    label: `Interpretación (CAR${performanceProficient ? " + competencia" : ""})`,
+    label: game.i18n.format("POKE5E.Contest.PerformanceMethod", { proficiency: performanceProficient ? game.i18n.localize("POKE5E.Contest.PlusProficiency") : "" }),
     modifier: abilityModifier(attributes.cha) + (performanceProficient ? proficiency : 0)
   }];
   const configured = Array.isArray(move.power) ? move.power : move.power ? [move.power] : [];
@@ -776,7 +776,7 @@ function contestRollMethods(species, move, proficiency) {
     ? ["str", "dex", "con", "int", "wis", "cha"]
     : configured.filter(value => ["str", "dex", "con", "int", "wis", "cha"].includes(value));
   for (const key of [...new Set(allowed)]) {
-    methods.push({ id: `ability-${key}`, label: `${key.toUpperCase()} + competencia`, modifier: abilityModifier(attributes[key]) + proficiency });
+    methods.push({ id: `ability-${key}`, label: game.i18n.format("POKE5E.Contest.AbilityWithProficiency", { ability: key.toUpperCase() }), modifier: abilityModifier(attributes[key]) + proficiency });
   }
   return methods;
 }
@@ -789,7 +789,7 @@ async function promptContestRoll(move, methods, contestType) {
   const methodOptions = methods.map(method => `<option value="${escapeHtml(method.id)}">${escapeHtml(method.label)} (${signed(method.modifier)})</option>`).join("");
   try {
     return await foundry.applications.api.DialogV2.prompt({
-      window: { title: `Concurso · ${move.name}` },
+      window: { title: game.i18n.format("POKE5E.Contest.WindowTitle", { move: move.name }) },
       content: `<div class="poke5e-contest-roll-dialog">
         <p>Realiza la prueba de talento para un concurso <strong>${escapeHtml(CONTEST_TYPES[contestType].label)}</strong>.</p>
         <label><span>Método de la prueba</span><select name="method">${methodOptions}</select></label>
@@ -799,7 +799,7 @@ async function promptContestRoll(move, methods, contestType) {
       modal: true,
       rejectClose: false,
       ok: {
-        label: "Realizar movimiento",
+        label: game.i18n.localize("POKE5E.Contest.PerformMove"),
         icon: "fa-solid fa-star",
         callback: (dialogEvent, button) => ({
           method: button.form.elements.method.value,
@@ -860,12 +860,12 @@ async function chooseDamageType(move) {
   const options = types.map(type => `<option value="${escapeHtml(type)}" ${type === move.type ? "selected" : ""}>${escapeHtml(typeLabel(type))}</option>`).join("");
   try {
     return await foundry.applications.api.DialogV2.prompt({
-      window: { title: `Tipo de daño de ${move.name}` },
+      window: { title: game.i18n.format("POKE5E.PokemonDialogs.DamageTypeTitle", { move: move.name }) },
       content: `<div class="poke5e-damage-type-dialog"><p>Este movimiento puede causar varios tipos de daño. Elige el que se aplica en esta tirada.</p><label><span>Tipo de daño</span><select name="damageType">${options}</select></label></div>`,
       modal: true,
       rejectClose: false,
       ok: {
-        label: "Continuar",
+        label: game.i18n.localize("POKE5E.Common.Continue"),
         icon: "fa-solid fa-burst",
         callback: (event, button) => button.form.elements.damageType.value
       }
@@ -907,10 +907,10 @@ function targetDescriptors() {
  */
 function prepareGender(gender, ratio) {
   const labels = {
-    female: { label: "Hembra", icon: "fa-venus" },
-    male: { label: "Macho", icon: "fa-mars" },
-    none: { label: "Sin sexo", icon: "fa-genderless" },
-    other: { label: "Otro", icon: "fa-transgender" }
+    female: { label: game.i18n.localize("POKE5E.Gender.Female"), icon: "fa-venus" },
+    male: { label: game.i18n.localize("POKE5E.Gender.Male"), icon: "fa-mars" },
+    none: { label: game.i18n.localize("POKE5E.Gender.None"), icon: "fa-genderless" },
+    other: { label: game.i18n.localize("POKE5E.Gender.Other"), icon: "fa-transgender" }
   };
   const value = labels[gender] ? gender : "none";
   const [female, male] = String(ratio ?? "0:0").split(":").map(entry => Number(entry) || 0);
@@ -1048,7 +1048,7 @@ async function chooseMoveToForget(knownMoves, newMove, movesById) {
   }).join("");
   try {
     return await foundry.applications.api.DialogV2.prompt({
-      window: { title: `Aprender ${newMove.name}` },
+      window: { title: game.i18n.format("POKE5E.PokemonDialogs.LearnMoveTitle", { move: newMove.name }) },
       content: `<div class="poke5e-forget-dialog">
         <p>Un Pokémon solo puede conocer cuatro movimientos. Para aprender <strong>${escapeHtml(newMove.name)}</strong>, elige cuál debe olvidar.</p>
         <label><span>Movimiento que olvidar</span><select name="forgottenMove">${options}</select></label>
@@ -1057,7 +1057,7 @@ async function chooseMoveToForget(knownMoves, newMove, movesById) {
       modal: true,
       rejectClose: false,
       ok: {
-        label: "Olvidar y aprender",
+        label: game.i18n.localize("POKE5E.PokemonDialogs.ForgetAndLearn"),
         icon: "fa-solid fa-arrows-rotate",
         callback: (event, button) => button.form.elements.forgottenMove.value
       }
@@ -1082,9 +1082,9 @@ function moveEntry(move) {
  * La usan #learnMove() y #onDrop() con el resultado de moveEligibility().
  */
 function notifyMoveUnavailable(move, eligibility) {
-  if (eligibility.requiresMachine) return ui.notifications.warn(`${move.name} requiere que el entrenador tenga la ${eligibility.machine.label} ${eligibility.machine.id} en su inventario.`);
-  if (eligibility.future) return ui.notifications.warn(`${move.name} se aprende a nivel ${eligibility.requiredLevel}.`);
-  return ui.notifications.warn(`${move.name} no puede ser aprendido por esta especie Pokémon.`);
+  if (eligibility.requiresMachine) return ui.notifications.warn(game.i18n.format("POKE5E.PokemonNotifications.RequiresMachine", { move: move.name, machine: eligibility.machine.label, id: eligibility.machine.id }));
+  if (eligibility.future) return ui.notifications.warn(game.i18n.format("POKE5E.PokemonNotifications.FutureMove", { move: move.name, level: eligibility.requiredLevel }));
+  return ui.notifications.warn(game.i18n.format("POKE5E.PokemonNotifications.CannotLearn", { move: move.name }));
 }
 
 /** Recoge las MT/MO con cantidad disponible en el inventario del entrenador. */
@@ -1173,12 +1173,12 @@ function descriptionBlock(block) {
  */
 function prepareSpeeds(speeds = []) {
   const display = {
-    walking: { label: "Caminar", icon: "fa-person-walking" },
-    flying: { label: "Volar", icon: "fa-dove" },
-    swimming: { label: "Nadar", icon: "fa-person-swimming" },
-    burrowing: { label: "Excavar", icon: "fa-trowel" },
-    climbing: { label: "Trepar", icon: "fa-mountain" },
-    hover: { label: "Flotar", icon: "fa-wind" }
+    walking: { label: game.i18n.localize("POKE5E.Movement.Walking"), icon: "fa-person-walking" },
+    flying: { label: game.i18n.localize("POKE5E.Movement.Flying"), icon: "fa-dove" },
+    swimming: { label: game.i18n.localize("POKE5E.Movement.Swimming"), icon: "fa-person-swimming" },
+    burrowing: { label: game.i18n.localize("POKE5E.Movement.Burrowing"), icon: "fa-trowel" },
+    climbing: { label: game.i18n.localize("POKE5E.Movement.Climbing"), icon: "fa-mountain" },
+    hover: { label: game.i18n.localize("POKE5E.Movement.Hover"), icon: "fa-wind" }
   };
   return speeds.map(speed => ({
     type: speed.type,
@@ -1195,7 +1195,7 @@ function prepareSpeeds(speeds = []) {
 async function promptExperienceAmount() {
   try {
     return await foundry.applications.api.DialogV2.prompt({
-      window: { title: "Añadir experiencia" },
+      window: { title: game.i18n.localize("POKE5E.PokemonDialogs.AddExperience") },
       content: `<div class="poke5e-experience-dialog">
         <p>Introduce los PX obtenidos. Si se alcanza el siguiente umbral, el nivel aumentará automáticamente.</p>
         <label><span>Experiencia obtenida</span><input type="number" name="amount" min="1" step="1" value="100" autofocus></label>
@@ -1203,7 +1203,7 @@ async function promptExperienceAmount() {
       modal: true,
       rejectClose: false,
       ok: {
-        label: "Añadir PX",
+        label: game.i18n.localize("POKE5E.PokemonDialogs.AddXP"),
         icon: "fa-solid fa-plus",
         callback: (event, button) => Math.max(0, Math.trunc(Number(button.form.elements.amount.value) || 0))
       }
@@ -1232,7 +1232,7 @@ async function promptEvolution({ evolution, target, data, instance, species, asi
   </label>` : "";
   try {
     return await foundry.applications.api.DialogV2.prompt({
-      window: { title: `Evolucionar a ${target.name}` },
+      window: { title: game.i18n.format("POKE5E.PokemonDialogs.EvolveTitle", { pokemon: target.name }) },
       content: `<div class="poke5e-evolution-dialog">
         <p><strong>${escapeHtml(displayPokemonName({ getFlag: () => instance, name: species.name }))}</strong> evolucionará a <strong>${escapeHtml(target.name)}</strong>. Mantendrá su nivel, experiencia, sexo, movimientos y daño recibido.</p>
         <p>Obtendrá la CA y defensas de su nueva forma, además de ${2 * (Number(instance.level) || 1)} PG máximos.</p>
@@ -1241,7 +1241,7 @@ async function promptEvolution({ evolution, target, data, instance, species, asi
       modal: true,
       rejectClose: false,
       ok: {
-        label: "Evolucionar",
+        label: game.i18n.localize("POKE5E.PokemonDialogs.Evolve"),
         icon: "fa-solid fa-dna",
         callback: (dialogEvent, button) => {
           const form = button.form;

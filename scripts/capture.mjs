@@ -28,7 +28,7 @@ export function registerCaptureSocket() {
     if (payload?.action !== "completeCapture" || !isResponsibleGm()) return;
     completeCapture(payload).catch(error => {
       console.error(`${MODULE_ID} | Capture completion failed`, error);
-      ui.notifications.error(`No se pudo completar la captura: ${error.message}`);
+      ui.notifications.error(game.i18n.format("POKE5E.Capture.Failed", { error: error.message }));
     });
   });
 }
@@ -45,34 +45,34 @@ export function registerCaptureSocket() {
  * Es la macro `game.poke5e.captureTarget` y el botón "Capturar objetivo".
  */
 export async function attemptCapture(trainer) {
-  if (!trainer?.isOwner) return ui.notifications.warn("No tienes permiso para usar este entrenador.");
+  if (!trainer?.isOwner) return ui.notifications.warn(game.i18n.localize("POKE5E.Capture.NoTrainerPermission"));
   const targetToken = selectedPokemonTarget();
-  if (!targetToken) return ui.notifications.warn("Selecciona como objetivo exactamente un Pokémon salvaje o perteneciente a un entrenador.");
+  if (!targetToken) return ui.notifications.warn(game.i18n.localize("POKE5E.Capture.SelectTarget"));
   const wildActor = targetToken.actor;
   const capturable = wildActor.getFlag(MODULE_ID, "kind") === "wild" && wildActor.getFlag(MODULE_ID, "capturable") === true;
   const pokemonItem = await pokemonItemForActor(wildActor);
   const species = pokemonItem?.getFlag(MODULE_ID, "species");
   const instance = pokemonItem?.getFlag(MODULE_ID, "instance");
-  if (!pokemonItem || !species || !instance) return ui.notifications.error("El objetivo no contiene una ficha Pokémon válida.");
+  if (!pokemonItem || !species || !instance) return ui.notifications.error(game.i18n.localize("POKE5E.Capture.InvalidTarget"));
   const hp = wildActor.system.attributes?.hp ?? {};
-  if (capturable && Number(hp.value) <= 0) return ui.notifications.warn("Un Pokémon debilitado no puede ser capturado.");
+  if (capturable && Number(hp.value) <= 0) return ui.notifications.warn(game.i18n.localize("POKE5E.Capture.Fainted"));
   const currentTrainerLevel = trainerLevel(trainer);
   const targetLevel = Math.max(1, Number(instance.level) || 1);
-  if (capturable && targetLevel > currentTrainerLevel) return ui.notifications.warn(`No puedes capturar un Pokémon de nivel ${targetLevel} con un entrenador de nivel ${currentTrainerLevel}.`);
+  if (capturable && targetLevel > currentTrainerLevel) return ui.notifications.warn(game.i18n.format("POKE5E.Capture.LevelTooHigh", { target: targetLevel, trainer: currentTrainerLevel }));
   const distance = distanceFromTrainer(trainer, targetToken);
-  if (distance == null) return ui.notifications.warn("Coloca un token de este entrenador en la escena para lanzar una Poké Ball.");
-  if (distance > 60) return ui.notifications.warn(`El objetivo está a ${Math.round(distance)} pies. El alcance máximo es de 60 pies.`);
+  if (distance == null) return ui.notifications.warn(game.i18n.localize("POKE5E.Capture.PlaceTrainer"));
+  if (distance > 60) return ui.notifications.warn(game.i18n.format("POKE5E.Capture.OutOfRange", { distance: Math.round(distance) }));
   const balls = availablePokeballs(trainer);
-  if (!balls.length) return ui.notifications.warn("Este entrenador no tiene Poké Balls disponibles en su inventario.");
+  if (!balls.length) return ui.notifications.warn(game.i18n.localize("POKE5E.Capture.NoBalls"));
   const choices = await promptCaptureOptions({ species, instance, hp, balls, trainerLevel: currentTrainerLevel });
   if (!choices) return;
   const ball = balls.find(entry => entry.item.id === choices.ballItemId);
-  if (!ball) return ui.notifications.warn("La Poké Ball seleccionada ya no está disponible.");
+  if (!ball) return ui.notifications.warn(game.i18n.localize("POKE5E.Capture.BallUnavailable"));
   const ballName = ball.item.name;
   await consumePokeball(ball.item);
   if (!capturable) {
     await postTrainedPokemonFailure({ trainer, species, ballName });
-    return ui.notifications.warn(`${species.name} pertenece a un entrenador: la captura falla automáticamente y la Poké Ball se ha perdido.`);
+    return ui.notifications.warn(game.i18n.format("POKE5E.Capture.OwnedPokemon", { pokemon: species.name }));
   }
   const data = await loadPoke5eData();
   const statuses = targetStatuses(wildActor, instance);
@@ -116,7 +116,7 @@ export async function attemptCapture(trainer) {
   }
   const success = difficulty.automaticSuccess || total >= difficulty.dc;
   await postCaptureResult({ trainer, species, ballName, difficulty, total, success, advantage });
-  if (!success) return ui.notifications.warn(`${species.name} ha escapado de la ${ballName}.`);
+  if (!success) return ui.notifications.warn(game.i18n.format("POKE5E.Capture.Escaped", { pokemon: species.name, ball: ballName }));
   const payload = {
     action: "completeCapture",
     userId: game.user.id,
@@ -131,7 +131,7 @@ export async function attemptCapture(trainer) {
   if (game.user.isGM) await completeCapture(payload);
   else {
     game.socket.emit(SOCKET, payload);
-    ui.notifications.info("Captura conseguida. Esperando a que el director complete la transferencia.");
+    ui.notifications.info(game.i18n.localize("POKE5E.Capture.WaitingForGM"));
   }
 }
 
@@ -193,9 +193,9 @@ export async function completeCapture(payload) {
     const captureExperience = Math.floor(experienceAward(level, species.sr) / 5);
     await ChatMessage.create({
       speaker: ChatMessage.getSpeaker({ actor: trainer }),
-      content: `<div class="dnd5e chat-card poke5e-capture-card success"><header class="card-header"><h3><i class="fa-solid fa-circle-dot"></i> ¡${escapeHtml(species.name)} capturado!</h3></header><p><strong>${escapeHtml(trainer.name)}</strong> ha capturado a ${escapeHtml(species.name)} con ${escapeHtml(payload.ballName)}.</p><p>Nivel ${level} · PG ${instance.hp.value}/${instance.hp.max} · ${instance.inTeam ? "Añadido al equipo activo" : "Enviado a la reserva"}</p><p><strong>PX por captura:</strong> ${formatNumber(captureExperience)} para distribuir.</p></div>`
+      content: `<div class="dnd5e chat-card poke5e-capture-card success"><header class="card-header"><h3><i class="fa-solid fa-circle-dot"></i> ${game.i18n.format("POKE5E.Capture.ChatCapturedTitle", { pokemon: escapeHtml(species.name) })}</h3></header><p>${game.i18n.format("POKE5E.Capture.ChatCaptured", { trainer: `<strong>${escapeHtml(trainer.name)}</strong>`, pokemon: escapeHtml(species.name), ball: escapeHtml(payload.ballName) })}</p><p>${game.i18n.format("POKE5E.Capture.ChatPokemonSummary", { level, hp: instance.hp.value, max: instance.hp.max, destination: game.i18n.localize(instance.inTeam ? "POKE5E.Capture.ActiveTeam" : "POKE5E.Capture.Reserve") })}</p><p>${game.i18n.format("POKE5E.Capture.ChatXP", { xp: formatNumber(captureExperience) })}</p></div>`
     });
-    ui.notifications.info(`${species.name} se ha añadido a ${trainer.name}.`);
+    ui.notifications.info(game.i18n.format("POKE5E.Capture.Added", { pokemon: species.name, trainer: trainer.name }));
   } catch (error) {
     if (game.actors.has(wildActor.id)) await wildActor.unsetFlag(MODULE_ID, "capturePending");
     throw error;
@@ -252,25 +252,25 @@ async function promptCaptureOptions({ species, instance, hp, balls, trainerLevel
   const options = balls.map(({ item }) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)} ×${Number(item.system.quantity ?? 1)}</option>`).join("");
   try {
     return await foundry.applications.api.DialogV2.prompt({
-      window: { title: `Capturar a ${species.name}` },
+      window: { title: game.i18n.format("POKE5E.Capture.WindowTitle", { pokemon: species.name }) },
       content: `<div class="poke5e-capture-dialog">
-        <p><strong>${escapeHtml(species.name)}</strong> · Nivel ${Number(instance.level) || 1} · SR ${Number(species.sr) || 0} · PG ${Number(hp.value) || 0}/${Number(hp.max) || 1}</p>
-        <p>Entrenador de nivel ${trainerLevel}. La Poké Ball se consumirá al realizar el intento.</p>
-        <label><span>Poké Ball</span><select name="ballItemId">${options}</select></label>
-        <fieldset><legend>Condiciones del entorno</legend>
-          <label><input type="checkbox" name="fishing"> Encontrado mediante pesca</label>
-          <label><input type="checkbox" name="underwater"> Objetivo bajo el agua</label>
-          <label><input type="checkbox" name="darkness"> Noche u oscuridad</label>
+        <p><strong>${escapeHtml(species.name)}</strong> · ${game.i18n.format("POKE5E.Capture.TargetSummary", { level: Number(instance.level) || 1, cr: Number(species.sr) || 0, hp: Number(hp.value) || 0, max: Number(hp.max) || 1 })}</p>
+        <p>${game.i18n.format("POKE5E.Capture.TrainerSummary", { level: trainerLevel })}</p>
+        <label><span>${game.i18n.localize("POKE5E.Capture.PokeBall")}</span><select name="ballItemId">${options}</select></label>
+        <fieldset><legend>${game.i18n.localize("POKE5E.Capture.EnvironmentConditions")}</legend>
+          <label><input type="checkbox" name="fishing"> ${game.i18n.localize("POKE5E.Capture.Fishing")}</label>
+          <label><input type="checkbox" name="underwater"> ${game.i18n.localize("POKE5E.Capture.Underwater")}</label>
+          <label><input type="checkbox" name="darkness"> ${game.i18n.localize("POKE5E.Capture.Darkness")}</label>
         </fieldset>
         <div class="poke5e-capture-numbers">
-          <label><span>Turnos concentrando la Turno Ball</span><input type="number" name="timerTurns" min="0" max="10" value="0"></label>
-          ${game.user.isGM ? `<label><span>Reducción adicional de CD (DJ)</span><input type="number" name="manualReduction" min="0" value="0"></label>` : ""}
+          <label><span>${game.i18n.localize("POKE5E.Capture.TimerTurns")}</span><input type="number" name="timerTurns" min="0" max="10" value="0"></label>
+          ${game.user.isGM ? `<label><span>${game.i18n.localize("POKE5E.Capture.ManualReduction")}</span><input type="number" name="manualReduction" min="0" value="0"></label>` : ""}
         </div>
       </div>`,
       modal: true,
       rejectClose: false,
       ok: {
-        label: "Lanzar Poké Ball",
+        label: game.i18n.localize("POKE5E.Capture.ThrowBall"),
         icon: "fa-solid fa-circle-dot",
         callback: (event, button) => ({
           ballItemId: button.form.elements.ballItemId.value,
@@ -345,17 +345,17 @@ async function consumePokeball(item) {
  */
 async function postCaptureResult({ trainer, species, ballName, difficulty, total, success, advantage }) {
   const details = [
-    `CD base ${difficulty.base}`,
-    difficulty.healthReduction ? `−${difficulty.healthReduction} por PG` : null,
-    difficulty.ballReduction ? `−${difficulty.ballReduction} por Poké Ball y condiciones` : null
+    game.i18n.format("POKE5E.Capture.BaseDC", { dc: difficulty.base }),
+    difficulty.healthReduction ? game.i18n.format("POKE5E.Capture.HealthReduction", { reduction: difficulty.healthReduction }) : null,
+    difficulty.ballReduction ? game.i18n.format("POKE5E.Capture.BallReduction", { reduction: difficulty.ballReduction }) : null
   ].filter(Boolean).join(" · ");
   const ballDetails = difficulty.reasons.length
     ? `<p><small>${difficulty.reasons.map(reason => `${escapeHtml(reason.label)}: ${typeof reason.value === "number" ? `−${reason.value} CD` : escapeHtml(reason.value)}`).join(" · ")}</small></p>`
     : "";
-  const result = difficulty.automaticSuccess ? "Éxito automático" : `${total} contra CD ${difficulty.dc}`;
+  const result = difficulty.automaticSuccess ? game.i18n.localize("POKE5E.Capture.AutomaticSuccess") : game.i18n.format("POKE5E.Capture.RollAgainstDC", { total, dc: difficulty.dc });
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor: trainer }),
-    content: `<div class="dnd5e chat-card poke5e-capture-card ${success ? "success" : "failure"}"><header class="card-header"><h3>${success ? "¡Captura conseguida!" : "El Pokémon ha escapado"}</h3></header><p>${escapeHtml(trainer.name)} lanza una <strong>${escapeHtml(ballName)}</strong> a ${escapeHtml(species.name)}.</p><p>${escapeHtml(details)}</p>${ballDetails}<p><strong>${escapeHtml(result)}</strong>${advantage ? " · Ventaja por estado" : ""}</p></div>`
+    content: `<div class="dnd5e chat-card poke5e-capture-card ${success ? "success" : "failure"}"><header class="card-header"><h3>${game.i18n.localize(success ? "POKE5E.Capture.SuccessTitle" : "POKE5E.Capture.EscapedTitle")}</h3></header><p>${game.i18n.format("POKE5E.Capture.ThrowDescription", { trainer: escapeHtml(trainer.name), ball: `<strong>${escapeHtml(ballName)}</strong>`, pokemon: escapeHtml(species.name) })}</p><p>${escapeHtml(details)}</p>${ballDetails}<p><strong>${escapeHtml(result)}</strong>${advantage ? ` · ${game.i18n.localize("POKE5E.Capture.StatusAdvantage")}` : ""}</p></div>`
   });
 }
 
@@ -367,7 +367,7 @@ async function postCaptureResult({ trainer, species, ballName, difficulty, total
 async function postTrainedPokemonFailure({ trainer, species, ballName }) {
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor: trainer }),
-    content: `<div class="dnd5e chat-card poke5e-capture-card failure"><header class="card-header"><h3>Captura imposible</h3></header><p>${escapeHtml(trainer.name)} lanza una <strong>${escapeHtml(ballName)}</strong> a ${escapeHtml(species.name)}, pero el Pokémon ya pertenece a otro entrenador.</p><p><strong>Fallo automático.</strong> La Poké Ball se consume.</p></div>`
+    content: `<div class="dnd5e chat-card poke5e-capture-card failure"><header class="card-header"><h3>${game.i18n.localize("POKE5E.Capture.ImpossibleTitle")}</h3></header><p>${game.i18n.format("POKE5E.Capture.TrainedFailure", { trainer: escapeHtml(trainer.name), ball: `<strong>${escapeHtml(ballName)}</strong>`, pokemon: escapeHtml(species.name) })}</p><p>${game.i18n.localize("POKE5E.Capture.AutomaticFailure")}</p></div>`
   });
 }
 

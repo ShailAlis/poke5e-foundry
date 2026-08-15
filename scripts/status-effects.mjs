@@ -173,7 +173,7 @@ export async function applyMoveStatuses({ move, attack = null, saveDc, sourceAct
   const selfEffects = effects.filter(effect => effect.target === "self");
   const selected = [...(game.user.targets ?? [])];
   if (selectedEffects.length && !selected.length) {
-    ui.notifications.warn(`${move.name} puede causar estados alterados, pero no hay ningún objetivo seleccionado.`);
+    ui.notifications.warn(game.i18n.format("POKE5E.StatusEffects.NoTarget", { move: move.name }));
     if (!selfEffects.length) return { saveResults };
   }
   const targets = [];
@@ -209,7 +209,7 @@ export async function applyMoveStatuses({ move, attack = null, saveDc, sourceAct
     if (applicable.length) targets.push({ actorUuid: sourceCombatActor.uuid, tokenName: sourceName, effects: applicable });
   }
   const manual = effects.filter(effect => effect.trigger === "manual");
-  if (manual.length) ui.notifications.info(`${move.name} contiene un estado contextual que debe resolver el DJ según su descripción.`);
+  if (manual.length) ui.notifications.info(game.i18n.format("POKE5E.StatusEffects.Manual", { move: move.name }));
   if (!targets.length) return { saveResults };
   const payload = {
     action: STATUS_SOCKET_ACTION,
@@ -223,7 +223,7 @@ export async function applyMoveStatuses({ move, attack = null, saveDc, sourceAct
   if (game.user.isGM || selected.every(token => token.actor.canUserModify(game.user, "update"))) await completeStatusApplication(payload);
   else {
     game.socket.emit(`module.${MODULE_ID}`, payload);
-    ui.notifications.info(`Se ha solicitado al DJ aplicar los estados de ${move.name}.`);
+    ui.notifications.info(game.i18n.format("POKE5E.StatusEffects.Requested", { move: move.name }));
   }
   return { saveResults };
 }
@@ -355,14 +355,14 @@ export async function applyPokemonStatus(actor, id, source) {
   if (!definition) return;
   const types = pokemonTypes(actor);
   if (definition.immuneTypes.some(type => types.includes(type))) {
-    ui.notifications.info(`${actor.name} es inmune a ${definition.name.toLocaleLowerCase()}.`);
+    ui.notifications.info(game.i18n.format("POKE5E.StatusEffects.Immune", { actor: actor.name, status: definition.name.toLocaleLowerCase() }));
     return;
   }
   const effectId = statusId(id);
   const activePokemonStatuses = new Set(actor.effects.map(effect => effect.getFlag(MODULE_ID, "status")).filter(Boolean));
   if (activePokemonStatuses.has(id) || actor.statuses.has(effectId)) return;
   if (definition.nonVolatile && Object.entries(POKEMON_STATUS_EFFECTS).some(([status, entry]) => entry.nonVolatile && activePokemonStatuses.has(status))) {
-    ui.notifications.info(`${actor.name} ya tiene un estado no volátil y no puede recibir ${definition.name.toLocaleLowerCase()}.`);
+    ui.notifications.info(game.i18n.format("POKE5E.StatusEffects.NonVolatile", { actor: actor.name, status: definition.name.toLocaleLowerCase() }));
     return;
   }
   const effectSource = pokemonStatusEffectSource(id, source);

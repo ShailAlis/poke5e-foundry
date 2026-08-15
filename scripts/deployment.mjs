@@ -54,6 +54,9 @@ export function registerPokemonTokenMovement() {
   });
 }
 
+function localize(key, fallback) { return globalThis.game?.i18n?.localize?.(key) ?? fallback; }
+function localizeFormat(key, data, fallback) { return globalThis.game?.i18n?.format?.(key, data) ?? fallback; }
+
 /**
  * Busca el actor temporal de un Pokémon desplegado por el UUID de su Item.
  * Vínculo entre ficha y mapa: lo usan casi todas las funciones del archivo,
@@ -72,17 +75,17 @@ export function deployedActorFor(pokemonItem) {
  * creado ante cualquier error. Su inversa es recallPokemon().
  */
 export async function deployPokemon(pokemonItem) {
-  if (!canvas?.ready || !canvas.scene) return ui.notifications.warn("Abre una escena antes de desplegar un Pokémon.");
+  if (!canvas?.ready || !canvas.scene) return ui.notifications.warn(localize("POKE5E.Deployment.OpenScene", "Abre una escena antes de desplegar un Pokémon."));
   const trainer = pokemonItem.parent;
-  if (!trainer?.isOwner) return ui.notifications.warn("No tienes permiso para desplegar este Pokémon.");
+  if (!trainer?.isOwner) return ui.notifications.warn(localize("POKE5E.Deployment.NoPermission", "No tienes permiso para desplegar este Pokémon."));
   const instance = pokemonItem.getFlag(MODULE_ID, "instance");
-  if (Number(instance?.hp?.value) <= 0) return ui.notifications.warn(`${displayPokemonName(pokemonItem)} está debilitado y no puede salir al combate.`);
+  if (Number(instance?.hp?.value) <= 0) return ui.notifications.warn(localizeFormat("POKE5E.Deployment.Fainted", { pokemon: displayPokemonName(pokemonItem) }, `${displayPokemonName(pokemonItem)} está debilitado y no puede salir al combate.`));
   const trainerToken = trainerTokenFor(trainer);
-  if (!trainerToken) return ui.notifications.warn("Coloca el token del entrenador en la escena antes de sacar un Pokémon.");
+  if (!trainerToken) return ui.notifications.warn(localize("POKE5E.Deployment.PlaceTrainer", "Coloca el token del entrenador en la escena antes de sacar un Pokémon."));
   let actor = deployedActorFor(pokemonItem);
   const deployedToken = actor ? deployedTokenFor(actor) : null;
   if (deployedToken) {
-    if (deployedToken.parent?.id !== canvas.scene.id) return ui.notifications.warn(`${displayPokemonName(pokemonItem)} ya está desplegado en otra escena.`);
+    if (deployedToken.parent?.id !== canvas.scene.id) return ui.notifications.warn(localizeFormat("POKE5E.Deployment.OtherScene", { pokemon: displayPokemonName(pokemonItem) }, `${displayPokemonName(pokemonItem)} ya está desplegado en otra escena.`));
     deployedToken.object?.control({ releaseOthers: true });
     if (deployedToken.object) canvas.pan({ x: deployedToken.object.center.x, y: deployedToken.object.center.y });
     return actor;
@@ -97,7 +100,7 @@ export async function deployPokemon(pokemonItem) {
     const token = await actor.getTokenDocument(position);
     const [createdToken] = await canvas.scene.createEmbeddedDocuments("Token", [token.toObject()]);
     createdToken?.object?.control({ releaseOthers: true });
-    ui.notifications.info(`${displayPokemonName(pokemonItem)} ha salido al combate.`);
+    ui.notifications.info(localizeFormat("POKE5E.Deployment.Deployed", { pokemon: displayPokemonName(pokemonItem) }, `${displayPokemonName(pokemonItem)} ha salido al combate.`));
     return actor;
   } catch (error) {
     if (createdActor && game.actors.has(actor.id)) await actor.delete();
@@ -114,13 +117,13 @@ export async function recallPokemon(pokemonItem, { fainted = false, forced = fal
   const actor = deployedActorFor(pokemonItem);
   if (!actor) return;
   if (!fainted && !forced && actorHasRecallLock(actor)) {
-    ui.notifications.warn(`${displayPokemonName(pokemonItem)} está inmovilizado por un efecto mantenido y no puede ser retirado voluntariamente.`);
+    ui.notifications.warn(localizeFormat("POKE5E.Deployment.Immobilized", { pokemon: displayPokemonName(pokemonItem) }, `${displayPokemonName(pokemonItem)} está inmovilizado por un efecto mantenido y no puede ser retirado voluntariamente.`));
     return false;
   }
   await removeDeployment(actor, { deleteTokens: true });
-  ui.notifications.info(fainted
-    ? `${displayPokemonName(pokemonItem)} ha caído debilitado y ha vuelto con su entrenador.`
-    : `${displayPokemonName(pokemonItem)} ha vuelto con su entrenador.`);
+  const pokemon = displayPokemonName(pokemonItem);
+  const fallback = fainted ? `${pokemon} ha caído debilitado y ha vuelto con su entrenador.` : `${pokemon} ha vuelto con su entrenador.`;
+  ui.notifications.info(localizeFormat(fainted ? "POKE5E.Deployment.RecalledFainted" : "POKE5E.Deployment.Recalled", { pokemon }, fallback));
   return true;
 }
 
@@ -365,7 +368,7 @@ function chooseDeploymentPosition(trainerToken, tokenData, pokemonName) {
   const gridLayer = canvas.interface?.grid;
   gridLayer?.addHighlightLayer?.(highlightName);
   highlightDeploymentArea(highlightName, trainerToken, tokenData);
-  ui.notifications.info(`Elige en el mapa dónde aparece ${pokemonName}. Debe estar a un máximo de ${DEPLOY_RANGE} pies del entrenador. Pulsa Escape o haz clic derecho para cancelar.`);
+  ui.notifications.info(localizeFormat("POKE5E.Deployment.ChoosePosition", { pokemon: pokemonName, range: DEPLOY_RANGE }, `Elige en el mapa dónde aparece ${pokemonName}.`));
   return new Promise(resolve => {
     let settled = false;
     let canvasTearDownHook;
@@ -392,7 +395,7 @@ function chooseDeploymentPosition(trainerToken, tokenData, pokemonName) {
       const point = canvas.stage.toLocal(event.global);
       const position = deploymentPosition(point, tokenData);
       if (!isAllowedDeployment(position, trainerToken, tokenData)) {
-        ui.notifications.warn(`Elige una casilla libre a no más de ${DEPLOY_RANGE} pies del entrenador.`);
+        ui.notifications.warn(localizeFormat("POKE5E.Deployment.InvalidPosition", { range: DEPLOY_RANGE }, `Elige una casilla libre a no más de ${DEPLOY_RANGE} pies del entrenador.`));
         return;
       }
       finish({ x: position.x, y: position.y });

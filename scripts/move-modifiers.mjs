@@ -38,12 +38,12 @@ export async function applyMoveModifierEffects({ move, attack = null, saveDc, sa
   const rule = MOVE_MODIFIER_EFFECTS[move?.id];
   if (!rule) return;
   if (!sourceCombatActor) {
-    ui.notifications.warn(`${move.name} deja un modificador, pero el Pokémon debe estar desplegado para representarlo.`);
+    ui.notifications.warn(game.i18n.format("POKE5E.MoveEffects.MustBeDeployed", { move: move.name }));
     return;
   }
   const selected = [...(game.user.targets ?? [])].map(token => ({ actor: token.actor, tokenName: token.name }));
   if (rule.target === "selected" && !selected.length) {
-    ui.notifications.warn(`${move.name} modifica a un objetivo, pero no hay ningún token seleccionado.`);
+    ui.notifications.warn(game.i18n.format("POKE5E.MoveEffects.NoTargetModifier", { move: move.name }));
     return;
   }
   const candidates = rule.target === "self"
@@ -88,7 +88,7 @@ export async function applyMoveModifierEffects({ move, attack = null, saveDc, sa
   if (game.user.isGM || actors.every(actor => actor?.canUserModify(game.user, "update"))) await completeModifierApplication(payload);
   else {
     game.socket.emit(`module.${MODULE_ID}`, payload);
-    ui.notifications.info(`Se ha solicitado al DJ aplicar el modificador de ${move.name}.`);
+    ui.notifications.info(game.i18n.format("POKE5E.MoveEffects.ModifierRequested", { move: move.name }));
   }
 }
 

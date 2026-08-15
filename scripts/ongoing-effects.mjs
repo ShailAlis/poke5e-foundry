@@ -181,12 +181,12 @@ export async function applyMoveOngoingEffects({ move, attack = null, saveDc, sou
   const rule = resolveOngoingMoveEffect(move, { level, moveModifier, proficiency, sourceTypes });
   if (!rule) return;
   if (!sourceCombatActor) {
-    ui.notifications.warn(`${move.name} necesita que el Pokémon esté desplegado para mantener su efecto.`);
+    ui.notifications.warn(game.i18n.format("POKE5E.MoveEffects.OngoingMustBeDeployed", { move: move.name }));
     return;
   }
   const tokens = rule.target === "self" ? [] : [...(game.user.targets ?? [])];
   if (rule.target !== "self" && !tokens.length) {
-    ui.notifications.warn(`${move.name} mantiene un efecto, pero no hay ningún objetivo seleccionado.`);
+    ui.notifications.warn(game.i18n.format("POKE5E.MoveEffects.NoTargetOngoing", { move: move.name }));
     return;
   }
   const targets = [];
@@ -220,7 +220,7 @@ export async function applyMoveOngoingEffects({ move, attack = null, saveDc, sou
   if (game.user.isGM || actors.every(actor => actor?.canUserModify(game.user, "update"))) await completeOngoingApplication(payload);
   else {
     game.socket.emit(`module.${MODULE_ID}`, payload);
-    ui.notifications.info(`Se ha solicitado al DJ aplicar el efecto mantenido de ${move.name}.`);
+    ui.notifications.info(game.i18n.format("POKE5E.MoveEffects.OngoingRequested", { move: move.name }));
   }
 }
 

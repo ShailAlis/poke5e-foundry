@@ -130,7 +130,7 @@ export class Poke5eImporter extends HandlebarsApplicationMixin(ApplicationV2) {
       if (options.reference) await upsertReferenceJournal();
 
       setStatus(status, "Compendios preparados.", 100);
-      ui.notifications.info(`Pokémon 5e: ${itemCount} entradas disponibles en compendios.`);
+      ui.notifications.info(game.i18n.format("POKE5E.Importer.EntriesAvailable", { count: itemCount }));
     } catch (error) {
       console.error(`${MODULE_ID} | Compendium import failed`, error);
       setStatus(status, error.message, 0);
@@ -241,7 +241,7 @@ function selectPokemon(allPokemon, selection) {
   const selected = allPokemon.filter(pokemon => ids.has(pokemon.id.toLocaleLowerCase()));
   const found = new Set(selected.map(pokemon => pokemon.id.toLocaleLowerCase()));
   const missing = [...ids].filter(id => !found.has(id));
-  if (missing.length) ui.notifications.warn(`No encontrados: ${missing.join(", ")}`);
+  if (missing.length) ui.notifications.warn(game.i18n.format("POKE5E.Importer.NotFound", { entries: missing.join(", ") }));
   return selected;
 }
 

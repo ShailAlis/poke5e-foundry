@@ -21,7 +21,7 @@ export class Poke5eEncounterBuilder extends HandlebarsApplicationMixin(Applicati
   static DEFAULT_OPTIONS = {
     id: "poke5e-encounter-builder",
     classes: ["poke5e", "poke5e-encounter-builder"],
-    window: { title: "Generador de encuentros salvajes", icon: "fa-solid fa-mountain-sun", resizable: true },
+    window: { title: "POKE5E.Encounter.WindowTitle", icon: "fa-solid fa-mountain-sun", resizable: true },
     position: { width: 920, height: 760 }
   };
 
@@ -142,7 +142,7 @@ export class Poke5eEncounterBuilder extends HandlebarsApplicationMixin(Applicati
   async #generate() {
     const data = await loadPoke5eData();
     const pool = filterEncounterSpecies(data.pokemon, this.filters);
-    if (!pool.length) return ui.notifications.warn("No hay especies que coincidan con estos filtros.");
+    if (!pool.length) return ui.notifications.warn(game.i18n.localize("POKE5E.Common.NoMatchingSpecies"));
     this.encounter = generateEncounter(pool, {
       count: this.filters.count,
       levelMin: this.filters.levelMin,
@@ -157,7 +157,7 @@ export class Poke5eEncounterBuilder extends HandlebarsApplicationMixin(Applicati
    * permitan la especie y los filtros, respetando MAX_ENCOUNTER_POKEMON.
    */
   async #addSpecies(event) {
-    if (this.encounter.length >= MAX_ENCOUNTER_POKEMON) return ui.notifications.warn(`Un encuentro admite un máximo de ${MAX_ENCOUNTER_POKEMON} Pokémon.`);
+    if (this.encounter.length >= MAX_ENCOUNTER_POKEMON) return ui.notifications.warn(game.i18n.format("POKE5E.Encounter.MaximumPokemon", { max: MAX_ENCOUNTER_POKEMON }));
     const data = await loadPoke5eData();
     const species = data.pokemonById.get(event.currentTarget.dataset.speciesId);
     if (!species) return;
@@ -195,7 +195,7 @@ export class Poke5eEncounterBuilder extends HandlebarsApplicationMixin(Applicati
    */
   async #deployEntry(entryId, { batch = false } = {}) {
     if (!canvas?.ready || !canvas.scene) {
-      if (!batch) ui.notifications.warn("Abre una escena antes de desplegar el encuentro.");
+      if (!batch) ui.notifications.warn(game.i18n.localize("POKE5E.WildDeployment.OpenScene"));
       return false;
     }
     const data = await loadPoke5eData();
@@ -216,7 +216,7 @@ export class Poke5eEncounterBuilder extends HandlebarsApplicationMixin(Applicati
    */
   async #deployAll() {
     if (this.deploying) return;
-    if (!canvas?.ready || !canvas.scene) return ui.notifications.warn("Abre una escena antes de desplegar el encuentro.");
+    if (!canvas?.ready || !canvas.scene) return ui.notifications.warn(game.i18n.localize("POKE5E.WildDeployment.OpenScene"));
     this.deploying = true;
     this.render({ force: true });
     try {

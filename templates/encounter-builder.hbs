@@ -1,61 +1,61 @@
 {{#if unauthorized}}
-  <div class="poke5e-callout warning"><i class="fa-solid fa-lock"></i> Esta herramienta es exclusiva del director de juego.</div>
+  <div class="poke5e-callout warning"><i class="fa-solid fa-lock"></i> {{localize "POKE5E.Common.GMToolOnly"}}</div>
 {{else}}
   <div class="poke5e-encounter-body">
     <section class="poke5e-encounter-config">
-      <div class="poke5e-section-title"><h2><i class="fa-solid fa-filter"></i> Hábitat y especies</h2><button type="button" data-action="clear-filters"><i class="fa-solid fa-filter-circle-xmark"></i> Restablecer</button></div>
+      <div class="poke5e-section-title"><h2><i class="fa-solid fa-filter"></i> {{localize "POKE5E.Encounter.HabitatSpecies"}}</h2><button type="button" data-action="clear-filters"><i class="fa-solid fa-filter-circle-xmark"></i> {{localize "POKE5E.Common.Reset"}}</button></div>
       <div class="poke5e-encounter-filters">
-        <label class="search"><span>Buscar</span><input type="search" value="{{filters.query}}" placeholder="Nombre, número o identificador…" data-action="search"></label>
-        <label><span>Tipo</span><select data-filter="type">{{selectOptions typeOptions selected=filters.type blank="Todos"}}</select></label>
-        <label><span>Bioma</span><select data-filter="biome">{{selectOptions biomeOptions selected=filters.biome blank="Todos"}}</select></label>
-        <label><span>Región</span><select data-filter="region">{{selectOptions regionOptions selected=filters.region blank="Todas"}}</select></label>
-        <fieldset><legend>SR</legend><input type="number" min="0" step="0.125" value="{{filters.srMin}}" placeholder="Mín." data-filter="srMin"><span>—</span><input type="number" min="0" step="0.125" value="{{filters.srMax}}" placeholder="Máx." data-filter="srMax"></fieldset>
-        <fieldset><legend>Niveles</legend><input type="number" min="1" max="20" step="1" value="{{filters.levelMin}}" data-filter="levelMin"><span>—</span><input type="number" min="1" max="20" step="1" value="{{filters.levelMax}}" data-filter="levelMax"></fieldset>
+        <label class="search"><span>{{localize "POKE5E.Common.Search"}}</span><input type="search" value="{{filters.query}}" placeholder="{{localize "POKE5E.Common.SearchPokemonPlaceholder"}}" data-action="search"></label>
+        <label><span>{{localize "POKE5E.Common.Type"}}</span><select data-filter="type">{{selectOptions typeOptions selected=filters.type blank=(localize "POKE5E.Common.All")}}</select></label>
+        <label><span>{{localize "POKE5E.Common.Biome"}}</span><select data-filter="biome">{{selectOptions biomeOptions selected=filters.biome blank=(localize "POKE5E.Common.All")}}</select></label>
+        <label><span>{{localize "POKE5E.Common.Region"}}</span><select data-filter="region">{{selectOptions regionOptions selected=filters.region blank=(localize "POKE5E.Common.AllFeminine")}}</select></label>
+        <fieldset><legend>{{localize "POKE5E.Common.ChallengeRatingShort"}}</legend><input type="number" min="0" step="0.125" value="{{filters.srMin}}" placeholder="{{localize "POKE5E.Encounter.Min"}}" data-filter="srMin"><span>—</span><input type="number" min="0" step="0.125" value="{{filters.srMax}}" placeholder="{{localize "POKE5E.Encounter.Max"}}" data-filter="srMax"></fieldset>
+        <fieldset><legend>{{localize "POKE5E.Common.Levels"}}</legend><input type="number" min="1" max="20" step="1" value="{{filters.levelMin}}" data-filter="levelMin"><span>—</span><input type="number" min="1" max="20" step="1" value="{{filters.levelMax}}" data-filter="levelMax"></fieldset>
       </div>
       <div class="poke5e-encounter-generator-row">
-        <label><span>Cantidad</span><input type="number" min="1" max="{{maxEncounterPokemon}}" value="{{filters.count}}" data-filter="count"></label>
-        <label><span>Objetivo de PX <small>(opcional)</small></span><input type="number" min="0" step="50" value="{{filters.targetExperience}}" placeholder="Sin límite" data-filter="targetExperience"></label>
-        <button type="button" class="bright" data-action="generate"><i class="fa-solid fa-dice"></i> Generar encuentro</button>
-        <span>{{poolTotal}} especies compatibles</span>
+        <label><span>{{localize "POKE5E.Common.Quantity"}}</span><input type="number" min="1" max="{{maxEncounterPokemon}}" value="{{filters.count}}" data-filter="count"></label>
+        <label><span>{{localize "POKE5E.Encounter.TargetXP"}} <small>({{localize "POKE5E.Common.Optional"}})</small></span><input type="number" min="0" step="50" value="{{filters.targetExperience}}" placeholder="{{localize "POKE5E.Common.NoLimit"}}" data-filter="targetExperience"></label>
+        <button type="button" class="bright" data-action="generate"><i class="fa-solid fa-dice"></i> {{localize "POKE5E.Encounter.Generate"}}</button>
+        <span>{{localize "POKE5E.Common.CompatibleSpeciesCount" count=poolTotal}}</span>
       </div>
     </section>
 
     <div class="poke5e-encounter-columns">
       <section class="poke5e-encounter-candidates">
-        <div class="poke5e-section-title"><h2>Especies disponibles</h2><span>Añade manualmente si lo prefieres</span></div>
-        {{#if poolTruncated}}<div class="poke5e-callout">Se muestran las primeras 60 especies. Usa los filtros para acotar la lista.</div>{{/if}}
+        <div class="poke5e-section-title"><h2>{{localize "POKE5E.Encounter.AvailableSpecies"}}</h2><span>{{localize "POKE5E.Encounter.AddManually"}}</span></div>
+        {{#if poolTruncated}}<div class="poke5e-callout">{{localize "POKE5E.Encounter.Truncated"}}</div>{{/if}}
         <div class="poke5e-encounter-species-list">
           {{#each candidates}}
             <article>
               <img src="{{img}}" alt="{{name}}">
-              <div><small>#{{number}} · SR {{sr}}</small><strong>{{name}}</strong><span>{{#each types}}{{this}}{{#unless @last}} / {{/unless}}{{/each}}</span><small>Nivel mín. {{minLevel}}{{#if biomes}} · {{biomes}}{{/if}}</small></div>
-              <button type="button" class="bright" data-action="add-species" data-species-id="{{id}}" title="Añadir al encuentro"><i class="fa-solid fa-plus"></i></button>
+              <div><small>#{{number}} · SR {{sr}}</small><strong>{{name}}</strong><span>{{#each types}}{{this}}{{#unless @last}} / {{/unless}}{{/each}}</span><small>{{localize "POKE5E.Common.MinimumLevel" level=minLevel}}{{#if biomes}} · {{biomes}}{{/if}}</small></div>
+              <button type="button" class="bright" data-action="add-species" data-species-id="{{id}}" title="{{localize "POKE5E.Encounter.Add"}}"><i class="fa-solid fa-plus"></i></button>
             </article>
-          {{else}}<div class="poke5e-empty">No hay especies que coincidan con los filtros.</div>{{/each}}
+          {{else}}<div class="poke5e-empty">{{localize "POKE5E.Common.NoMatchingSpecies"}}</div>{{/each}}
         </div>
       </section>
 
       <section class="poke5e-encounter-roster">
-        <div class="poke5e-section-title"><h2>Encuentro preparado</h2><button type="button" data-action="clear-encounter" {{#unless encounterCount}}disabled{{/unless}}><i class="fa-solid fa-trash"></i> Vaciar</button></div>
-        <div class="poke5e-encounter-summary"><strong>{{encounterCount}} Pokémon</strong><span><i class="fa-solid fa-star"></i> {{totalExperienceLabel}} PX totales</span></div>
+        <div class="poke5e-section-title"><h2>{{localize "POKE5E.Encounter.Prepared"}}</h2><button type="button" data-action="clear-encounter" {{#unless encounterCount}}disabled{{/unless}}><i class="fa-solid fa-trash"></i> {{localize "POKE5E.Common.Clear"}}</button></div>
+        <div class="poke5e-encounter-summary"><strong>{{localize "POKE5E.Common.PokemonCount" count=encounterCount}}</strong><span><i class="fa-solid fa-star"></i> {{localize "POKE5E.Encounter.TotalXP" xp=totalExperienceLabel}}</span></div>
         <div class="poke5e-encounter-roster-list">
           {{#each entries}}
             <article class="{{#if deployed}}deployed{{/if}}">
               <img src="{{img}}" alt="{{name}}">
               <div class="identity"><small>#{{number}} · SR {{sr}}</small><strong>{{name}}</strong><span>{{#each types}}{{this}}{{#unless @last}} / {{/unless}}{{/each}}</span></div>
-              <label><span>Nivel</span><input type="number" min="{{minLevel}}" max="20" value="{{level}}" data-action="change-entry-level" data-entry-id="{{id}}" {{#if deployed}}disabled{{/if}}></label>
+              <label><span>{{localize "POKE5E.Common.Level"}}</span><input type="number" min="{{minLevel}}" max="20" value="{{level}}" data-action="change-entry-level" data-entry-id="{{id}}" {{#if deployed}}disabled{{/if}}></label>
               <span class="xp">{{experienceLabel}} PX</span>
               {{#if deployed}}
-                <span class="deployed-label"><i class="fa-solid fa-check"></i> En escena</span>
+                <span class="deployed-label"><i class="fa-solid fa-check"></i> {{localize "POKE5E.Encounter.InScene"}}</span>
               {{else}}
-                <button type="button" class="bright" data-action="deploy-entry" data-entry-id="{{id}}" title="Colocar en la escena"><i class="fa-solid fa-location-dot"></i></button>
-                <button type="button" data-action="remove-entry" data-entry-id="{{id}}" title="Quitar del encuentro"><i class="fa-solid fa-xmark"></i></button>
+                <button type="button" class="bright" data-action="deploy-entry" data-entry-id="{{id}}" title="{{localize "POKE5E.Encounter.Place"}}"><i class="fa-solid fa-location-dot"></i></button>
+                <button type="button" data-action="remove-entry" data-entry-id="{{id}}" title="{{localize "POKE5E.Encounter.Remove"}}"><i class="fa-solid fa-xmark"></i></button>
               {{/if}}
             </article>
-          {{else}}<div class="poke5e-empty">Genera un encuentro o añade especies desde la lista.</div>{{/each}}
+          {{else}}<div class="poke5e-empty">{{localize "POKE5E.Encounter.Empty"}}</div>{{/each}}
         </div>
-        <button type="button" class="bright poke5e-deploy-all" data-action="deploy-all" {{#unless canDeploy}}disabled{{/unless}}><i class="fa-solid fa-map-location-dot"></i> {{#if deploying}}Colocando Pokémon…{{else}}Desplegar pendientes{{/if}}</button>
-        <small class="poke5e-placement-help">La herramienta te pedirá que elijas una posición libre en el mapa para cada Pokémon.</small>
+        <button type="button" class="bright poke5e-deploy-all" data-action="deploy-all" {{#unless canDeploy}}disabled{{/unless}}><i class="fa-solid fa-map-location-dot"></i> {{#if deploying}}{{localize "POKE5E.Encounter.Deploying"}}{{else}}{{localize "POKE5E.Encounter.DeployPending"}}{{/if}}</button>
+        <small class="poke5e-placement-help">{{localize "POKE5E.Encounter.PlacementHelp"}}</small>
       </section>
     </div>
   </div>

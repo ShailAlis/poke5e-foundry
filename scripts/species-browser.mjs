@@ -20,7 +20,7 @@ export class Poke5eSpeciesBrowser extends HandlebarsApplicationMixin(Application
   static DEFAULT_OPTIONS = {
     id: "poke5e-species-browser",
     classes: ["poke5e", "poke5e-species-browser"],
-    window: { title: "Añadir Pokémon", icon: "fa-solid fa-magnifying-glass", resizable: true },
+    window: { title: "POKE5E.SpeciesBrowser.Add", icon: "fa-solid fa-magnifying-glass", resizable: true },
     position: { width: 680, height: 720 }
   };
 
@@ -39,7 +39,7 @@ export class Poke5eSpeciesBrowser extends HandlebarsApplicationMixin(Application
 
   /** Título con el nombre del entrenador que recibirá la especie. */
   get title() {
-    return `Añadir Pokémon a ${this.actor.name}`;
+    return game.i18n.format("POKE5E.SpeciesBrowser.AddTo", { name: this.actor.name });
   }
 
   /**
@@ -86,11 +86,11 @@ export class Poke5eSpeciesBrowser extends HandlebarsApplicationMixin(Application
       filters: this.filters,
       typeOptions,
       sortOptions: {
-        number: "Número Pokédex",
-        name: "Nombre",
-        "sr-asc": "SR: menor primero",
-        "sr-desc": "SR: mayor primero",
-        level: "Nivel mínimo"
+        number: game.i18n.localize("POKE5E.SpeciesBrowser.SortNumber"),
+        name: game.i18n.localize("POKE5E.Common.Name"),
+        "sr-asc": game.i18n.localize("POKE5E.SpeciesBrowser.SortSrAsc"),
+        "sr-desc": game.i18n.localize("POKE5E.SpeciesBrowser.SortSrDesc"),
+        level: game.i18n.localize("POKE5E.Common.MinimumLevelLabel")
       },
       total: all.length,
       truncated: all.length > 80,
@@ -136,7 +136,7 @@ export class Poke5eSpeciesBrowser extends HandlebarsApplicationMixin(Application
    * reserva si el equipo activo ya está lleno según trainerPokeslotLimit().
    */
   async #add(event) {
-    if (!this.actor.isOwner) return ui.notifications.warn("No tienes permiso para modificar este entrenador.");
+    if (!this.actor.isOwner) return ui.notifications.warn(game.i18n.localize("POKE5E.Notifications.NoTrainerPermission"));
     const pack = getPack("species");
     const documentId = event.currentTarget.dataset.documentId;
     const speciesDocument = documentId ? await pack?.getDocument(documentId) : null;
@@ -144,7 +144,7 @@ export class Poke5eSpeciesBrowser extends HandlebarsApplicationMixin(Application
     if (!catalogSource) {
       const data = await loadPoke5eData();
       const species = data.pokemonById.get(event.currentTarget.dataset.sourceId);
-      if (!species) return ui.notifications.error("No se encontró la especie en la Pokédex.");
+      if (!species) return ui.notifications.error(game.i18n.localize("POKE5E.Notifications.SpeciesNotFound"));
       catalogSource = speciesItemSource(species, data.movesById, data.evolutionsByFrom.get(species.id) ?? []);
     }
     const source = pokemonItemSourceFromSpecies(catalogSource);
@@ -152,7 +152,7 @@ export class Poke5eSpeciesBrowser extends HandlebarsApplicationMixin(Application
       source.flags[MODULE_ID].instance.inTeam = false;
     }
     await this.actor.createEmbeddedDocuments("Item", [source]);
-    ui.notifications.info(`${source.name} se ha añadido a ${this.actor.name}.`);
+    ui.notifications.info(game.i18n.format("POKE5E.Notifications.PokemonAdded", { pokemon: source.name, trainer: this.actor.name }));
     this.render({ force: true });
   }
 }

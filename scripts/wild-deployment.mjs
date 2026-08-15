@@ -21,8 +21,8 @@ import { pokemonStatusEffectSource } from "./status-effects.mjs";
  * localicen. Si algo falla tras crear el actor, lo borra.
  */
 export async function deployWildPokemon(species, level, { encounterId = "" } = {}) {
-  if (!game.user.isGM) return ui.notifications.warn("Solo el director de juego puede desplegar Pokémon salvajes.");
-  if (!canvas?.ready || !canvas.scene) return ui.notifications.warn("Abre una escena antes de desplegar el encuentro.");
+  if (!game.user.isGM) return ui.notifications.warn(game.i18n.localize("POKE5E.WildDeployment.GMOnly"));
+  if (!canvas?.ready || !canvas.scene) return ui.notifications.warn(game.i18n.localize("POKE5E.WildDeployment.OpenScene"));
   const data = await loadPoke5eData();
   const instance = buildWildInstance(species, data.movesById, {
     level,
@@ -39,7 +39,7 @@ export async function deployWildPokemon(species, level, { encounterId = "" } = {
     const token = await actor.getTokenDocument(position);
     const [createdToken] = await canvas.scene.createEmbeddedDocuments("Token", [token.toObject()]);
     createdToken?.object?.control({ releaseOthers: true });
-    ui.notifications.info(`${species.name} salvaje ha aparecido en la escena.`);
+    ui.notifications.info(game.i18n.format("POKE5E.WildDeployment.Appeared", { pokemon: species.name }));
     return actor;
   } catch (error) {
     if (game.actors.has(actor.id)) await actor.delete();
@@ -140,7 +140,7 @@ export function wildActorSource(species, instance, movesById, encounterId = "") 
  * que la casilla esté libre según isFreePosition().
  */
 function chooseWildPosition(tokenData, pokemonName) {
-  ui.notifications.info(`Elige en el mapa dónde aparece ${pokemonName}. Pulsa Escape o haz clic derecho para cancelar.`);
+  ui.notifications.info(game.i18n.format("POKE5E.WildDeployment.ChoosePosition", { pokemon: pokemonName }));
   return new Promise(resolve => {
     let settled = false;
     let canvasTearDownHook;
@@ -161,7 +161,7 @@ function chooseWildPosition(tokenData, pokemonName) {
       if (button !== 0) return;
       const point = canvas.stage.toLocal(event.global);
       const position = tokenPosition(point, tokenData);
-      if (!isFreePosition(position, tokenData)) return ui.notifications.warn("Elige una posición libre dentro de la escena.");
+      if (!isFreePosition(position, tokenData)) return ui.notifications.warn(game.i18n.localize("POKE5E.WildDeployment.FreePosition"));
       finish(position);
     };
     document.addEventListener("keydown", onKeyDown);

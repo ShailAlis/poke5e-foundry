@@ -23,7 +23,7 @@ export class Poke5eNpcTrainerGenerator extends HandlebarsApplicationMixin(Applic
   static DEFAULT_OPTIONS = {
     id: "poke5e-npc-trainer-generator",
     classes: ["poke5e", "poke5e-npc-trainer-generator"],
-    window: { title: "Generador de Entrenadores NPC", icon: "fa-solid fa-users-gear", resizable: true },
+    window: { title: "POKE5E.NpcGenerator.WindowTitle", icon: "fa-solid fa-users-gear", resizable: true },
     position: { width: 1120, height: 820 }
   };
 
@@ -74,22 +74,22 @@ export class Poke5eNpcTrainerGenerator extends HandlebarsApplicationMixin(Applic
       canCreate: entries.length > 0 && !this.creating,
       archetypeOptions: optionMap(NPC_ARCHETYPES),
       difficultyOptions: optionMap(NPC_DIFFICULTIES),
-      pathOptions: { random: "Aleatorio", ...optionMap(NPC_TRAINER_PATHS) },
-      originOptions: { random: "Aleatorio", ...Object.fromEntries(ORIGINS.map(entry => [entry.id, entry.name])) },
-      specializationOptions: { random: "Aleatoria", ...Object.fromEntries(SPECIALIZATIONS.map(entry => [entry.type, `${entry.name} · ${titleCase(entry.type)}`])) },
-      genderOptions: { random: "Aleatorio", Masculino: "Masculino", Femenino: "Femenino", "No binario": "No binario" },
+      pathOptions: { random: game.i18n.localize("POKE5E.Options.Random"), ...optionMap(NPC_TRAINER_PATHS) },
+      originOptions: { random: game.i18n.localize("POKE5E.Options.Random"), ...Object.fromEntries(ORIGINS.map(entry => [entry.id, entry.name])) },
+      specializationOptions: { random: game.i18n.localize("POKE5E.Options.RandomFeminine"), ...Object.fromEntries(SPECIALIZATIONS.map(entry => [entry.type, `${entry.name} · ${titleCase(entry.type)}`])) },
+      genderOptions: { random: game.i18n.localize("POKE5E.Options.Random"), Masculino: game.i18n.localize("POKE5E.Options.Male"), Femenino: game.i18n.localize("POKE5E.Options.Female"), "No binario": game.i18n.localize("POKE5E.Options.NonBinary") },
       natureOptions: Object.fromEntries(NATURES.map(nature => [nature, nature])),
-      environmentOptions: { coast: "Costa / agua", mountain: "Montaña", other: "Otro entorno" },
-      compositionOptions: { random: "Totalmente aleatoria", varied: "Tipos variados", specialized: "Según especialización", "ace-last": "As en último lugar" },
-      powerBiasOptions: { balanced: "Equilibrada", low: "Priorizar SR bajo", high: "Priorizar SR alto" },
-      levelStrategyOptions: { range: "Aleatorios en rango", fixed: "Iguales al Entrenador", ascending: "Escalonados" },
-      typeModeOptions: { all: "Debe tener ambos", any: "Puede tener cualquiera" },
-      stageOptions: { any: "Cualquiera", base: "Solo formas base", evolved: "Solo evolucionados", final: "Solo evoluciones finales", nonfinal: "Con evoluciones pendientes" },
-      ownershipOptions: { 0: "Ninguno", 1: "Limitado", 2: "Observador", 3: "Propietario" },
-      dispositionOptions: { "-1": "Hostil", 0: "Neutral", 1: "Amistosa" },
-      displayNameOptions: { 0: "Nunca", 10: "Al pasar el ratón", 20: "Siempre", 30: "Dueño al pasar", 40: "Solo dueño" },
-      displayBarsOptions: { 0: "Nunca", 10: "Al pasar el ratón", 20: "Siempre", 40: "Solo dueño" },
-      deployCountOptions: { 0: "Ninguno", 1: "El primero", 2: "Los dos primeros", all: "Todo el equipo" },
+      environmentOptions: localizeOptionMap({ coast: "CoastWater", mountain: "Mountain", other: "OtherEnvironment" }),
+      compositionOptions: localizeOptionMap({ random: "FullyRandom", varied: "VariedTypes", specialized: "BySpecialization", "ace-last": "AceLast" }),
+      powerBiasOptions: localizeOptionMap({ balanced: "Balanced", low: "PreferLowCR", high: "PreferHighCR" }),
+      levelStrategyOptions: localizeOptionMap({ range: "RandomInRange", fixed: "SameAsTrainer", ascending: "Staggered" }),
+      typeModeOptions: localizeOptionMap({ all: "MustHaveBoth", any: "MayHaveEither" }),
+      stageOptions: localizeOptionMap({ any: "Any", base: "BaseOnly", evolved: "EvolvedOnly", final: "FinalOnly", nonfinal: "CanStillEvolve" }),
+      ownershipOptions: localizeOptionMap({ 0: "None", 1: "Limited", 2: "Observer", 3: "Owner" }),
+      dispositionOptions: localizeOptionMap({ "-1": "Hostile", 0: "Neutral", 1: "Friendly" }),
+      displayNameOptions: localizeOptionMap({ 0: "Never", 10: "OnHover", 20: "Always", 30: "OwnerHover", 40: "OwnerOnly" }),
+      displayBarsOptions: localizeOptionMap({ 0: "Never", 10: "OnHover", 20: "Always", 40: "OwnerOnly" }),
+      deployCountOptions: localizeOptionMap({ 0: "None", 1: "First", 2: "FirstTwo", all: "WholeTeam" }),
       quantityPlural: Number(this.config.quantity) !== 1,
       controlSr: trainerControlSr(this.config.trainerLevel, this.config.path === "random" ? "none" : this.config.path),
       typeOptions: uniqueOptions(data.pokemon.flatMap(entry => entry.type ?? []), titleCase),
@@ -163,12 +163,12 @@ export class Poke5eNpcTrainerGenerator extends HandlebarsApplicationMixin(Applic
     this.#captureAll();
     if (this.config.composition === "specialized" && this.config.specialization === "random") {
       this.config.specialization = SPECIALIZATIONS[Math.floor(Math.random() * SPECIALIZATIONS.length)].type;
-      ui.notifications.info("Se ha elegido una especialización al azar para construir el equipo temático.");
+      ui.notifications.info(game.i18n.localize("POKE5E.NpcGenerator.RandomSpecializationChosen"));
     }
     const data = await loadPoke5eData();
     const pool = filterNpcTrainerSpecies(data.pokemon, this.config, data.evolutions);
     this.team = generateNpcTrainerTeam(pool, this.config);
-    if (!this.team.length) ui.notifications.warn("Ninguna especie cumple todos los filtros del equipo.");
+    if (!this.team.length) ui.notifications.warn(game.i18n.localize("POKE5E.NpcGenerator.NoTeamSpecies"));
     this.render({ force: true });
   }
 
@@ -178,11 +178,11 @@ export class Poke5eNpcTrainerGenerator extends HandlebarsApplicationMixin(Applic
    */
   async #addSpecies(speciesId) {
     const maxTeamSize = trainerPokeslotsForLevel(this.config.trainerLevel);
-    if (this.team.length >= maxTeamSize) return ui.notifications.warn(`Los Pokéslots de este Entrenador permiten un máximo de ${maxTeamSize} Pokémon.`);
+    if (this.team.length >= maxTeamSize) return ui.notifications.warn(game.i18n.format("POKE5E.NpcGenerator.MaximumSlots", { max: maxTeamSize }));
     const data = await loadPoke5eData();
     const species = data.pokemonById.get(speciesId);
     if (!species) return;
-    if (this.config.uniqueSpecies && this.team.some(entry => entry.speciesId === speciesId)) return ui.notifications.warn("La opción de especies únicas está activa.");
+    if (this.config.uniqueSpecies && this.team.some(entry => entry.speciesId === speciesId)) return ui.notifications.warn(game.i18n.localize("POKE5E.NpcGenerator.UniqueActive"));
     const chosenLevel = Math.max(Number(species.minLevel) || 1, Math.min(20, Number(this.config.trainerLevel) || 1));
     this.team.push({ speciesId, level: chosenLevel, shiny: false });
     this.render({ force: true });
@@ -207,7 +207,7 @@ export class Poke5eNpcTrainerGenerator extends HandlebarsApplicationMixin(Applic
       pool = pool.filter(species => !used.has(species.id));
     }
     const [replacement] = generateNpcTrainerTeam(pool, { ...this.config, teamSize: 1 });
-    if (!replacement) return ui.notifications.warn("No queda ninguna especie compatible para sustituirla.");
+    if (!replacement) return ui.notifications.warn(game.i18n.localize("POKE5E.NpcGenerator.NoReplacement"));
     this.team[Number(index)] = replacement;
     this.render({ force: true });
   }
@@ -238,8 +238,8 @@ export class Poke5eNpcTrainerGenerator extends HandlebarsApplicationMixin(Applic
   async #createTrainers() {
     if (this.creating) return;
     this.#captureAll();
-    if (!this.team.length) return ui.notifications.warn("Genera o prepara al menos un Pokémon para el equipo.");
-    if (this.config.placeOnScene && (!canvas?.ready || !canvas.scene)) return ui.notifications.warn("Abre una escena o desactiva la colocación automática.");
+    if (!this.team.length) return ui.notifications.warn(game.i18n.localize("POKE5E.NpcGenerator.PreparePokemon"));
+    if (this.config.placeOnScene && (!canvas?.ready || !canvas.scene)) return ui.notifications.warn(game.i18n.localize("POKE5E.NpcGenerator.OpenSceneOrDisable"));
     this.creating = true;
     this.render({ force: true });
     const created = [];
@@ -250,16 +250,16 @@ export class Poke5eNpcTrainerGenerator extends HandlebarsApplicationMixin(Applic
       const quantity = Math.max(1, Math.min(12, Math.trunc(Number(this.config.quantity) || 1)));
       for (let index = 0; index < quantity; index++) {
         const team = index === 0 ? this.team : generateNpcTrainerTeam(pool, this.config);
-        if (!team.length) throw new Error("No se pudo generar uno de los equipos solicitados.");
+        if (!team.length) throw new Error(game.i18n.localize("POKE5E.NpcGenerator.TeamGenerationFailed"));
         const actor = await createNpcTrainerActor({ ...this.config, folderId: folder?.id ?? null, quantity }, team, data, index);
         created.push(actor);
         if (this.config.placeOnScene) await placeNpcTrainer(actor, { deployCount: this.config.deployCount });
       }
-      ui.notifications.info(`Creados ${created.length} Entrenador${created.length === 1 ? "" : "es"} NPC con sus equipos.`);
+      ui.notifications.info(game.i18n.format("POKE5E.NpcGenerator.Created", { count: created.length }));
       if (this.config.openSheet && created[0]) created[0].sheet?.render(true);
     } catch (error) {
       console.error("poke5e-foundry | NPC Trainer generation failed", error);
-      ui.notifications.error(`No se pudo completar la generación: ${error.message}`);
+      ui.notifications.error(game.i18n.format("POKE5E.NpcGenerator.GenerationFailed", { error: error.message }));
     } finally {
       this.creating = false;
       this.render({ force: true });
@@ -281,7 +281,7 @@ function defaultConfig() {
     query: "", typePrimary: "", typeSecondary: "", typeMode: "all", region: "", biome: "", srMin: "", srMax: "",
     stage: "any", includeIds: "", excludeIds: "", respectControlLimit: true,
     ballType: "poke-ball", ballCount: 5, potionCount: 2, money: 1500,
-    folderName: "Entrenadores NPC", ownership: 0, disposition: -1, displayName: 20, displayBars: 20,
+    folderName: game.i18n.localize("POKE5E.NpcGenerator.DefaultFolder"), ownership: 0, disposition: -1, displayName: 20, displayBars: 20,
     tokenVision: true, visionRange: 0, placeOnScene: false, deployCount: 0, openSheet: true, hoennEnvironment: "coast"
   };
 }
@@ -291,6 +291,7 @@ function defaultConfig() {
  * NPC_DIFFICULTIES o NPC_TRAINER_PATHS.
  */
 function optionMap(entries) { return Object.fromEntries(Object.entries(entries).map(([key, value]) => [key, value.name])); }
+function localizeOptionMap(entries) { return Object.fromEntries(Object.entries(entries).map(([value, key]) => [value, game.i18n.localize(`POKE5E.Options.${key}`)])); }
 /** Desplegable de los valores presentes en el catálogo, sin repetir y ordenados. */
 function uniqueOptions(values, labeler = value => value) { return [...new Set(values)].sort((a, b) => String(a).localeCompare(String(b))).reduce((result, value) => ({ ...result, [value]: labeler(value) }), {}); }
 /** Capitaliza tipos y biomas para los desplegables. */

@@ -29,7 +29,7 @@ export class Poke5eCombatPokemonActorSheet extends NPCActorSheet {
     const sourceUuid = this.actor.getFlag(MODULE_ID, "pokemonItemUuid");
     const original = sourceUuid ? await fromUuid(sourceUuid) : null;
     const pokemonItem = original ?? this.actor.items.find(item => item.getFlag(MODULE_ID, "kind") === "pokemon");
-    if (!pokemonItem) return ui.notifications.error("Este actor no contiene una ficha Pokémon válida.");
+    if (!pokemonItem) return ui.notifications.error(game.i18n.localize("POKE5E.PokemonNotifications.InvalidActor"));
     new Poke5ePokemonSheet({ pokemonItem }).render({ force: options.force ?? true });
   }
 }
@@ -43,7 +43,7 @@ export function registerPokemonActorSheet() {
   foundry.applications.apps.DocumentSheetConfig.registerSheet(Actor, MODULE_ID, Poke5eCombatPokemonActorSheet, {
     types: ["npc"],
     makeDefault: false,
-    label: "Pokémon 5e — Ficha Pokémon de combate"
+    label: "POKE5E.Sheets.PokemonCombat"
   });
 }
 

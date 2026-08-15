@@ -2,21 +2,21 @@
   <header class="poke5e-sheet-team-header">
     <div class="poke5e-ball small" aria-hidden="true"></div>
     <div>
-      <p class="eyebrow">Ficha de Entrenador</p>
-      <h2>Equipo Pokémon</h2>
-      <p>{{pokemon.teamCount}} de {{pokemon.maxTeamSize}} Pokéslots ocupados · {{pokemon.allCount}} Pokémon en total</p>
+      <p class="eyebrow">{{localize "POKE5E.Team.TrainerSheet"}}</p>
+      <h2>{{localize "POKE5E.Team.Title"}}</h2>
+      <p>{{localize "POKE5E.Team.Summary" active=pokemon.teamCount limit=pokemon.maxTeamSize total=pokemon.allCount}}</p>
     </div>
     <div class="poke5e-sheet-team-actions">
       {{#if pokemon.canEdit}}
-        <button type="button" class="bright" data-action="capturePokemon"><i class="fa-solid fa-circle-dot"></i> Capturar objetivo</button>
-        <button type="button" class="bright" data-action="browsePokemon"><i class="fa-solid fa-plus"></i> Añadir Pokémon</button>
+        <button type="button" class="bright" data-action="capturePokemon"><i class="fa-solid fa-circle-dot"></i> {{localize "POKE5E.Team.CaptureTarget"}}</button>
+        <button type="button" class="bright" data-action="browsePokemon"><i class="fa-solid fa-plus"></i> {{localize "POKE5E.Team.AddPokemon"}}</button>
       {{/if}}
     </div>
   </header>
 
   <section class="poke5e-currency-panel">
     <i class="fa-solid fa-coins"></i>
-    <label><span>Pokédólares</span><input type="number" min="0" step="1" value="{{pokemon.pokedollars}}" data-poke5e-pokedollars {{#unless pokemon.canEdit}}disabled{{/unless}}></label>
+    <label><span>{{localize "POKE5E.Currency.Name"}}</span><input type="number" min="0" step="1" value="{{pokemon.pokedollars}}" data-poke5e-pokedollars {{#unless pokemon.canEdit}}disabled{{/unless}}></label>
     <strong>₽</strong>
   </section>
 
@@ -26,24 +26,24 @@
         <button type="button" class="poke5e-sheet-slot empty" data-action="browsePokemon" {{#unless ../pokemon.canEdit}}disabled{{/unless}}>
           <span class="slot-number">{{position}}</span>
           <i class="fa-solid fa-plus"></i>
-          <strong>Hueco libre</strong>
-          <small>Añadir desde la Pokédex</small>
+          <strong>{{localize "POKE5E.Team.FreeSlot"}}</strong>
+          <small>{{localize "POKE5E.Team.AddFromPokedex"}}</small>
         </button>
       {{else}}
         <article class="poke5e-sheet-slot occupied" data-item-id="{{itemId}}">
-          <button type="button" class="pokemon-portrait" data-action="openPokemon" title="Abrir la ficha de {{name}}">
+          <button type="button" class="pokemon-portrait" data-action="openPokemon" title="{{localize "POKE5E.Team.OpenNamedSheet" name=name}}">
             <img src="{{img}}" alt="{{name}}">
           </button>
           <div class="pokemon-summary">
             <span class="slot-number">{{position}}</span>
             <button type="button" class="pokemon-name" data-action="openPokemon">{{name}}</button>
             {{#if instance.nickname}}<small>{{speciesName}}</small>{{/if}}
-            <span>Nivel {{instance.level}} · CA {{instance.ac}}</span>
-            <div class="pokemon-hp" title="{{hpValue}} de {{hpMax}} PG">
+            <span>{{localize "POKE5E.Team.LevelAC" level=instance.level ac=instance.ac}}</span>
+            <div class="pokemon-hp" title="{{localize "POKE5E.Team.HPTitle" hp=hpValue max=hpMax}}">
               <span style="width: {{hpPercent}}%"></span>
             </div>
             <small>PG {{hpValue}}/{{hpMax}}</small>
-            <div class="pokemon-exp" title="{{experience.total}} PX · faltan {{experience.remaining}} para el siguiente nivel">
+            <div class="pokemon-exp" title="{{localize "POKE5E.Team.XPTitle" xp=experience.total remaining=experience.remaining}}">
               <span style="width: {{experience.percent}}%"></span>
             </div>
             <small>PX {{experience.total}}/{{experience.ceiling}}</small>
@@ -51,11 +51,11 @@
           {{#if ../pokemon.canEdit}}
             <div class="pokemon-controls">
               {{#if deployed}}
-                <button type="button" data-action="recallPokemon" title="Retirar del mapa"><i class="fa-solid fa-arrow-rotate-left"></i></button>
+                <button type="button" data-action="recallPokemon" title="{{localize "POKE5E.Team.Recall"}}"><i class="fa-solid fa-arrow-rotate-left"></i></button>
               {{else}}
-                <button type="button" data-action="deployPokemon" title="Sacar al mapa"><i class="fa-solid fa-location-dot"></i></button>
+                <button type="button" data-action="deployPokemon" title="{{localize "POKE5E.Team.Deploy"}}"><i class="fa-solid fa-location-dot"></i></button>
               {{/if}}
-              <button type="button" data-action="togglePokemonTeam" title="Mover a la reserva"><i class="fa-solid fa-box-archive"></i></button>
+              <button type="button" data-action="togglePokemonTeam" title="{{localize "POKE5E.Team.SendReserve"}}"><i class="fa-solid fa-box-archive"></i></button>
             </div>
           {{/if}}
         </article>
@@ -65,22 +65,22 @@
 
   <section class="poke5e-sheet-reserve">
     <div class="poke5e-section-title">
-      <h3>Reserva</h3>
-      <span>{{pokemon.reserve.length}} Pokémon</span>
+      <h3>{{localize "POKE5E.Team.Reserve"}}</h3>
+      <span>{{localize "POKE5E.Common.PokemonCount" count=pokemon.reserve.length}}</span>
     </div>
     {{#if pokemon.reserve.length}}
       <div class="poke5e-sheet-reserve-grid">
         {{#each pokemon.reserve}}
           <article data-item-id="{{itemId}}">
             <button type="button" class="reserve-portrait" data-action="openPokemon"><img src="{{img}}" alt="{{name}}"></button>
-            <button type="button" class="reserve-name" data-action="openPokemon"><strong>{{name}}</strong><small>{{speciesName}} · Nivel {{instance.level}}</small></button>
-            <span>PG {{hpValue}}/{{hpMax}} · PX {{experience.total}}{{#if overflow}} · Sin Pokéslot{{/if}}</span>
-            {{#if ../pokemon.canEdit}}<button type="button" data-action="togglePokemonTeam" title="Añadir al equipo"><i class="fa-solid fa-arrow-up"></i></button>{{/if}}
+            <button type="button" class="reserve-name" data-action="openPokemon"><strong>{{name}}</strong><small>{{speciesName}} · {{localize "POKE5E.Common.LevelValue" level=instance.level}}</small></button>
+            <span>PG {{hpValue}}/{{hpMax}} · PX {{experience.total}}{{#if overflow}} · {{localize "POKE5E.Team.NoSlot"}}{{/if}}</span>
+            {{#if ../pokemon.canEdit}}<button type="button" data-action="togglePokemonTeam" title="{{localize "POKE5E.Team.AddToTeam"}}"><i class="fa-solid fa-arrow-up"></i></button>{{/if}}
           </article>
         {{/each}}
       </div>
     {{else}}
-      <div class="poke5e-empty">No hay Pokémon en la reserva.</div>
+      <div class="poke5e-empty">{{localize "POKE5E.Team.NoReserve"}}</div>
     {{/if}}
   </section>
 </section>

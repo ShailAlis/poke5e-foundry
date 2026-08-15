@@ -47,7 +47,7 @@ export async function applyPendingPokemonAdvancements(pokemonItem, data = null) 
   const currentAttributes = foundry.utils.deepClone(instance.attributes ?? species.attributes ?? {});
   const abilityResult = applyPokemonAbilityAdvancement(currentAttributes, decision.allocation, advancement, decision.featPoints);
   if (!abilityResult) {
-    ui.notifications.warn(`Distribuye exactamente ${advancement.abilityPoints} puntos entre características y dotes, respetando los límites.`);
+    ui.notifications.warn(game.i18n.format("POKE5E.Advancement.DistributePoints", { points: advancement.abilityPoints }));
     return false;
   }
 
@@ -95,7 +95,7 @@ export async function applyPendingPokemonAdvancements(pokemonItem, data = null) 
   if (advancement.moveLevels.length) benefits.push(`movimientos de nivel ${advancement.moveLevels.join(", ")}`);
   if (advancement.damageLevels.length) benefits.push(`aumento de daño de nivel ${advancement.damageLevels.join(", ")}`);
   if (advancement.peakPower) benefits.push("Poder Máximo");
-  ui.notifications.info(`${displayPokemonName(pokemonItem)} completa sus avances hasta nivel ${to}: ${benefits.join(" · ")}.`);
+  ui.notifications.info(game.i18n.format("POKE5E.Advancement.Completed", { pokemon: displayPokemonName(pokemonItem), level: to, benefits: benefits.join(" · ") }));
   return true;
 }
 
@@ -127,7 +127,7 @@ async function promptPokemonAdvancement(item, instance, species, advancement, st
   ].filter(Boolean);
   try {
     return await foundry.applications.api.DialogV2.prompt({
-      window: { title: `Avances de ${displayPokemonName(item)} · nivel ${advancement.to}` },
+      window: { title: game.i18n.format("POKE5E.Advancement.WindowTitle", { pokemon: displayPokemonName(item), level: advancement.to }) },
       content: `<div class="poke5e-advancement-dialog">
         <p>Aplica los beneficios pendientes de los niveles ${advancement.from + 1}–${advancement.to}.</p>
         <ul>${features.map(feature => `<li>${escapeHtml(feature)}</li>`).join("")}</ul>
@@ -137,7 +137,7 @@ async function promptPokemonAdvancement(item, instance, species, advancement, st
       modal: true,
       rejectClose: false,
       ok: {
-        label: "Aplicar avances",
+        label: game.i18n.localize("POKE5E.Advancement.Apply"),
         icon: "fa-solid fa-arrow-up",
         callback: (event, button) => ({
           hitPointMethod: button.form.elements.hitPointMethod.value === "roll" ? "roll" : "average",

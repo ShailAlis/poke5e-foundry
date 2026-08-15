@@ -3,10 +3,10 @@
     <div class="poke5e-dex-number">#{{data.number}}</div>
     <img src="{{img}}" alt="{{name}}">
     <div class="poke5e-dex-identity">
-      <p class="eyebrow">Pokédex · Nivel {{level}}</p>
+      <p class="eyebrow">{{localize "POKE5E.PokemonSheet.PokedexLevel" level=level}}</p>
       <h1>{{name}}</h1>
       {{#if instance.nickname}}<p class="poke5e-species-name">{{species.name}}</p>{{/if}}
-      {{#if canEdit}}<label class="poke5e-nickname-field"><span>Mote</span><input type="text" maxlength="80" value="{{instance.nickname}}" placeholder="Escribe un mote…" data-action="change-nickname"></label>{{/if}}
+      {{#if canEdit}}<label class="poke5e-nickname-field"><span>{{localize "POKE5E.PokemonSheet.Nickname"}}</span><input type="text" maxlength="80" value="{{instance.nickname}}" placeholder="{{localize "POKE5E.PokemonSheet.NicknamePlaceholder"}}" data-action="change-nickname"></label>{{/if}}
       <div class="poke5e-types">
         {{#each types}}<span class="poke5e-type type-{{id}}">{{label}}</span>{{/each}}
       </div>
@@ -16,46 +16,46 @@
       </div>
     </div>
     <div class="poke5e-vitals">
-      <div><span>CA</span><strong>{{ac}}</strong></div>
-      <label><span>PG</span><input type="number" min="0" max="{{hp.max}}" value="{{hp.value}}" data-action="change-hp" {{#unless canEdit}}disabled{{/unless}}><small>/ {{hp.max}}</small></label>
-      <label><span>Nivel</span><input type="number" min="1" max="20" value="{{level}}" data-action="change-level" {{#unless canEdit}}disabled{{/unless}}></label>
+      <div><span>{{localize "POKE5E.Common.ArmorClassShort"}}</span><strong>{{ac}}</strong></div>
+      <label><span>{{localize "POKE5E.Common.HitPointsShort"}}</span><input type="number" min="0" max="{{hp.max}}" value="{{hp.value}}" data-action="change-hp" {{#unless canEdit}}disabled{{/unless}}><small>/ {{hp.max}}</small></label>
+      <label><span>{{localize "POKE5E.Common.Level"}}</span><input type="number" min="1" max="20" value="{{level}}" data-action="change-level" {{#unless canEdit}}disabled{{/unless}}></label>
     </div>
   </header>
 
-  {{#if statuses.length}}<section class="poke5e-status-panel" aria-label="Estados alterados">
-    <h2><i class="fa-solid fa-burst"></i> Estados alterados</h2>
+  {{#if statuses.length}}<section class="poke5e-status-panel" aria-label="{{localize "POKE5E.PokemonSheet.Statuses"}}">
+    <h2><i class="fa-solid fa-burst"></i> {{localize "POKE5E.PokemonSheet.Statuses"}}</h2>
     <div>{{#each statuses}}<span class="poke5e-status-chip" tabindex="0" aria-label="{{name}}: {{description}}"><img src="{{img}}" alt=""><strong>{{name}}</strong>{{#if ../canEdit}}<button type="button" data-action="remove-status" data-status-id="{{id}}" title="Curar {{name}}"><i class="fa-solid fa-xmark"></i></button>{{/if}}<span class="poke5e-status-tooltip" role="tooltip"><strong>{{name}}</strong><span>{{description}}</span></span></span>{{/each}}</div>
   </section>{{/if}}
 
-  {{#if ongoingEffects.length}}<section class="poke5e-status-panel poke5e-ongoing-panel" aria-label="Efectos mantenidos">
-    <h2><i class="fa-solid fa-hourglass-half"></i> Efectos mantenidos</h2>
+  {{#if ongoingEffects.length}}<section class="poke5e-status-panel poke5e-ongoing-panel" aria-label="{{localize "POKE5E.PokemonSheet.OngoingEffects"}}">
+    <h2><i class="fa-solid fa-hourglass-half"></i> {{localize "POKE5E.PokemonSheet.OngoingEffects"}}</h2>
     <div>{{#each ongoingEffects}}<span class="poke5e-status-chip" tabindex="0" aria-label="{{name}}: {{description}}"><img src="{{img}}" alt=""><strong>{{name}}</strong><small>{{remaining}}</small>{{#if ../canEdit}}<button type="button" data-action="remove-ongoing-effect" data-effect-id="{{id}}" title="Terminar {{name}}"><i class="fa-solid fa-xmark"></i></button>{{/if}}<span class="poke5e-status-tooltip" role="tooltip"><strong>{{name}}</strong><span>{{description}}</span><span>{{remaining}}</span></span></span>{{/each}}</div>
   </section>{{/if}}
 
   <nav class="poke5e-sheet-mode" aria-label="Modo de la ficha">
-    <button type="button" data-action="sheet-mode" data-mode="combat" class="{{#if sheetMode.combat}}active{{/if}}"><i class="fa-solid fa-shield-halved"></i> Combate</button>
-    <button type="button" data-action="sheet-mode" data-mode="contest" class="{{#if sheetMode.contest}}active{{/if}}"><i class="fa-solid fa-star"></i> Concurso</button>
+    <button type="button" data-action="sheet-mode" data-mode="combat" class="{{#if sheetMode.combat}}active{{/if}}"><i class="fa-solid fa-shield-halved"></i> {{localize "POKE5E.Common.Combat"}}</button>
+    <button type="button" data-action="sheet-mode" data-mode="contest" class="{{#if sheetMode.contest}}active{{/if}}"><i class="fa-solid fa-star"></i> {{localize "POKE5E.Common.Contest"}}</button>
     {{#if sheetMode.contest}}
-      <label><span>Categoría actual</span><select data-action="contest-type">{{selectOptions contest.typeOptions selected=contest.type}}</select></label>
+      <label><span>{{localize "POKE5E.PokemonSheet.CurrentCategory"}}</span><select data-action="contest-type">{{selectOptions contest.typeOptions selected=contest.type}}</select></label>
     {{/if}}
   </nav>
 
   <section class="poke5e-experience-panel" aria-label="Experiencia">
     <div class="poke5e-experience-heading">
-      <h2><i class="fa-solid fa-star"></i> Experiencia</h2>
-      <span class="poke5e-exp-award" title="Experiencia que otorga este Pokémon al ser derrotado"><i class="fa-solid fa-trophy"></i> Recompensa: <strong>{{experience.awardLabel}} PX</strong></span>
+      <h2><i class="fa-solid fa-star"></i> {{localize "POKE5E.Common.Experience"}}</h2>
+      <span class="poke5e-exp-award" title="{{localize "POKE5E.PokemonSheet.XPRewardHint"}}"><i class="fa-solid fa-trophy"></i> {{localize "POKE5E.PokemonSheet.Reward"}}: <strong>{{experience.awardLabel}} PX</strong></span>
     </div>
     <div class="poke5e-experience-controls">
-      <label><span>PX totales</span><input type="number" min="0" max="450000" step="1" value="{{experience.total}}" data-action="change-experience" {{#unless canEdit}}disabled{{/unless}}></label>
-      {{#if canEdit}}<button type="button" class="bright" data-action="add-experience"><i class="fa-solid fa-plus"></i> Añadir PX</button>{{/if}}
-      {{#if canEdit}}{{#if pendingAdvancements}}<button type="button" class="bright" data-action="apply-advancements"><i class="fa-solid fa-arrow-up"></i> Aplicar avances</button>{{/if}}{{/if}}
+      <label><span>{{localize "POKE5E.Common.TotalXPLabel"}}</span><input type="number" min="0" max="450000" step="1" value="{{experience.total}}" data-action="change-experience" {{#unless canEdit}}disabled{{/unless}}></label>
+      {{#if canEdit}}<button type="button" class="bright" data-action="add-experience"><i class="fa-solid fa-plus"></i> {{localize "POKE5E.PokemonSheet.AddXP"}}</button>{{/if}}
+      {{#if canEdit}}{{#if pendingAdvancements}}<button type="button" class="bright" data-action="apply-advancements"><i class="fa-solid fa-arrow-up"></i> {{localize "POKE5E.PokemonSheet.ApplyAdvancements"}}</button>{{/if}}{{/if}}
     </div>
     <div class="poke5e-experience-progress">
       <progress min="0" max="{{experience.progressMax}}" value="{{experience.progressValue}}"></progress>
       {{#if experience.maximumLevel}}
-        <small>Nivel máximo alcanzado · {{experience.totalLabel}} PX</small>
+        <small>{{localize "POKE5E.PokemonSheet.MaximumLevelXP" xp=experience.totalLabel}}</small>
       {{else}}
-        <small>{{experience.remainingLabel}} PX para nivel {{experience.nextLevel}}<span class="poke5e-next-exp"> · Próximo umbral: {{experience.nextLabel}} PX</span></small>
+        <small>{{localize "POKE5E.Common.XPToLevel" xp=experience.remainingLabel level=experience.nextLevel}}<span class="poke5e-next-exp"> · {{localize "POKE5E.PokemonSheet.NextThreshold" xp=experience.nextLabel}}</span></small>
       {{/if}}
     </div>
   </section>
@@ -67,7 +67,7 @@
   </section>
 
   <section class="poke5e-speed-panel" aria-label="Velocidades de movimiento">
-    <h2><i class="fa-solid fa-shoe-prints"></i> Velocidad</h2>
+    <h2><i class="fa-solid fa-shoe-prints"></i> {{localize "POKE5E.PokemonSheet.Speed"}}</h2>
     <div class="poke5e-speed-list">
       {{#each speeds}}
         <div><i class="fa-solid {{icon}}"></i><span>{{label}}</span><strong>{{value}} pies</strong></div>
@@ -77,79 +77,79 @@
 
   <section class="poke5e-held-item-panel" aria-label="Objeto equipado">
     <div>
-      <h2><i class="fa-solid fa-hand-holding"></i> Objeto equipado</h2>
+      <h2><i class="fa-solid fa-hand-holding"></i> {{localize "POKE5E.PokemonSheet.HeldItem"}}</h2>
       {{#if heldItem}}
         <strong>{{heldItem.name}}</strong>
         <p>{{heldItem.description}}</p>
         {{#if heldItem.hasCharges}}<small>Cargas: {{heldItem.charges}}</small>{{/if}}
-      {{else}}<span class="poke5e-none">Este Pokémon no lleva ningún objeto.</span>{{/if}}
+      {{else}}<span class="poke5e-none">{{localize "POKE5E.PokemonSheet.NoHeldItem"}}</span>{{/if}}
     </div>
     {{#if canEdit}}
       <div class="poke5e-held-item-actions">
-        <label><span>Equipar desde el inventario</span><select data-action="equip-held-item">{{selectOptions heldItemOptions}}</select></label>
-        {{#if heldItem}}<button type="button" data-action="use-held-item"><i class="fa-solid fa-bolt"></i> Usar efecto</button>
-        {{#if heldItem.hasCharges}}<button type="button" data-action="restore-held-item" title="Recuperar cargas al amanecer"><i class="fa-solid fa-sun"></i> Restaurar</button>{{/if}}{{/if}}
+        <label><span>{{localize "POKE5E.PokemonSheet.EquipInventory"}}</span><select data-action="equip-held-item">{{selectOptions heldItemOptions}}</select></label>
+        {{#if heldItem}}<button type="button" data-action="use-held-item"><i class="fa-solid fa-bolt"></i> {{localize "POKE5E.PokemonSheet.UseEffect"}}</button>
+        {{#if heldItem.hasCharges}}<button type="button" data-action="restore-held-item" title="{{localize "POKE5E.PokemonSheet.RestoreChargesHint"}}"><i class="fa-solid fa-sun"></i> {{localize "POKE5E.Common.Restore"}}</button>{{/if}}{{/if}}
       </div>
     {{/if}}
   </section>
 
   {{#if sheetMode.combat}}<section class="poke5e-combat-profile" aria-label="Afinidades de daño">
     <div class="poke5e-defense-group vulnerable">
-      <h2><i class="fa-solid fa-heart-crack"></i> Vulnerabilidades</h2>
-      <div class="poke5e-types">{{#each defenses.vulnerabilities}}<span class="poke5e-type type-{{id}}">{{label}}</span>{{else}}<span class="poke5e-none">Ninguna</span>{{/each}}</div>
+      <h2><i class="fa-solid fa-heart-crack"></i> {{localize "POKE5E.PokemonSheet.Vulnerabilities"}}</h2>
+      <div class="poke5e-types">{{#each defenses.vulnerabilities}}<span class="poke5e-type type-{{id}}">{{label}}</span>{{else}}<span class="poke5e-none">{{localize "POKE5E.Common.NoneFeminine"}}</span>{{/each}}</div>
     </div>
     <div class="poke5e-defense-group resistant">
-      <h2><i class="fa-solid fa-shield-halved"></i> Resistencias</h2>
-      <div class="poke5e-types">{{#each defenses.resistances}}<span class="poke5e-type type-{{id}}">{{label}}</span>{{else}}<span class="poke5e-none">Ninguna</span>{{/each}}</div>
+      <h2><i class="fa-solid fa-shield-halved"></i> {{localize "POKE5E.PokemonSheet.Resistances"}}</h2>
+      <div class="poke5e-types">{{#each defenses.resistances}}<span class="poke5e-type type-{{id}}">{{label}}</span>{{else}}<span class="poke5e-none">{{localize "POKE5E.Common.NoneFeminine"}}</span>{{/each}}</div>
     </div>
     <div class="poke5e-defense-group immune">
-      <h2><i class="fa-solid fa-shield"></i> Inmunidades</h2>
-      <div class="poke5e-types">{{#each defenses.immunities}}<span class="poke5e-type type-{{id}}">{{label}}</span>{{else}}<span class="poke5e-none">Ninguna</span>{{/each}}</div>
+      <h2><i class="fa-solid fa-shield"></i> {{localize "POKE5E.PokemonSheet.Immunities"}}</h2>
+      <div class="poke5e-types">{{#each defenses.immunities}}<span class="poke5e-type type-{{id}}">{{label}}</span>{{else}}<span class="poke5e-none">{{localize "POKE5E.Common.NoneFeminine"}}</span>{{/each}}</div>
     </div>
   </section>{{else}}
   <section class="poke5e-contest-overview contest-{{contest.type}}" aria-label="Modo concurso">
-    <div><i class="fa-solid {{contest.icon}}"></i><span>Concurso actual</span><strong>{{contest.label}}</strong></div>
-    <p>Los movimientos muestran Appeal, Jam, compatibilidad y su efecto de concurso. La tirada permite elegir Interpretación o una característica válida, la CD del juez y ventaja o desventaja.</p>
+    <div><i class="fa-solid {{contest.icon}}"></i><span>{{localize "POKE5E.PokemonSheet.CurrentContest"}}</span><strong>{{contest.label}}</strong></div>
+    <p>{{localize "POKE5E.PokemonSheet.ContestHelp"}}</p>
   </section>
   {{/if}}
 
   <section class="poke5e-evolution-panel" aria-label="Evoluciones">
-    <h2><i class="fa-solid fa-dna"></i> Evolución</h2>
+    <h2><i class="fa-solid fa-dna"></i> {{localize "POKE5E.PokemonSheet.Evolution"}}</h2>
     <div class="poke5e-evolution-list">
       {{#each evolutions}}
         <article>
-          <div><span>Evoluciona a</span><strong>{{toName}}</strong></div>
+          <div><span>{{localize "POKE5E.PokemonSheet.EvolvesTo"}}</span><strong>{{toName}}</strong></div>
           <div class="poke5e-evolution-conditions">{{#each conditions}}<span>{{this}}</span>{{/each}}</div>
           {{#if ../canEdit}}
             <button type="button" class="{{#if available}}bright{{/if}}" data-action="evolve-pokemon" data-evolution-id="{{id}}" {{#unless available}}disabled{{/unless}} title="{{#if available}}{{#if manualConfirmation}}Confirma las condiciones manuales para evolucionar{{else}}Evolución disponible{{/if}}{{else}}Todavía no cumple las condiciones{{/if}}"><i class="fa-solid fa-dna"></i> {{#if available}}Evolucionar{{else}}No disponible{{/if}}</button>
           {{/if}}
         </article>
       {{else}}
-        <span class="poke5e-none">Esta especie no tiene una evolución posterior registrada.</span>
+        <span class="poke5e-none">{{localize "POKE5E.PokemonSheet.NoEvolution"}}</span>
       {{/each}}
     </div>
   </section>
 
   <nav class="poke5e-sheet-actions">
-    {{#if hasTrainer}}<button type="button" data-action="open-trainer-sheet"><i class="fa-solid fa-user-shield"></i> Abrir entrenador</button>{{/if}}
+    {{#if hasTrainer}}<button type="button" data-action="open-trainer-sheet"><i class="fa-solid fa-user-shield"></i> {{localize "POKE5E.PokemonSheet.OpenTrainer"}}</button>{{/if}}
   </nav>
 
   <section>
     <div class="poke5e-section-title">
-      <h2>{{#if sheetMode.contest}}Movimientos de concurso{{else}}Movimientos de combate{{/if}}</h2>
-      <span>{{moves.length}}/{{maxKnownMoves}} conocidos</span>
-      {{#if canEdit}}<button type="button" data-action="toggle-move-manager"><i class="fa-solid fa-list-check"></i> {{#if moveManager.open}}Cerrar gestor{{else}}Gestionar movimientos{{/if}}</button>{{/if}}
+      <h2>{{#if sheetMode.contest}}{{localize "POKE5E.PokemonSheet.ContestMoves"}}{{else}}{{localize "POKE5E.PokemonSheet.CombatMoves"}}{{/if}}</h2>
+      <span>{{localize "POKE5E.PokemonSheet.KnownMoves" count=moves.length max=maxKnownMoves}}</span>
+      {{#if canEdit}}<button type="button" data-action="toggle-move-manager"><i class="fa-solid fa-list-check"></i> {{#if moveManager.open}}{{localize "POKE5E.PokemonSheet.CloseManager"}}{{else}}{{localize "POKE5E.PokemonSheet.ManageMoves"}}{{/if}}</button>{{/if}}
     </div>
-    {{#if moveLimitExceeded}}<div class="poke5e-callout"><i class="fa-solid fa-triangle-exclamation"></i> Esta ficha conserva más de cuatro movimientos de una versión anterior. Olvida los sobrantes antes de aprender otro.</div>{{/if}}
-    {{#if canEdit}}<div class="poke5e-drop-hint"><i class="fa-solid fa-shield-halved"></i> Solo se pueden aprender movimientos compatibles y disponibles para el nivel actual.</div>{{/if}}
+    {{#if moveLimitExceeded}}<div class="poke5e-callout"><i class="fa-solid fa-triangle-exclamation"></i> {{localize "POKE5E.PokemonSheet.LegacyMoveLimit"}}</div>{{/if}}
+    {{#if canEdit}}<div class="poke5e-drop-hint"><i class="fa-solid fa-shield-halved"></i> {{localize "POKE5E.PokemonSheet.MoveLearningHint"}}</div>{{/if}}
     {{#if moveManager.open}}
       <div class="poke5e-move-manager">
         <header>
-          <label><i class="fa-solid fa-magnifying-glass"></i><input type="search" value="{{moveManager.filters.query}}" placeholder="Buscar movimiento…" data-action="search-moves"></label>
+          <label><i class="fa-solid fa-magnifying-glass"></i><input type="search" value="{{moveManager.filters.query}}" placeholder="{{localize "POKE5E.PokemonSheet.SearchMove"}}" data-action="search-moves"></label>
           <select data-action="filter-moves" aria-label="Filtrar movimientos">{{selectOptions moveManager.categoryOptions selected=moveManager.filters.category}}</select>
-          <span>{{moveManager.total}} resultados</span>
+          <span>{{localize "POKE5E.Common.ResultCount" count=moveManager.total}}</span>
         </header>
-        {{#if moveManager.truncated}}<div class="poke5e-callout">Se muestran los primeros 120 resultados. Usa la búsqueda para acotar la lista.</div>{{/if}}
+        {{#if moveManager.truncated}}<div class="poke5e-callout">{{localize "POKE5E.PokemonSheet.MoveResultsTruncated"}}</div>{{/if}}
         <div class="poke5e-move-catalog">
           {{#each moveManager.entries}}
             <details class="poke5e-move-catalog-entry {{#unless compatible}}incompatible{{/unless}} {{#if future}}future{{/if}}">
@@ -157,12 +157,12 @@
                 {{#if @root.sheetMode.contest}}<span class="poke5e-contest-type contest-{{contest.contest}}"><i class="fa-solid {{contest.icon}}"></i> {{contest.label}}</span>{{else}}<span class="poke5e-type type-{{type}}">{{type}}</span>{{/if}}
                 <div class="poke5e-move-catalog-name"><strong>{{name}}</strong><small>{{#if @root.sheetMode.contest}}Appeal {{contest.appeal}} · Jam {{contest.jam}}{{else}}PP {{pp}}{{/if}}</small></div>
                 <div class="poke5e-learning-methods">
-                  {{#each methods}}<span>{{label}}</span>{{else}}<span class="warning">No compatible</span>{{/each}}
+                  {{#each methods}}<span>{{label}}</span>{{else}}<span class="warning">{{localize "POKE5E.PokemonSheet.Incompatible"}}</span>{{/each}}
                 </div>
                 {{#if known}}
-                  <button type="button" disabled title="Ya conocido"><i class="fa-solid fa-check"></i> Conocido</button>
+                  <button type="button" disabled title="{{localize "POKE5E.PokemonSheet.AlreadyKnown"}}"><i class="fa-solid fa-check"></i> {{localize "POKE5E.PokemonSheet.Known"}}</button>
                 {{else}}
-                  <button type="button" class="bright" data-action="learn-move" data-move-id="{{id}}" {{#unless availableNow}}disabled{{/unless}} title="{{#if requiresMachine}}La MT o MO necesaria no está en el inventario del entrenador{{else}}{{#if future}}Disponible más adelante{{else}}{{#unless compatible}}Esta especie no puede aprenderlo{{/unless}}{{/if}}{{/if}}"><i class="fa-solid fa-plus"></i> Aprender</button>
+                  <button type="button" class="bright" data-action="learn-move" data-move-id="{{id}}" {{#unless availableNow}}disabled{{/unless}} title="{{#if requiresMachine}}{{localize "POKE5E.PokemonSheet.MachineMissing"}}{{else}}{{#if future}}{{localize "POKE5E.PokemonSheet.AvailableLater"}}{{else}}{{#unless compatible}}{{localize "POKE5E.PokemonSheet.CannotLearn"}}{{/unless}}{{/if}}{{/if}}"><i class="fa-solid fa-plus"></i> {{localize "POKE5E.PokemonSheet.Learn"}}</button>
                 {{/if}}
                 <i class="fa-solid fa-chevron-down poke5e-catalog-expand" title="Mostrar información"></i>
               </summary>
@@ -170,24 +170,24 @@
                 {{#if @root.sheetMode.contest}}
                 <div class="poke5e-contest-move-summary contest-{{contest.contest}}">
                   <span class="poke5e-contest-type"><i class="fa-solid {{contest.icon}}"></i> {{contest.label}}</span>
-                  <span>Appeal <strong>{{contest.appeal}}</strong></span><span>Jam <strong>{{contest.jam}}</strong></span>
+                  <span>{{localize "POKE5E.PokemonSheet.Appeal"}} <strong>{{contest.appeal}}</strong></span><span>{{localize "POKE5E.PokemonSheet.Jam"}} <strong>{{contest.jam}}</strong></span>
                   <span class="compatibility {{contest.compatibility.id}}">{{contest.compatibility.label}}</span>
                 </div>
                 <div class="poke5e-description"><strong>{{contest.effect.name}}</strong><p>{{contest.effect.effect}}</p></div>
                 {{else}}
                 <div class="poke5e-move-meta">
-                  <span><strong>Activación:</strong> {{time}}</span>
-                  <span><strong>Alcance:</strong> {{range}}</span>
-                  <span><strong>Duración:</strong> {{duration}}</span>
-                  {{#if attackBonus}}<span><strong>Ataque:</strong> {{attackBonus}}</span>{{/if}}
-                  {{#if saveDc}}<span><strong>CD:</strong> {{saveDc}}</span>{{/if}}
-                  <span><strong>Daño:</strong> {{damage}}</span>
+                  <span><strong>{{localize "POKE5E.PokemonSheet.Activation"}}:</strong> {{time}}</span>
+                  <span><strong>{{localize "POKE5E.PokemonSheet.Range"}}:</strong> {{range}}</span>
+                  <span><strong>{{localize "POKE5E.PokemonSheet.Duration"}}:</strong> {{duration}}</span>
+                  {{#if attackBonus}}<span><strong>{{localize "POKE5E.PokemonSheet.Attack"}}:</strong> {{attackBonus}}</span>{{/if}}
+                  {{#if saveDc}}<span><strong>{{localize "POKE5E.Common.DifficultyClassShort"}}:</strong> {{saveDc}}</span>{{/if}}
+                  <span><strong>{{localize "POKE5E.PokemonSheet.Damage"}}:</strong> {{damage}}</span>
                 </div>
                 <div class="poke5e-description">{{{description}}}</div>
                 {{/if}}
               </div>
             </details>
-          {{else}}<div class="poke5e-empty">No hay movimientos en esta categoría.</div>{{/each}}
+          {{else}}<div class="poke5e-empty">{{localize "POKE5E.PokemonSheet.NoMovesCategory"}}</div>{{/each}}
         </div>
       </div>
     {{/if}}
@@ -216,9 +216,9 @@
             </div>
             {{#if ../sheetMode.contest}}
               <div class="poke5e-contest-details contest-{{contest.contest}}">
-                <div><span>Appeal</span><strong>{{contest.appeal}}</strong></div><div><span>Jam</span><strong>{{contest.jam}}</strong></div><div><span>Move Power</span><strong>{{contest.power}}</strong></div>
+                <div><span>{{localize "POKE5E.PokemonSheet.Appeal"}}</span><strong>{{contest.appeal}}</strong></div><div><span>{{localize "POKE5E.PokemonSheet.Jam"}}</span><strong>{{contest.jam}}</strong></div><div><span>{{localize "POKE5E.PokemonSheet.MovePower"}}</span><strong>{{contest.power}}</strong></div>
               </div>
-              {{#if contest.fallback}}<div class="poke5e-callout"><i class="fa-solid fa-wand-magic-sparkles"></i> Definición sugerida por el tipo del movimiento; el original aún no tiene datos propios.</div>{{/if}}
+              {{#if contest.fallback}}<div class="poke5e-callout"><i class="fa-solid fa-wand-magic-sparkles"></i> {{localize "POKE5E.PokemonSheet.ContestFallback"}}</div>{{/if}}
               <div class="poke5e-description"><h3>{{contest.effect.name}}</h3><p>{{contest.effect.effect}}</p></div>
             {{else}}
               <div class="poke5e-move-meta"><span>{{time}}</span><span>{{range}}</span></div>
@@ -227,23 +227,23 @@
             <div class="poke5e-actions inline">
               {{#if ../canEdit}}{{#if hasPp}}<button type="button" data-action="restore-pp" data-move-entry-id="{{entryId}}" title="Restaurar PP"><i class="fa-solid fa-rotate-left"></i></button>{{/if}}
               <button type="button" data-action="remove-move" data-move-entry-id="{{entryId}}" title="Olvidar movimiento"><i class="fa-solid fa-trash"></i></button>{{/if}}
-              {{#if ../sheetMode.contest}}<button type="button" class="bright contest-roll" data-action="roll-contest-move" data-move-entry-id="{{entryId}}"><i class="fa-solid fa-star"></i> Realizar en concurso</button>{{else}}<button type="button" class="bright" data-action="roll-move" data-move-entry-id="{{entryId}}"><i class="fa-solid fa-dice-d20"></i> Usar movimiento</button>{{/if}}
+              {{#if ../sheetMode.contest}}<button type="button" class="bright contest-roll" data-action="roll-contest-move" data-move-entry-id="{{entryId}}"><i class="fa-solid fa-star"></i> {{localize "POKE5E.PokemonSheet.PerformContest"}}</button>{{else}}<button type="button" class="bright" data-action="roll-move" data-move-entry-id="{{entryId}}"><i class="fa-solid fa-dice-d20"></i> {{localize "POKE5E.PokemonSheet.UseMove"}}</button>{{/if}}
             </div>
           </div>
         </details>
       {{else}}
-        <div class="poke5e-empty">Este actor todavía no tiene movimientos Pokémon.</div>
+        <div class="poke5e-empty">{{localize "POKE5E.PokemonSheet.NoMoves"}}</div>
       {{/each}}
     </div>
   </section>
 
   <section>
-    <div class="poke5e-section-title"><h2>Habilidades</h2></div>
-    {{#if canEdit}}<div class="poke5e-drop-hint"><i class="fa-solid fa-hand-pointer"></i> Arrastra habilidades desde su compendio para añadirlas.</div>{{/if}}
+    <div class="poke5e-section-title"><h2>{{localize "POKE5E.Common.Abilities"}}</h2></div>
+    {{#if canEdit}}<div class="poke5e-drop-hint"><i class="fa-solid fa-hand-pointer"></i> {{localize "POKE5E.PokemonSheet.AbilityDropHint"}}</div>{{/if}}
     <div class="poke5e-ability-grid">
       {{#each abilities}}
         <article class="poke5e-ability">
-          <h3>{{name}}{{#if hidden}} <span>Oculta</span>{{/if}} {{#if ../canEdit}}<button type="button" data-action="remove-ability" data-ability-id="{{id}}" title="Eliminar habilidad"><i class="fa-solid fa-xmark"></i></button>{{/if}}</h3>
+          <h3>{{name}}{{#if hidden}} <span>{{localize "POKE5E.PokemonSheet.Hidden"}}</span>{{/if}} {{#if ../canEdit}}<button type="button" data-action="remove-ability" data-ability-id="{{id}}" title="{{localize "POKE5E.PokemonSheet.RemoveAbility"}}"><i class="fa-solid fa-xmark"></i></button>{{/if}}</h3>
           <div>{{{description}}}</div>
         </article>
       {{/each}}

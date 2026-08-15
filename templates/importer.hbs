@@ -3,45 +3,45 @@
     <div class="poke5e-ball" aria-hidden="true"></div>
     <div>
       <p class="eyebrow">Foundry VTT + D&amp;D 5e</p>
-      <h1>Biblioteca Pokémon 5e</h1>
-      <p>Crea compendios de mundo editables para la ficha de Entrenador Pokémon 5e.</p>
+      <h1>{{localize "POKE5E.Importer.Title"}}</h1>
+      <p>{{localize "POKE5E.Importer.Subtitle"}}</p>
     </div>
   </header>
 
   {{#unless isGM}}
-    <div class="poke5e-callout warning">Solo el GM puede ejecutar una importación.</div>
+    <div class="poke5e-callout warning">{{localize "POKE5E.Importer.GMOnly"}}</div>
   {{/unless}}
 
   <fieldset>
-    <legend>Compendios de contenido</legend>
-    <label class="poke5e-check"><input type="checkbox" name="species" checked> <span><strong>Especies Pokémon</strong><small>Pokédex completa como plantillas; no crea actores en el directorio.</small></span></label>
-    <label class="poke5e-check"><input type="checkbox" name="moves" checked> <span><strong>Movimientos</strong><small>830 movimientos con datos de PP, ataque, salvación y daño.</small></span></label>
-    <label class="poke5e-check"><input type="checkbox" name="abilities" checked> <span><strong>Habilidades</strong><small>Habilidades normales y ocultas como elementos de rasgo.</small></span></label>
-    <label class="poke5e-check"><input type="checkbox" name="gear" checked> <span><strong>Objetos</strong><small>Poké Balls, medicina, objetos equipables y objetos clave.</small></span></label>
-    <label class="poke5e-check"><input type="checkbox" name="progression" checked> <span><strong>Clase de Entrenador</strong><small>Crea una clase nativa de D&amp;D 5e y sus rasgos de nivel en el compendio de progresión.</small></span></label>
-    <label class="poke5e-check"><input type="checkbox" name="reference" checked> <span><strong>Referencia de reglas</strong><small>Crea un diario con accesos a reglas, clase y herramientas.</small></span></label>
+    <legend>{{localize "POKE5E.Importer.ContentPacks"}}</legend>
+    <label class="poke5e-check"><input type="checkbox" name="species" checked> <span><strong>{{localize "POKE5E.Common.Species"}}</strong><small>{{localize "POKE5E.Importer.SpeciesHint"}}</small></span></label>
+    <label class="poke5e-check"><input type="checkbox" name="moves" checked> <span><strong>{{localize "POKE5E.Common.Moves"}}</strong><small>{{localize "POKE5E.Importer.MovesHint"}}</small></span></label>
+    <label class="poke5e-check"><input type="checkbox" name="abilities" checked> <span><strong>{{localize "POKE5E.Common.Abilities"}}</strong><small>{{localize "POKE5E.Importer.AbilitiesHint"}}</small></span></label>
+    <label class="poke5e-check"><input type="checkbox" name="gear" checked> <span><strong>{{localize "POKE5E.Common.Items"}}</strong><small>{{localize "POKE5E.Importer.ItemsHint"}}</small></span></label>
+    <label class="poke5e-check"><input type="checkbox" name="progression" checked> <span><strong>{{localize "POKE5E.Importer.TrainerClass"}}</strong><small>{{localize "POKE5E.Importer.TrainerClassHint"}}</small></span></label>
+    <label class="poke5e-check"><input type="checkbox" name="reference" checked> <span><strong>{{localize "POKE5E.Importer.RulesReference"}}</strong><small>{{localize "POKE5E.Importer.RulesReferenceHint"}}</small></span></label>
   </fieldset>
 
   <fieldset>
-    <legend>Contenido de la Pokédex</legend>
+    <legend>{{localize "POKE5E.Importer.PokedexContent"}}</legend>
     <label class="poke5e-field">
-      <span>Identificadores separados por comas</span>
+      <span>{{localize "POKE5E.Importer.CommaSeparatedIds"}}</span>
       <textarea name="pokemonIds" rows="3" spellcheck="false">{{defaultPokemon}}</textarea>
-      <small>Usa <code>*</code> para incluir los {{numberFormat 1151}} Pokémon en el compendio. También puedes limitarlo durante las pruebas.</small>
+      <small>{{localize "POKE5E.Importer.SelectionHint" count=(numberFormat 1151)}}</small>
     </label>
   </fieldset>
 
   <div class="poke5e-callout">
-    Idioma de contenido: <strong>{{language}}</strong>. Volver a ejecutar el proceso actualiza los compendios sin alterar los Pokémon individuales de los entrenadores.
+    {{localize "POKE5E.Importer.Language" language=language}}
   </div>
 
   <div class="poke5e-import-status" data-import-status aria-live="polite">
     <progress max="100" value="0"></progress>
-    <span>Preparado para crear los compendios.</span>
+    <span>{{localize "POKE5E.Importer.Ready"}}</span>
   </div>
 
   <footer class="poke5e-actions">
-    <a href="{{referenceUrl}}" target="_blank" rel="noopener">Abrir poke5e.app</a>
-    <button type="button" class="bright" data-action="import" {{#unless isGM}}disabled{{/unless}}><i class="fa-solid fa-box-archive"></i> Crear o actualizar compendios</button>
+    <a href="{{referenceUrl}}" target="_blank" rel="noopener">{{localize "POKE5E.Common.OpenPoke5e"}}</a>
+    <button type="button" class="bright" data-action="import" {{#unless isGM}}disabled{{/unless}}><i class="fa-solid fa-box-archive"></i> {{localize "POKE5E.Importer.Import"}}</button>
   </footer>
 </div>

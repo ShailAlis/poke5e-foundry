@@ -436,8 +436,8 @@ export async function activateHeldItem(pokemonItem, { removeStatus } = {}) {
   const proficiency = 2 + Math.floor((level - 1) / 4);
   if (["leftovers", "black-sludge"].includes(id)) {
     const types = pokemonItem.getFlag(MODULE_ID, "species")?.type ?? [];
-    if (id === "black-sludge" && !types.includes("poison")) return ui.notifications.warn(`${held.name} no puede curar a un Pokémon que no sea de tipo Veneno.`);
-    if (Number(held.charges) <= 0) return ui.notifications.warn(`${held.name} no tiene cargas.`);
+    if (id === "black-sludge" && !types.includes("poison")) return ui.notifications.warn(game.i18n.format("POKE5E.HeldItems.PoisonOnly", { item: held.name }));
+    if (Number(held.charges) <= 0) return ui.notifications.warn(game.i18n.format("POKE5E.HeldItems.NoCharges", { item: held.name }));
     const healed = await healPokemonWithHeldItem(pokemonItem, proficiency);
     await spendHeldItemCharge(pokemonItem, id);
     await postHeldItemMessage(pokemonItem, held, `Gasta 1 carga y recupera ${healed} PG.`);
@@ -455,7 +455,7 @@ export async function activateHeldItem(pokemonItem, { removeStatus } = {}) {
     const actor = combatActorForPokemon(pokemonItem);
     const activeStatuses = actor?.effects?.map(effect => effect.getFlag(MODULE_ID, "status")).filter(Boolean) ?? [];
     const status = [...(instance.conditions ?? []), ...activeStatuses].find(condition => statusBerryMatches(id, condition));
-    if (!status) return ui.notifications.warn(`${held.name} no encuentra un estado que pueda curar.`);
+    if (!status) return ui.notifications.warn(game.i18n.format("POKE5E.HeldItems.NoStatus", { item: held.name }));
     if (removeStatus) await removeStatus(status);
     await consumeHeldItem(pokemonItem, id);
     await postHeldItemMessage(pokemonItem, held, `Se consume y cura el estado ${status}.`);
@@ -463,7 +463,7 @@ export async function activateHeldItem(pokemonItem, { removeStatus } = {}) {
   }
   if (id === "leppa-berry") {
     const candidates = (instance.moves ?? []).filter(entry => Number(entry.pp?.value) < Number(entry.pp?.max));
-    if (!candidates.length) return ui.notifications.warn(`${held.name} no encuentra un movimiento con PP gastados.`);
+    if (!candidates.length) return ui.notifications.warn(game.i18n.format("POKE5E.HeldItems.NoSpentPP", { item: held.name }));
     const target = candidates.sort((a, b) => Number(a.pp.value) - Number(b.pp.value))[0];
     const restored = Math.min(10, Number(target.pp.max) - Number(target.pp.value));
     target.pp.value = Math.min(Number(target.pp.max), Number(target.pp.value) + 10);
@@ -473,7 +473,7 @@ export async function activateHeldItem(pokemonItem, { removeStatus } = {}) {
     return true;
   }
   if (RESISTANCE_BERRY_TYPES[id]) {
-    ui.notifications.info(`${held.name} requiere daño de tipo ${RESISTANCE_BERRY_TYPES[id]}; el daño genérico de Foundry no activa esta baya.`);
+    ui.notifications.info(game.i18n.format("POKE5E.HeldItems.RequiresDamageType", { item: held.name, type: RESISTANCE_BERRY_TYPES[id] }));
     return false;
   }
   await postHeldItemMessage(pokemonItem, held, held.description || "Este objeto no tiene una resolución automática disponible.");
@@ -503,7 +503,7 @@ export async function restoreHeldItemChargesAfterRest(actor, config = {}) {
     await pokemonItem.setFlag(MODULE_ID, "instance", instance);
     restored += 1;
   }
-  if (restored) ui.notifications.info(`${restored} objeto${restored === 1 ? "" : "s"} equipado${restored === 1 ? "" : "s"} recuperaron sus cargas.`);
+  if (restored) ui.notifications.info(game.i18n.format("POKE5E.HeldItems.ChargesRestored", { count: restored }));
   return restored;
 }
 

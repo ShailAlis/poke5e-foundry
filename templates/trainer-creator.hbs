@@ -1,31 +1,31 @@
 <div class="poke5e-creator-body">
   <header class="poke5e-creator-hero">
-    <div><span class="eyebrow">PERSONAJE JUGADOR</span><h1>Nuevo Entrenador</h1><p>Humano · Entrenador nivel 1</p></div>
+    <div><span class="eyebrow">{{localize "POKE5E.Creator.PlayerCharacter"}}</span><h1>{{localize "POKE5E.Creator.NewTrainer"}}</h1><p>{{localize "POKE5E.Creator.HumanTrainerLevelOne"}}</p></div>
     <i class="fa-solid fa-user-group"></i>
   </header>
 
-  <nav class="poke5e-creator-steps" aria-label="Progreso">
-    <span class="{{#if step1}}active{{/if}}"><b>1</b> Identidad y origen</span>
-    <span class="{{#if step2}}active{{/if}}"><b>2</b> Clase y especialización</span>
-    <span class="{{#if step3}}active{{/if}}"><b>3</b> Pokémon inicial</span>
-    <span class="{{#if step4}}active{{/if}}"><b>4</b> Resumen</span>
+  <nav class="poke5e-creator-steps" aria-label="{{localize "POKE5E.Creator.Progress"}}">
+    <span class="{{#if step1}}active{{/if}}"><b>1</b> {{localize "POKE5E.Creator.IdentityOrigin"}}</span>
+    <span class="{{#if step2}}active{{/if}}"><b>2</b> {{localize "POKE5E.Creator.ClassSpecialization"}}</span>
+    <span class="{{#if step3}}active{{/if}}"><b>3</b> {{localize "POKE5E.Creator.StarterPokemon"}}</span>
+    <span class="{{#if step4}}active{{/if}}"><b>4</b> {{localize "POKE5E.Common.Summary"}}</span>
   </nav>
 
   <main class="poke5e-creator-stage">
     {{#if step1}}
       <section>
-        <div class="poke5e-section-title"><h2><i class="fa-solid fa-id-card"></i> Identidad</h2></div>
+        <div class="poke5e-section-title"><h2><i class="fa-solid fa-id-card"></i> {{localize "POKE5E.Creator.Identity"}}</h2></div>
         <div class="poke5e-creator-fields three">
-          <label><span>Nombre</span><input name="name" type="text" value="{{selection.name}}" required></label>
-          <label><span>Género</span><input name="gender" type="text" value="{{selection.gender}}" placeholder="Opcional"></label>
-          <label><span>Edad</span><input name="age" type="number" min="1" value="{{selection.age}}" placeholder="Opcional"></label>
+          <label><span>{{localize "POKE5E.Common.Name"}}</span><input name="name" type="text" value="{{selection.name}}" required></label>
+          <label><span>{{localize "POKE5E.Common.Gender"}}</span><input name="gender" type="text" value="{{selection.gender}}" placeholder="{{localize "POKE5E.Common.Optional"}}"></label>
+          <label><span>{{localize "POKE5E.Common.Age"}}</span><input name="age" type="number" min="1" value="{{selection.age}}" placeholder="{{localize "POKE5E.Common.Optional"}}"></label>
         </div>
-        <div class="poke5e-callout"><i class="fa-solid fa-person"></i><div><strong>Especie: Humano</strong><br>Es la única especie de personaje jugador de esta ambientación y se aplicará automáticamente.</div></div>
+        <div class="poke5e-callout"><i class="fa-solid fa-person"></i><div><strong>{{localize "POKE5E.Creator.SpeciesHuman"}}</strong><br>{{localize "POKE5E.Creator.HumanOnlyHint"}}</div></div>
       </section>
       <section>
-        <div class="poke5e-section-title"><h2><i class="fa-solid fa-dice-d20"></i> Características base</h2>{{#if baseAbilityPointBuy}}<span>{{pointBuySpent}}/27 puntos gastados</span>{{/if}}</div>
-        <label class="poke5e-wide-field"><span>Método de generación</span><select name="baseAbilityMethod">{{#each baseAbilityMethods}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
-        <p>Estos son los valores antes de aplicar las bonificaciones del origen y la especialización.</p>
+        <div class="poke5e-section-title"><h2><i class="fa-solid fa-dice-d20"></i> {{localize "POKE5E.Creator.BaseAbilities"}}</h2>{{#if baseAbilityPointBuy}}<span>{{localize "POKE5E.Creator.PointsSpent" spent=pointBuySpent}}</span>{{/if}}</div>
+        <label class="poke5e-wide-field"><span>{{localize "POKE5E.Creator.GenerationMethod"}}</span><select name="baseAbilityMethod">{{#each baseAbilityMethods}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+        <p>{{localize "POKE5E.Creator.BaseAbilitiesHint"}}</p>
         <div class="poke5e-base-abilities">
           {{#each baseAbilityFields}}
             <label><span>{{label}}</span>
@@ -37,85 +37,85 @@
             </label>
           {{/each}}
         </div>
-        {{#if baseAbilityPointBuy}}<div class="poke5e-bonus-banner {{#if pointBuyRemaining}}warning{{/if}}"><strong>Puntos restantes:</strong> {{pointBuyRemaining}}. Debes gastar exactamente los 27 puntos.</div>{{/if}}
+        {{#if baseAbilityPointBuy}}<div class="poke5e-bonus-banner {{#if pointBuyRemaining}}warning{{/if}}">{{localize "POKE5E.Creator.PointsRemaining" remaining=pointBuyRemaining}}</div>{{/if}}
       </section>
       <section>
-        <div class="poke5e-section-title"><h2><i class="fa-solid fa-earth-americas"></i> Origen regional</h2></div>
-        <label class="poke5e-wide-field"><span>Región natal</span><select name="origin"><option value="">Elige una región…</option>{{#each origins}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+        <div class="poke5e-section-title"><h2><i class="fa-solid fa-earth-americas"></i> {{localize "POKE5E.Creator.RegionalOrigin"}}</h2></div>
+        <label class="poke5e-wide-field"><span>{{localize "POKE5E.Creator.HomeRegion"}}</span><select name="origin"><option value="">{{localize "POKE5E.Creator.ChooseRegion"}}</option>{{#each origins}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
         {{#if origin}}
           <article class="poke5e-origin-card">
-            <div><strong>{{origin.name}}</strong><span>Competencia: {{lookup skills origin.skill}}</span><span>Idioma: {{origin.language}}</span></div>
+            <div><strong>{{origin.name}}</strong><span>{{localize "POKE5E.Creator.Proficiency"}}: {{lookup skills origin.skill}}</span><span>{{localize "POKE5E.Creator.Language"}}: {{origin.language}}</span></div>
             <div><strong>{{origin.featName}}</strong><p>{{origin.featEffect}}</p></div>
           </article>
-          {{#if originFixedAbilities}}<div class="poke5e-bonus-banner"><strong>Características:</strong> {{originFixedAbilities}}</div>{{/if}}
-          {{#if originAbilityOptions}}<label class="poke5e-wide-field"><span>Bonificación de características</span><select name="originAbilityOption">{{#each originAbilityOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>{{/if}}
+          {{#if originFixedAbilities}}<div class="poke5e-bonus-banner"><strong>{{localize "POKE5E.Creator.Abilities"}}:</strong> {{originFixedAbilities}}</div>{{/if}}
+          {{#if originAbilityOptions}}<label class="poke5e-wide-field"><span>{{localize "POKE5E.Creator.AbilityBonus"}}</span><select name="originAbilityOption">{{#each originAbilityOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>{{/if}}
           {{#if originAnyTwo}}<div class="poke5e-creator-fields two"><label><span>+2 a</span><select name="originAbilityPrimary">{{#each abilityOptionsPrimary}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label><label><span>+1 a</span><select name="originAbilitySecondary">{{#each abilityOptionsSecondary}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label></div>{{/if}}
-          {{#if isHoenn}}<label class="poke5e-wide-field"><span>Entorno de “No hay lugar como el hogar”</span><select name="environment"><option value="">Elige…</option>{{#each environmentOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>{{/if}}
-          {{#if isKanto}}<label class="poke5e-wide-field"><span>Dote elegida</span><input name="chosenFeat" type="text" value="{{selection.chosenFeat}}" placeholder="Nombre de una dote para la que cumplas los requisitos"></label>{{/if}}
+          {{#if isHoenn}}<label class="poke5e-wide-field"><span>{{localize "POKE5E.Creator.HoennEnvironment"}}</span><select name="environment"><option value="">{{localize "POKE5E.Common.Choose"}}</option>{{#each environmentOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>{{/if}}
+          {{#if isKanto}}<label class="poke5e-wide-field"><span>{{localize "POKE5E.Creator.ChosenFeat"}}</span><input name="chosenFeat" type="text" value="{{selection.chosenFeat}}" placeholder="{{localize "POKE5E.Creator.ChosenFeatPlaceholder"}}"></label>{{/if}}
         {{/if}}
       </section>
     {{/if}}
 
     {{#if step2}}
       <section>
-        <div class="poke5e-section-title"><h2><i class="fa-solid fa-medal"></i> Especialización de nivel 1</h2></div>
-        <p>Elige primero tu especialización. Además del efecto personal, tus Pokémon del tipo elegido reciben +1 a todas sus pruebas de habilidad.</p>
+        <div class="poke5e-section-title"><h2><i class="fa-solid fa-medal"></i> {{localize "POKE5E.Creator.LevelOneSpecialization"}}</h2></div>
+        <p>{{localize "POKE5E.Creator.SpecializationHint"}}</p>
         <div class="poke5e-specialization-grid">{{#each specializations}}<label class="{{#if selected}}selected{{/if}}"><input type="radio" name="specialization" value="{{value}}" {{#if selected}}checked{{/if}}><strong>{{label}}</strong><span>{{effect}}</span></label>{{/each}}</div>
       </section>
       {{#if hasSpecialization}}
         <section>
-          <div class="poke5e-section-title"><h2><i class="fa-solid fa-list-check"></i> Competencias de Entrenador</h2><span>{{selectedClassSkillCount}}/2 elegidas</span></div>
+          <div class="poke5e-section-title"><h2><i class="fa-solid fa-list-check"></i> {{localize "POKE5E.Creator.TrainerProficiencies"}}</h2><span>{{localize "POKE5E.Creator.ChosenCount" count=selectedClassSkillCount}}</span></div>
           <div class="poke5e-granted-skills">
-            <strong>Ya concedidas</strong>
+            <strong>{{localize "POKE5E.Creator.AlreadyGranted"}}</strong>
             {{#each grantedSkills}}<span><small>{{source}}</small>{{label}}</span>{{/each}}
             {{#if specializationAbilityBonus}}<p>{{specializationAbilityBonus}}</p>{{/if}}
           </div>
-          <p>Elige exactamente dos habilidades adicionales. Las concedidas por el origen o la especialización ya no aparecen entre las opciones.</p>
+          <p>{{localize "POKE5E.Creator.AdditionalSkillsHint"}}</p>
           <div class="poke5e-choice-grid">{{#each classSkillOptions}}<label><input type="checkbox" name="classSkills" value="{{value}}" {{#if selected}}checked{{/if}}> {{label}}</label>{{/each}}</div>
-          <div class="poke5e-selected-skills"><strong>Seleccionadas:</strong>{{#each selectedClassSkills}}<span>{{this}}</span>{{else}}<em>Todavía ninguna</em>{{/each}}</div>
-          {{#if isUnova}}<div class="poke5e-callout"><i class="fa-solid fa-star"></i><div><strong>Muchos talentos</strong><br>Elige dos competencias adicionales por tu dote de Teselia.</div></div><div class="poke5e-choice-grid">{{#each extraSkillOptions}}<label><input type="checkbox" name="extraSkills" value="{{value}}" {{#if selected}}checked{{/if}}> {{label}}</label>{{/each}}</div>{{/if}}
+          <div class="poke5e-selected-skills"><strong>{{localize "POKE5E.Creator.Selected"}}:</strong>{{#each selectedClassSkills}}<span>{{this}}</span>{{else}}<em>{{localize "POKE5E.Common.NoneYet"}}</em>{{/each}}</div>
+          {{#if isUnova}}<div class="poke5e-callout"><i class="fa-solid fa-star"></i><div><strong>{{localize "POKE5E.Creator.ManyTalents"}}</strong><br>{{localize "POKE5E.Creator.ManyTalentsHint"}}</div></div><div class="poke5e-choice-grid">{{#each extraSkillOptions}}<label><input type="checkbox" name="extraSkills" value="{{value}}" {{#if selected}}checked{{/if}}> {{label}}</label>{{/each}}</div>{{/if}}
         </section>
       {{else}}
-        <div class="poke5e-callout warning"><i class="fa-solid fa-arrow-up"></i><div>Selecciona una especialización para mostrar las habilidades disponibles.</div></div>
+        <div class="poke5e-callout warning"><i class="fa-solid fa-arrow-up"></i><div>{{localize "POKE5E.Creator.SelectSpecialization"}}</div></div>
       {{/if}}
     {{/if}}
 
     {{#if step3}}
       <section>
-        <div class="poke5e-section-title"><h2><i class="fa-solid fa-circle-dot"></i> Tu primer Pokémon</h2><span>Sin evolucionar · SR 1/2 o inferior</span></div>
+        <div class="poke5e-section-title"><h2><i class="fa-solid fa-circle-dot"></i> {{localize "POKE5E.Creator.FirstPokemon"}}</h2><span>{{localize "POKE5E.Creator.StarterRequirements"}}</span></div>
         <div class="poke5e-creator-fields three">
-          <label><span>Especie</span><select name="starter"><option value="">Elige una especie…</option>{{#each starters}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
-          <label><span>Naturaleza</span><select name="nature"><option value="">Elige…</option>{{#each natures}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
-          <label><span>Habilidad no oculta</span><select name="ability" {{#unless starter}}disabled{{/unless}}><option value="">Elige…</option>{{#each starterAbilities}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+          <label><span>{{localize "POKE5E.Common.Species"}}</span><select name="starter"><option value="">{{localize "POKE5E.Creator.ChooseSpecies"}}</option>{{#each starters}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+          <label><span>{{localize "POKE5E.Common.Nature"}}</span><select name="nature"><option value="">{{localize "POKE5E.Common.Choose"}}</option>{{#each natures}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+          <label><span>{{localize "POKE5E.Creator.NonHiddenAbility"}}</span><select name="ability" {{#unless starter}}disabled{{/unless}}><option value="">{{localize "POKE5E.Common.Choose"}}</option>{{#each starterAbilities}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
         </div>
         {{#if starter}}<article class="poke5e-starter-preview"><img src="{{starter.img}}" alt="{{starter.name}}"><div><strong>{{starter.name}}</strong><span>SR {{starter.sr}} · Nivel mínimo {{starter.minLevel}}</span><p>{{starter.description}}</p></div></article>{{/if}}
       </section>
       <section>
-        <div class="poke5e-section-title"><h2><i class="fa-solid fa-briefcase"></i> Equipo inicial automático</h2></div>
-        <div class="poke5e-starting-kit"><span>5 Poké Balls</span><span>1 Poción</span><span>Licencia</span><span>Pokédex</span><span>1000 + 100 × 4d4 ₽</span></div>
+        <div class="poke5e-section-title"><h2><i class="fa-solid fa-briefcase"></i> {{localize "POKE5E.Creator.AutomaticStartingKit"}}</h2></div>
+        <div class="poke5e-starting-kit"><span>{{localize "POKE5E.Creator.FivePokeBalls"}}</span><span>{{localize "POKE5E.Creator.OnePotion"}}</span><span>{{localize "POKE5E.Creator.License"}}</span><span>{{localize "POKE5E.Creator.Pokedex"}}</span><span>1000 + 100 × 4d4 ₽</span></div>
       </section>
     {{/if}}
 
     {{#if step4}}
       <section>
-        <div class="poke5e-section-title"><h2><i class="fa-solid fa-clipboard-check"></i> Revisa tu Entrenador</h2></div>
+        <div class="poke5e-section-title"><h2><i class="fa-solid fa-clipboard-check"></i> {{localize "POKE5E.Creator.ReviewTrainer"}}</h2></div>
         {{#if resolutionError}}<div class="poke5e-callout warning">{{resolutionError}}</div>{{else}}
           <div class="poke5e-creator-summary">
-            <article><span>Identidad</span><strong>{{selection.name}}</strong><p>Humano de {{resolved.origin.name}}</p></article>
-            <article><span>Características</span><strong>{{abilitySummary}}</strong><p>PG iniciales: {{resolved.hp}}</p></article>
-            <article><span>Competencias</span><strong>{{skillSummary}}</strong><p>Salvaciones: Carisma{{#if hasConstitutionSave}} y Constitución{{/if}}</p></article>
-            <article><span>Rasgos</span><strong>{{resolved.origin.featName}}</strong><p>{{resolved.specialization.name}} · tipo {{resolved.specialization.type}}</p></article>
-            <article><span>Pokémon inicial</span><strong>{{starter.name}}</strong><p>{{selection.nature}} · {{selection.ability}}</p></article>
-            <article><span>Clase</span><strong>Entrenador nivel 1</strong><p>3 Pokéslots · control máximo SR 2</p></article>
+            <article><span>{{localize "POKE5E.Creator.Identity"}}</span><strong>{{selection.name}}</strong><p>{{localize "POKE5E.Creator.HumanFrom" origin=resolved.origin.name}}</p></article>
+            <article><span>{{localize "POKE5E.Creator.Abilities"}}</span><strong>{{abilitySummary}}</strong><p>{{localize "POKE5E.Creator.StartingHp" hp=resolved.hp}}</p></article>
+            <article><span>{{localize "POKE5E.Creator.Proficiencies"}}</span><strong>{{skillSummary}}</strong><p>{{localize "POKE5E.Creator.SavesCharisma"}}{{#if hasConstitutionSave}} {{localize "POKE5E.Creator.AndConstitution"}}{{/if}}</p></article>
+            <article><span>{{localize "POKE5E.Creator.Features"}}</span><strong>{{resolved.origin.featName}}</strong><p>{{resolved.specialization.name}} · {{localize "POKE5E.Common.Type"}} {{resolved.specialization.type}}</p></article>
+            <article><span>{{localize "POKE5E.Creator.StarterPokemon"}}</span><strong>{{starter.name}}</strong><p>{{selection.nature}} · {{selection.ability}}</p></article>
+            <article><span>{{localize "POKE5E.Creator.Class"}}</span><strong>{{localize "POKE5E.Creator.TrainerLevelOne"}}</strong><p>{{localize "POKE5E.Creator.ClassSummary"}}</p></article>
           </div>
-          <div class="poke5e-callout success"><i class="fa-solid fa-wand-magic-sparkles"></i><div>Al finalizar se crearán la clase, el origen, las dotes, la especialización, el equipo y la ficha completa de tu Pokémon inicial.</div></div>
+          <div class="poke5e-callout success"><i class="fa-solid fa-wand-magic-sparkles"></i><div>{{localize "POKE5E.Creator.CreationResultHint"}}</div></div>
         {{/if}}
       </section>
     {{/if}}
   </main>
 
   <footer class="poke5e-creator-actions">
-    <button type="button" data-action="back" {{#unless canBack}}disabled{{/unless}}><i class="fa-solid fa-arrow-left"></i> Atrás</button>
-    {{#if isLast}}<button type="button" class="bright" data-action="finish" {{#if saving}}disabled{{/if}}><i class="fa-solid fa-check"></i> {{#if saving}}Creando…{{else}}Crear Entrenador{{/if}}</button>{{else}}<button type="button" class="bright" data-action="next">Siguiente <i class="fa-solid fa-arrow-right"></i></button>{{/if}}
+    <button type="button" data-action="back" {{#unless canBack}}disabled{{/unless}}><i class="fa-solid fa-arrow-left"></i> {{localize "POKE5E.Common.Back"}}</button>
+    {{#if isLast}}<button type="button" class="bright" data-action="finish" {{#if saving}}disabled{{/if}}><i class="fa-solid fa-check"></i> {{#if saving}}{{localize "POKE5E.Common.Creating"}}{{else}}{{localize "POKE5E.Creator.CreateTrainer"}}{{/if}}</button>{{else}}<button type="button" class="bright" data-action="next">{{localize "POKE5E.Common.Next"}} <i class="fa-solid fa-arrow-right"></i></button>{{/if}}
   </footer>
 </div>

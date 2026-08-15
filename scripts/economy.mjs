@@ -43,8 +43,8 @@ export function adaptTrainerCurrencyFields(root) {
       continue;
     }
     if (denomination !== POKEDOLLAR_DENOMINATION) continue;
-    input.setAttribute("aria-label", "Pokédólares");
-    input.setAttribute("title", "Pokédólares (₽)");
+    input.setAttribute("aria-label", game.i18n.localize("POKE5E.Economy.Pokedollars"));
+    input.setAttribute("title", game.i18n.localize("POKE5E.Economy.PokedollarsSymbol"));
     (wrapper ?? input).classList.add("poke5e-pokedollars");
   }
 }

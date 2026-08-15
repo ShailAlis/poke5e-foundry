@@ -1,111 +1,111 @@
 {{#if unauthorized}}
-  <div class="poke5e-callout warning"><i class="fa-solid fa-lock"></i> Esta herramienta es exclusiva del director de juego.</div>
+  <div class="poke5e-callout warning"><i class="fa-solid fa-lock"></i> {{localize "POKE5E.Common.GMToolOnly"}}</div>
 {{else}}
 <div class="poke5e-npc-generator-body">
   <header class="poke5e-npc-generator-hero">
-    <div><span class="eyebrow">HERRAMIENTA DEL DIRECTOR</span><h1>Entrenadores NPC</h1><p>Genera rivales, aliados, líderes, investigadores o equipos criminales completos.</p></div>
-    <button type="button" data-action="reset"><i class="fa-solid fa-rotate-left"></i> Restablecer todo</button>
+    <div><span class="eyebrow">{{localize "POKE5E.NpcGenerator.GMTool"}}</span><h1>{{localize "POKE5E.NpcGenerator.Title"}}</h1><p>{{localize "POKE5E.NpcGenerator.Subtitle"}}</p></div>
+    <button type="button" data-action="reset"><i class="fa-solid fa-rotate-left"></i> {{localize "POKE5E.Common.ResetFilters"}}</button>
   </header>
 
   <div class="poke5e-npc-generator-scroll">
     <section class="poke5e-npc-config-section">
-      <div class="poke5e-section-title"><h2><i class="fa-solid fa-id-card"></i> Identidad y reglas</h2><span>Todos los NPC generados son humanos</span></div>
+      <div class="poke5e-section-title"><h2><i class="fa-solid fa-id-card"></i> {{localize "POKE5E.NpcGenerator.IdentityRules"}}</h2><span>{{localize "POKE5E.NpcGenerator.HumanOnly"}}</span></div>
       <div class="poke5e-npc-fields identity">
-        <label><span>Cantidad</span><input type="number" min="1" max="12" value="{{config.quantity}}" data-config="quantity"></label>
-        <label class="wide"><span>Nombre o prefijo <small>(vacío = aleatorio)</small></span><input type="text" value="{{config.name}}" data-config="name" placeholder="Ej. Recluta Rocket"></label>
-        <label class="wide"><span>Imagen del Entrenador <small>(ruta opcional)</small></span><input type="text" value="{{config.image}}" data-config="image" placeholder="icons/... o modules/..."></label>
-        <label><span>Nivel Entrenador</span><input type="number" min="1" max="20" value="{{config.trainerLevel}}" data-config="trainerLevel"></label>
-        <label><span>Arquetipo</span><select data-config="archetype">{{selectOptions archetypeOptions selected=config.archetype}}</select></label>
-        <label><span>Dificultad</span><select data-config="difficulty">{{selectOptions difficultyOptions selected=config.difficulty}}</select></label>
-        <label><span>Origen</span><select data-config="origin">{{selectOptions originOptions selected=config.origin}}</select></label>
-        <label><span>Especialización</span><select data-config="specialization">{{selectOptions specializationOptions selected=config.specialization}}</select></label>
-        <label><span>Camino de Entrenador</span><select data-config="path">{{selectOptions pathOptions selected=config.path}}</select></label>
-        <label><span>Género</span><select data-config="gender">{{selectOptions genderOptions selected=config.gender}}</select></label>
-        <label><span>Edad <small>(opcional)</small></span><input type="text" value="{{config.age}}" data-config="age"></label>
-        <label class="check"><input type="checkbox" data-config="useTitle" {{#if config.useTitle}}checked{{/if}}> Añadir el arquetipo al nombre aleatorio</label>
-        <label class="wide"><span>Notas / personalidad</span><input type="text" value="{{config.notes}}" data-config="notes" placeholder="Objetivo, actitud, tácticas…"></label>
+        <label><span>{{localize "POKE5E.Common.Quantity"}}</span><input type="number" min="1" max="12" value="{{config.quantity}}" data-config="quantity"></label>
+        <label class="wide"><span>{{localize "POKE5E.NpcGenerator.NamePrefix"}} <small>({{localize "POKE5E.NpcGenerator.EmptyRandom"}})</small></span><input type="text" value="{{config.name}}" data-config="name" placeholder="{{localize "POKE5E.NpcGenerator.NameExample"}}"></label>
+        <label class="wide"><span>{{localize "POKE5E.NpcGenerator.TrainerImage"}} <small>({{localize "POKE5E.NpcGenerator.OptionalPath"}})</small></span><input type="text" value="{{config.image}}" data-config="image" placeholder="icons/... or modules/..."></label>
+        <label><span>{{localize "POKE5E.NpcGenerator.TrainerLevel"}}</span><input type="number" min="1" max="20" value="{{config.trainerLevel}}" data-config="trainerLevel"></label>
+        <label><span>{{localize "POKE5E.NpcGenerator.Archetype"}}</span><select data-config="archetype">{{selectOptions archetypeOptions selected=config.archetype}}</select></label>
+        <label><span>{{localize "POKE5E.NpcGenerator.Difficulty"}}</span><select data-config="difficulty">{{selectOptions difficultyOptions selected=config.difficulty}}</select></label>
+        <label><span>{{localize "POKE5E.NpcGenerator.Origin"}}</span><select data-config="origin">{{selectOptions originOptions selected=config.origin}}</select></label>
+        <label><span>{{localize "POKE5E.NpcGenerator.Specialization"}}</span><select data-config="specialization">{{selectOptions specializationOptions selected=config.specialization}}</select></label>
+        <label><span>{{localize "POKE5E.NpcGenerator.TrainerPath"}}</span><select data-config="path">{{selectOptions pathOptions selected=config.path}}</select></label>
+        <label><span>{{localize "POKE5E.Common.Gender"}}</span><select data-config="gender">{{selectOptions genderOptions selected=config.gender}}</select></label>
+        <label><span>{{localize "POKE5E.Common.Age"}} <small>({{localize "POKE5E.Common.Optional"}})</small></span><input type="text" value="{{config.age}}" data-config="age"></label>
+        <label class="check"><input type="checkbox" data-config="useTitle" {{#if config.useTitle}}checked{{/if}}> {{localize "POKE5E.NpcGenerator.AddArchetype"}}</label>
+        <label class="wide"><span>{{localize "POKE5E.NpcGenerator.Notes"}}</span><input type="text" value="{{config.notes}}" data-config="notes" placeholder="{{localize "POKE5E.NpcGenerator.NotesPlaceholder"}}"></label>
       </div>
     </section>
 
     <section class="poke5e-npc-config-section">
-      <div class="poke5e-section-title"><h2><i class="fa-solid fa-circle-dot"></i> Composición del equipo</h2><button type="button" class="bright" data-action="generate-team"><i class="fa-solid fa-dice"></i> Generar equipo</button></div>
+      <div class="poke5e-section-title"><h2><i class="fa-solid fa-circle-dot"></i> {{localize "POKE5E.NpcGenerator.TeamComposition"}}</h2><button type="button" class="bright" data-action="generate-team"><i class="fa-solid fa-dice"></i> {{localize "POKE5E.NpcGenerator.GenerateTeam"}}</button></div>
       <div class="poke5e-npc-fields team-rules">
-        <label><span>Tamaño (máx. {{maxTeamSize}} Pokéslots)</span><input type="number" min="1" max="{{maxTeamSize}}" value="{{config.teamSize}}" data-config="teamSize"></label>
-        <label><span>Composición</span><select data-config="composition">{{selectOptions compositionOptions selected=config.composition}}</select></label>
-        <label><span>Potencia</span><select data-config="powerBias">{{selectOptions powerBiasOptions selected=config.powerBias}}</select></label>
-        <label><span>Niveles</span><select data-config="levelStrategy">{{selectOptions levelStrategyOptions selected=config.levelStrategy}}</select></label>
-        <fieldset><legend>Rango de nivel</legend><input type="number" min="1" max="20" value="{{config.levelMin}}" data-config="levelMin"><span>—</span><input type="number" min="1" max="20" value="{{config.levelMax}}" data-config="levelMax"></fieldset>
-        <label><span>Probabilidad shiny %</span><input type="number" min="0" max="100" step="0.1" value="{{config.shinyChance}}" data-config="shinyChance"></label>
-        <label class="check"><input type="checkbox" data-config="uniqueSpecies" {{#if config.uniqueSpecies}}checked{{/if}}> Sin especies repetidas</label>
-        <label class="check"><input type="checkbox" data-config="randomNature" {{#if config.randomNature}}checked{{/if}}> Naturalezas aleatorias</label>
-        <label><span>Naturaleza fija</span><select data-config="nature">{{selectOptions natureOptions selected=config.nature}}</select></label>
-        <label class="check"><input type="checkbox" data-config="respectControlLimit" {{#if config.respectControlLimit}}checked{{/if}}> Respetar límite de control (SR {{controlSr}})</label>
+        <label><span>{{localize "POKE5E.NpcGenerator.TeamSize" max=maxTeamSize}}</span><input type="number" min="1" max="{{maxTeamSize}}" value="{{config.teamSize}}" data-config="teamSize"></label>
+        <label><span>{{localize "POKE5E.NpcGenerator.Composition"}}</span><select data-config="composition">{{selectOptions compositionOptions selected=config.composition}}</select></label>
+        <label><span>{{localize "POKE5E.NpcGenerator.Power"}}</span><select data-config="powerBias">{{selectOptions powerBiasOptions selected=config.powerBias}}</select></label>
+        <label><span>{{localize "POKE5E.Common.Levels"}}</span><select data-config="levelStrategy">{{selectOptions levelStrategyOptions selected=config.levelStrategy}}</select></label>
+        <fieldset><legend>{{localize "POKE5E.NpcGenerator.LevelRange"}}</legend><input type="number" min="1" max="20" value="{{config.levelMin}}" data-config="levelMin"><span>—</span><input type="number" min="1" max="20" value="{{config.levelMax}}" data-config="levelMax"></fieldset>
+        <label><span>{{localize "POKE5E.NpcGenerator.ShinyChance"}}</span><input type="number" min="0" max="100" step="0.1" value="{{config.shinyChance}}" data-config="shinyChance"></label>
+        <label class="check"><input type="checkbox" data-config="uniqueSpecies" {{#if config.uniqueSpecies}}checked{{/if}}> {{localize "POKE5E.NpcGenerator.UniqueSpecies"}}</label>
+        <label class="check"><input type="checkbox" data-config="randomNature" {{#if config.randomNature}}checked{{/if}}> {{localize "POKE5E.NpcGenerator.RandomNatures"}}</label>
+        <label><span>{{localize "POKE5E.NpcGenerator.FixedNature"}}</span><select data-config="nature">{{selectOptions natureOptions selected=config.nature}}</select></label>
+        <label class="check"><input type="checkbox" data-config="respectControlLimit" {{#if config.respectControlLimit}}checked{{/if}}> {{localize "POKE5E.NpcGenerator.RespectControl" sr=controlSr}}</label>
       </div>
     </section>
 
     <section class="poke5e-npc-config-section">
-      <div class="poke5e-section-title"><h2><i class="fa-solid fa-filter"></i> Filtros de especies</h2><span>{{poolCount}} especies compatibles</span></div>
+      <div class="poke5e-section-title"><h2><i class="fa-solid fa-filter"></i> {{localize "POKE5E.NpcGenerator.SpeciesFilters"}}</h2><span>{{localize "POKE5E.Common.CompatibleSpeciesCount" count=poolCount}}</span></div>
       <div class="poke5e-npc-filters">
-        <label class="search"><span>Buscar</span><input type="search" value="{{config.query}}" data-action="search" placeholder="Nombre, número o identificador…"></label>
-        <label><span>Tipo principal</span><select data-config="typePrimary">{{selectOptions typeOptions selected=config.typePrimary blank="Cualquiera"}}</select></label>
-        <label><span>Segundo tipo</span><select data-config="typeSecondary">{{selectOptions typeOptions selected=config.typeSecondary blank="Ninguno"}}</select></label>
-        <label><span>Relación de tipos</span><select data-config="typeMode">{{selectOptions typeModeOptions selected=config.typeMode}}</select></label>
-        <label><span>Región</span><select data-config="region">{{selectOptions regionOptions selected=config.region blank="Cualquiera"}}</select></label>
-        <label><span>Bioma</span><select data-config="biome">{{selectOptions biomeOptions selected=config.biome blank="Cualquiera"}}</select></label>
-        <fieldset><legend>Rango de SR</legend><input type="number" min="0" step="0.125" value="{{config.srMin}}" data-config="srMin" placeholder="Mín."><span>—</span><input type="number" min="0" step="0.125" value="{{config.srMax}}" data-config="srMax" placeholder="Máx."></fieldset>
-        <label><span>Etapa evolutiva</span><select data-config="stage">{{selectOptions stageOptions selected=config.stage}}</select></label>
-        <label class="ids"><span>Incluir exclusivamente <small>(IDs o números)</small></span><input type="text" value="{{config.includeIds}}" data-config="includeIds" placeholder="pikachu, 133, riolu"></label>
-        <label class="ids"><span>Excluir <small>(IDs o números)</small></span><input type="text" value="{{config.excludeIds}}" data-config="excludeIds" placeholder="mewtwo, 150"></label>
+        <label class="search"><span>{{localize "POKE5E.Common.Search"}}</span><input type="search" value="{{config.query}}" data-action="search" placeholder="{{localize "POKE5E.Common.SearchPokemonPlaceholder"}}"></label>
+        <label><span>{{localize "POKE5E.NpcGenerator.PrimaryType"}}</span><select data-config="typePrimary">{{selectOptions typeOptions selected=config.typePrimary blank=(localize "POKE5E.Common.All")}}</select></label>
+        <label><span>{{localize "POKE5E.NpcGenerator.SecondaryType"}}</span><select data-config="typeSecondary">{{selectOptions typeOptions selected=config.typeSecondary blank=(localize "POKE5E.Common.NoneFeminine")}}</select></label>
+        <label><span>{{localize "POKE5E.NpcGenerator.TypeRelation"}}</span><select data-config="typeMode">{{selectOptions typeModeOptions selected=config.typeMode}}</select></label>
+        <label><span>{{localize "POKE5E.Common.Region"}}</span><select data-config="region">{{selectOptions regionOptions selected=config.region blank=(localize "POKE5E.Common.AllFeminine")}}</select></label>
+        <label><span>{{localize "POKE5E.Common.Biome"}}</span><select data-config="biome">{{selectOptions biomeOptions selected=config.biome blank=(localize "POKE5E.Common.AllFeminine")}}</select></label>
+        <fieldset><legend>{{localize "POKE5E.NpcGenerator.ChallengeRange"}}</legend><input type="number" min="0" step="0.125" value="{{config.srMin}}" data-config="srMin" placeholder="{{localize "POKE5E.Encounter.Min"}}"><span>—</span><input type="number" min="0" step="0.125" value="{{config.srMax}}" data-config="srMax" placeholder="{{localize "POKE5E.Encounter.Max"}}"></fieldset>
+        <label><span>{{localize "POKE5E.NpcGenerator.EvolutionStage"}}</span><select data-config="stage">{{selectOptions stageOptions selected=config.stage}}</select></label>
+        <label class="ids"><span>{{localize "POKE5E.NpcGenerator.IncludeOnly"}} <small>({{localize "POKE5E.NpcGenerator.IdsOrNumbers"}})</small></span><input type="text" value="{{config.includeIds}}" data-config="includeIds" placeholder="pikachu, 133, riolu"></label>
+        <label class="ids"><span>{{localize "POKE5E.NpcGenerator.Exclude"}} <small>({{localize "POKE5E.NpcGenerator.IdsOrNumbers"}})</small></span><input type="text" value="{{config.excludeIds}}" data-config="excludeIds" placeholder="mewtwo, 150"></label>
       </div>
     </section>
 
     <div class="poke5e-npc-team-columns">
       <section class="poke5e-npc-candidates">
-        <div class="poke5e-section-title"><h2>Catálogo compatible</h2><span>Añade especies manualmente</span></div>
-        {{#if poolTruncated}}<div class="poke5e-callout">Se muestran las primeras 80. Usa los filtros para acotar.</div>{{/if}}
+        <div class="poke5e-section-title"><h2>{{localize "POKE5E.NpcGenerator.CompatibleCatalog"}}</h2><span>{{localize "POKE5E.NpcGenerator.AddSpeciesManually"}}</span></div>
+        {{#if poolTruncated}}<div class="poke5e-callout">{{localize "POKE5E.NpcGenerator.FirstEighty"}}</div>{{/if}}
         <div class="poke5e-npc-candidate-list">
           {{#each candidates}}
-            <article><img src="{{img}}" alt="{{name}}"><div><small>#{{number}} · SR {{sr}}</small><strong>{{name}}</strong><span>{{#each types}}{{this}}{{#unless @last}} / {{/unless}}{{/each}}</span><small>Niv. mín. {{minLevel}}{{#if region}} · {{region}}{{/if}}</small></div><button type="button" data-action="add-species" data-species-id="{{id}}" {{#if ../teamFull}}disabled{{/if}}><i class="fa-solid fa-plus"></i></button></article>
-          {{else}}<div class="poke5e-empty">No hay especies que cumplan todos los filtros.</div>{{/each}}
+            <article><img src="{{img}}" alt="{{name}}"><div><small>#{{number}} · {{localize "POKE5E.Common.ChallengeRatingShort"}} {{sr}}</small><strong>{{name}}</strong><span>{{#each types}}{{this}}{{#unless @last}} / {{/unless}}{{/each}}</span><small>{{localize "POKE5E.Common.MinimumLevel" level=minLevel}}{{#if region}} · {{region}}{{/if}}</small></div><button type="button" data-action="add-species" data-species-id="{{id}}" {{#if ../teamFull}}disabled{{/if}}><i class="fa-solid fa-plus"></i></button></article>
+          {{else}}<div class="poke5e-empty">{{localize "POKE5E.Common.NoMatchingSpecies"}}</div>{{/each}}
         </div>
       </section>
 
       <section class="poke5e-npc-roster">
-        <div class="poke5e-section-title"><h2>Equipo preparado</h2><button type="button" data-action="clear-team" {{#unless teamCount}}disabled{{/unless}}><i class="fa-solid fa-trash"></i> Vaciar</button></div>
-        <div class="poke5e-npc-roster-summary"><strong>{{teamCount}}/{{maxTeamSize}} Pokémon</strong><span>Según los Pokéslots de nivel {{config.trainerLevel}}</span></div>
+        <div class="poke5e-section-title"><h2>{{localize "POKE5E.NpcGenerator.PreparedTeam"}}</h2><button type="button" data-action="clear-team" {{#unless teamCount}}disabled{{/unless}}><i class="fa-solid fa-trash"></i> {{localize "POKE5E.Common.Clear"}}</button></div>
+        <div class="poke5e-npc-roster-summary"><strong>{{teamCount}}/{{maxTeamSize}} Pokémon</strong><span>{{localize "POKE5E.NpcGenerator.SlotsForLevel" level=config.trainerLevel}}</span></div>
         <div class="poke5e-npc-roster-list">
           {{#each team}}
-            <article><img src="{{img}}" alt="{{name}}"><div class="identity"><small>#{{number}} · SR {{sr}}</small><strong>{{name}}</strong><span>{{#each types}}{{this}}{{#unless @last}} / {{/unless}}{{/each}}</span></div><label><span>Nivel</span><input type="number" min="{{minLevel}}" max="20" value="{{level}}" data-action="pokemon-level" data-index="{{index}}"></label><label class="shiny"><input type="checkbox" data-action="pokemon-shiny" data-index="{{index}}" {{#if shiny}}checked{{/if}}> Shiny</label><button type="button" data-action="reroll-pokemon" data-index="{{index}}" title="Sustituir al azar"><i class="fa-solid fa-dice"></i></button><button type="button" data-action="remove-pokemon" data-index="{{index}}" title="Quitar"><i class="fa-solid fa-xmark"></i></button></article>
-          {{else}}<div class="poke5e-empty">Pulsa Generar equipo o añade especies desde el catálogo.</div>{{/each}}
+            <article><img src="{{img}}" alt="{{name}}"><div class="identity"><small>#{{number}} · {{localize "POKE5E.Common.ChallengeRatingShort"}} {{sr}}</small><strong>{{name}}</strong><span>{{#each types}}{{this}}{{#unless @last}} / {{/unless}}{{/each}}</span></div><label><span>{{localize "POKE5E.Common.Level"}}</span><input type="number" min="{{minLevel}}" max="20" value="{{level}}" data-action="pokemon-level" data-index="{{index}}"></label><label class="shiny"><input type="checkbox" data-action="pokemon-shiny" data-index="{{index}}" {{#if shiny}}checked{{/if}}> {{localize "POKE5E.NpcGenerator.Shiny"}}</label><button type="button" data-action="reroll-pokemon" data-index="{{index}}" title="{{localize "POKE5E.NpcGenerator.ReplaceRandomly"}}"><i class="fa-solid fa-dice"></i></button><button type="button" data-action="remove-pokemon" data-index="{{index}}" title="{{localize "POKE5E.NpcGenerator.Remove"}}"><i class="fa-solid fa-xmark"></i></button></article>
+          {{else}}<div class="poke5e-empty">{{localize "POKE5E.NpcGenerator.EmptyTeamHint"}}</div>{{/each}}
         </div>
       </section>
     </div>
 
     <section class="poke5e-npc-config-section">
-      <div class="poke5e-section-title"><h2><i class="fa-solid fa-suitcase"></i> Inventario, permisos y escena</h2></div>
+      <div class="poke5e-section-title"><h2><i class="fa-solid fa-suitcase"></i> {{localize "POKE5E.NpcGenerator.InventoryPermissionsScene"}}</h2></div>
       <div class="poke5e-npc-fields deployment">
-        <label><span>Tipo de Poké Ball</span><select data-config="ballType">{{selectOptions ballOptions selected=config.ballType}}</select></label>
-        <label><span>Cantidad de Balls</span><input type="number" min="0" max="99" value="{{config.ballCount}}" data-config="ballCount"></label>
-        <label><span>Pociones</span><input type="number" min="0" max="99" value="{{config.potionCount}}" data-config="potionCount"></label>
-        <label><span>Pokédólares (₽)</span><input type="number" min="0" step="1" value="{{config.money}}" data-config="money"></label>
-        <label><span>Carpeta de actores</span><input type="text" value="{{config.folderName}}" data-config="folderName"></label>
-        <label><span>Permiso jugadores</span><select data-config="ownership">{{selectOptions ownershipOptions selected=config.ownership}}</select></label>
-        <label><span>Disposición token</span><select data-config="disposition">{{selectOptions dispositionOptions selected=config.disposition}}</select></label>
-        <label><span>Nombre del token</span><select data-config="displayName">{{selectOptions displayNameOptions selected=config.displayName}}</select></label>
-        <label><span>Barras del token</span><select data-config="displayBars">{{selectOptions displayBarsOptions selected=config.displayBars}}</select></label>
-        <label class="check"><input type="checkbox" data-config="tokenVision" {{#if config.tokenVision}}checked{{/if}}> El token tiene visión</label>
-        <label><span>Alcance de visión</span><input type="number" min="0" value="{{config.visionRange}}" data-config="visionRange"></label>
-        <label><span>Entorno de Hoenn</span><select data-config="hoennEnvironment">{{selectOptions environmentOptions selected=config.hoennEnvironment}}</select></label>
-        <label class="check"><input type="checkbox" data-config="placeOnScene" {{#if config.placeOnScene}}checked{{/if}}> Colocar Entrenador en la escena</label>
-        <label><span>Pokémon desplegados</span><select data-config="deployCount">{{selectOptions deployCountOptions selected=config.deployCount}}</select></label>
-        <label class="check"><input type="checkbox" data-config="openSheet" {{#if config.openSheet}}checked{{/if}}> Abrir la primera ficha al terminar</label>
+        <label><span>{{localize "POKE5E.NpcGenerator.BallType"}}</span><select data-config="ballType">{{selectOptions ballOptions selected=config.ballType}}</select></label>
+        <label><span>{{localize "POKE5E.NpcGenerator.BallCount"}}</span><input type="number" min="0" max="99" value="{{config.ballCount}}" data-config="ballCount"></label>
+        <label><span>{{localize "POKE5E.NpcGenerator.Potions"}}</span><input type="number" min="0" max="99" value="{{config.potionCount}}" data-config="potionCount"></label>
+        <label><span>{{localize "POKE5E.NpcGenerator.Pokedollars"}}</span><input type="number" min="0" step="1" value="{{config.money}}" data-config="money"></label>
+        <label><span>{{localize "POKE5E.NpcGenerator.ActorFolder"}}</span><input type="text" value="{{config.folderName}}" data-config="folderName"></label>
+        <label><span>{{localize "POKE5E.NpcGenerator.PlayerPermission"}}</span><select data-config="ownership">{{selectOptions ownershipOptions selected=config.ownership}}</select></label>
+        <label><span>{{localize "POKE5E.NpcGenerator.TokenDisposition"}}</span><select data-config="disposition">{{selectOptions dispositionOptions selected=config.disposition}}</select></label>
+        <label><span>{{localize "POKE5E.NpcGenerator.TokenName"}}</span><select data-config="displayName">{{selectOptions displayNameOptions selected=config.displayName}}</select></label>
+        <label><span>{{localize "POKE5E.NpcGenerator.TokenBars"}}</span><select data-config="displayBars">{{selectOptions displayBarsOptions selected=config.displayBars}}</select></label>
+        <label class="check"><input type="checkbox" data-config="tokenVision" {{#if config.tokenVision}}checked{{/if}}> {{localize "POKE5E.NpcGenerator.TokenVision"}}</label>
+        <label><span>{{localize "POKE5E.NpcGenerator.VisionRange"}}</span><input type="number" min="0" value="{{config.visionRange}}" data-config="visionRange"></label>
+        <label><span>{{localize "POKE5E.NpcGenerator.HoennEnvironment"}}</span><select data-config="hoennEnvironment">{{selectOptions environmentOptions selected=config.hoennEnvironment}}</select></label>
+        <label class="check"><input type="checkbox" data-config="placeOnScene" {{#if config.placeOnScene}}checked{{/if}}> {{localize "POKE5E.NpcGenerator.PlaceOnScene"}}</label>
+        <label><span>{{localize "POKE5E.NpcGenerator.DeployedPokemon"}}</span><select data-config="deployCount">{{selectOptions deployCountOptions selected=config.deployCount}}</select></label>
+        <label class="check"><input type="checkbox" data-config="openSheet" {{#if config.openSheet}}checked{{/if}}> {{localize "POKE5E.NpcGenerator.OpenFirstSheet"}}</label>
       </div>
     </section>
   </div>
 
   <footer class="poke5e-npc-generator-actions">
-    <div><strong>{{teamCount}} Pokémon preparados</strong><span>{{poolCount}} especies en el catálogo filtrado</span></div>
-    <button type="button" class="bright" data-action="create-trainers" {{#unless canCreate}}disabled{{/unless}}><i class="fa-solid fa-user-plus"></i> {{#if creating}}Creando Entrenadores…{{else}}Crear Entrenador{{#if quantityPlural}}es{{/if}} NPC{{/if}}</button>
+    <div><strong>{{localize "POKE5E.NpcGenerator.PreparedPokemon" count=teamCount}}</strong><span>{{localize "POKE5E.NpcGenerator.FilteredCatalogCount" count=poolCount}}</span></div>
+    <button type="button" class="bright" data-action="create-trainers" {{#unless canCreate}}disabled{{/unless}}><i class="fa-solid fa-user-plus"></i> {{#if creating}}{{localize "POKE5E.NpcGenerator.CreatingTrainers"}}{{else}}{{localize "POKE5E.NpcGenerator.CreateNpcTrainers" count=config.quantity}}{{/if}}</button>
   </footer>
 </div>
 {{/if}}

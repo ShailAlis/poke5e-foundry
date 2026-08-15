@@ -23,7 +23,7 @@ export class Poke5eTrainerTeam extends HandlebarsApplicationMixin(ApplicationV2)
   static DEFAULT_OPTIONS = {
     id: "poke5e-trainer-team",
     classes: ["poke5e", "poke5e-trainer-team"],
-    window: { title: "Equipo Pokémon", icon: "fa-solid fa-circle-dot", resizable: true },
+    window: { title: "POKE5E.Team.WindowTitle", icon: "fa-solid fa-circle-dot", resizable: true },
     position: { width: 900, height: 760 }
   };
 
@@ -112,7 +112,7 @@ export class Poke5eTrainerTeam extends HandlebarsApplicationMixin(ApplicationV2)
     const instance = foundry.utils.deepClone(item.getFlag(MODULE_ID, "instance"));
     const limit = trainerPokeslotLimit(this.actor);
     if (!instance.inTeam && getPokemonItems(this.actor).filter(entry => entry.getFlag(MODULE_ID, "instance")?.inTeam).length >= limit) {
-      return ui.notifications.warn(`El equipo activo ya ha alcanzado sus ${limit} Pokéslots.`);
+      return ui.notifications.warn(game.i18n.format("POKE5E.Team.ActiveFull", { max: limit }));
     }
     instance.inTeam = !instance.inTeam;
     await item.setFlag(MODULE_ID, "instance", instance);
@@ -143,7 +143,7 @@ export class Poke5eTrainerTeam extends HandlebarsApplicationMixin(ApplicationV2)
     const item = this.#item(event);
     if (!item || !this.actor.isOwner) return;
     const confirmed = await DialogV2.confirm({
-      window: { title: "Retirar Pokémon" },
+      window: { title: game.i18n.localize("POKE5E.Team.RemoveTitle") },
       content: `<p>¿Retirar a <strong>${foundry.utils.escapeHTML(displayPokemonName(item))}</strong> de ${foundry.utils.escapeHTML(this.actor.name)}?</p>`,
       yes: { default: true }, no: {}
     });
