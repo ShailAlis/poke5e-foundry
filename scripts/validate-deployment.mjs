@@ -43,7 +43,13 @@ globalThis.canvas = {
   },
   tokens: { placeables: [] }
 };
-const { cleanDeploymentActor, deployPokemon, deploymentPosition, isAllowedDeployment, removeDeployment, syncDeploymentHp } = await import("./deployment.mjs");
+const { actorReturnsUpright, cleanDeploymentActor, deployPokemon, deploymentActorName, deploymentPosition, isAllowedDeployment, removeDeployment, syncDeploymentHp } = await import("./deployment.mjs");
+
+const actorKind = (type, kind = null) => ({ type, getFlag: () => kind });
+if (!actorReturnsUpright(actorKind("character"))) throw new Error("Player Trainers should return upright after movement.");
+if (!actorReturnsUpright(actorKind("npc", "npc-trainer"))) throw new Error("NPC Trainers should return upright after movement.");
+if (!actorReturnsUpright(actorKind("npc", "deployed"))) throw new Error("Deployed Pokémon should return upright after movement.");
+if (actorReturnsUpright(actorKind("npc"))) throw new Error("Unrelated NPCs should retain their movement rotation.");
 
 const trainerToken = { center: { x: 50, y: 50 }, document: { x: 0, y: 0 }, w: 100, h: 100 };
 canvas.tokens.placeables = [trainerToken];
@@ -78,7 +84,7 @@ if (scene.tokenDeletionCalls !== 1) throw new Error(`Expected one token deletion
 if (actorDeletionCalls !== 1) throw new Error(`Expected one actor deletion, got ${actorDeletionCalls}.`);
 if (actors.has(actor.id)) throw new Error("The deployed actor still exists after recall.");
 
-const trainer = { isOwner: true };
+const trainer = { isOwner: true, name: "Ash" };
 const faintedInstance = { hp: { value: 4, max: 12 } };
 const pokemonItem = {
   name: "Pikachu",
@@ -89,6 +95,7 @@ const pokemonItem = {
     Object.assign(faintedInstance, value);
   }
 };
+if (deploymentActorName(pokemonItem) !== "Pikachu [Ash]") throw new Error("The deployed actor name does not include its Trainer.");
 const faintedActor = {
   id: "fainted-pokemon",
   system: { attributes: { hp: { value: 0, max: 12 } } },

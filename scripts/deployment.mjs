@@ -31,14 +31,14 @@ const deploymentCleanup = new Map();
 const uprightMovements = new Map();
 
 /**
- * Devuelve a la vertical los tokens Pokémon que Foundry rota al moverlos,
+ * Devuelve a la vertical los tokens Pokémon y Entrenadores que Foundry rota al moverlos,
  * esperando a que termine la animación y descartando el ajuste si entretanto ha
  * empezado otro movimiento (marcador en uprightMovements).
  * La llama el hook `init` de main.mjs.
  */
 export function registerPokemonTokenMovement() {
   Hooks.on("moveToken", (token, movement, operation, user) => {
-    if (user?.id !== game.user.id || !["deployed", "wild"].includes(token.actor?.getFlag(MODULE_ID, "kind"))) return;
+    if (user?.id !== game.user.id || !actorReturnsUpright(token.actor)) return;
     const marker = foundry.utils.randomID();
     uprightMovements.set(token.uuid, marker);
     Promise.resolve().then(async () => {
@@ -54,6 +54,13 @@ export function registerPokemonTokenMovement() {
   });
 }
 
+/** Incluye Pokémon desplegados/salvajes y Entrenadores jugadores o NPC del módulo. */
+export function actorReturnsUpright(actor) {
+  if (!actor) return false;
+  const kind = actor.getFlag?.(MODULE_ID, "kind");
+  return actor.type === "character" || ["deployed", "wild", "npc-trainer"].includes(kind);
+}
+
 function localize(key, fallback) { return globalThis.game?.i18n?.localize?.(key) ?? fallback; }
 function localizeFormat(key, data, fallback) { return globalThis.game?.i18n?.format?.(key, data) ?? fallback; }
 
@@ -65,6 +72,13 @@ function localizeFormat(key, data, fallback) { return globalThis.game?.i18n?.for
  */
 export function deployedActorFor(pokemonItem) {
   return game.actors.find(actor => actor.getFlag(MODULE_ID, "kind") === "deployed" && actor.getFlag(MODULE_ID, "pokemonItemUuid") === pokemonItem.uuid);
+}
+
+/** Nombre del actor temporal: identifica al Pokémon y al Entrenador al que pertenece. */
+export function deploymentActorName(pokemonItem) {
+  const pokemonName = displayPokemonName(pokemonItem);
+  const trainerName = String(pokemonItem?.parent?.name ?? "").trim();
+  return trainerName ? `${pokemonName} [${trainerName}]` : pokemonName;
 }
 
 /**
@@ -83,6 +97,7 @@ export async function deployPokemon(pokemonItem) {
   const trainerToken = trainerTokenFor(trainer);
   if (!trainerToken) return ui.notifications.warn(localize("POKE5E.Deployment.PlaceTrainer", "Coloca el token del entrenador en la escena antes de sacar un Pokémon."));
   let actor = deployedActorFor(pokemonItem);
+  if (actor) await syncPokemonIdentityToDeployment(pokemonItem);
   const deployedToken = actor ? deployedTokenFor(actor) : null;
   if (deployedToken) {
     if (deployedToken.parent?.id !== canvas.scene.id) return ui.notifications.warn(localizeFormat("POKE5E.Deployment.OtherScene", { pokemon: displayPokemonName(pokemonItem) }, `${displayPokemonName(pokemonItem)} ya está desplegado en otra escena.`));
@@ -284,7 +299,7 @@ export async function syncPokemonIdentityToDeployment(item) {
   const actor = deployedActorFor(item);
   if (!actor) return;
   const name = displayPokemonName(item);
-  const actorName = `${name} [En combate]`;
+  const actorName = deploymentActorName(item);
   const updates = {};
   if (actor.name !== actorName) updates.name = actorName;
   if (actor.prototypeToken.name !== name) updates["prototypeToken.name"] = name;
@@ -533,7 +548,7 @@ async function deployedActorSource(pokemonItem) {
   } : null;
   const statusEffects = (instance.conditions ?? []).map(id => pokemonStatusEffectSource(id)).filter(Boolean);
   return {
-    name: `${displayPokemonName(pokemonItem)} [En combate]`,
+    name: deploymentActorName(pokemonItem),
     type: "npc",
     img: portraitUrl(species, instance.shiny),
     ownership: foundry.utils.deepClone(trainer.ownership),
