@@ -1,7 +1,7 @@
 {
   "name": "poke5e-foundry",
   "private": true,
-  "version": "1.8.3",
+  "version": "1.8.4",
   "type": "module",
   "scripts": {
     "precheck": "node --check scripts/pokemon-advancement.mjs && node scripts/validate-localization.mjs && node scripts/validate-economy.mjs",
