@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { NPC_ARCHETYPES, filterNpcTrainerSpecies, generateNpcTrainerTeam, npcTrainerAbilities, npcTrainerHitPoints, npcTrainerSprite, randomNpcTrainerName, resolveNpcTrainerGender, trainerControlSr } from "./npc-trainer-rules.mjs";
+import { NPC_ARCHETYPES, NPC_FIRST_NAMES, filterNpcTrainerSpecies, generateNpcTrainerTeam, npcTrainerAbilities, npcTrainerHitPoints, npcTrainerSprite, randomNpcTrainerName, resolveNpcTrainerGender, trainerControlSr } from "./npc-trainer-rules.mjs";
 import { SKILLS } from "./trainer-creation-data.mjs";
 
 const pokemon = JSON.parse(fs.readFileSync(new URL("../data/pokemon.json", import.meta.url))).items;
@@ -76,9 +76,13 @@ assert.equal(resolveNpcTrainerGender("Femenino"), "female");
 assert.equal(resolveNpcTrainerGender("male"), "male");
 assert.equal(resolveNpcTrainerGender("random", () => 0.25), "female");
 assert.equal(resolveNpcTrainerGender("random", () => 0.75), "male");
+for (const gender of ["female", "male"]) {
+  assert.ok(NPC_FIRST_NAMES[gender].length >= 70, `${gender} must provide at least 70 random names.`);
+  assert.equal(new Set(NPC_FIRST_NAMES[gender]).size, NPC_FIRST_NAMES[gender].length, `${gender} names must be unique.`);
+}
 assert.equal(randomNpcTrainerName({ name: "Recluta", quantity: 3 }, () => 0, 1), "Recluta 2");
 assert.equal(randomNpcTrainerName({ useTitle: false }, () => 0), "Aina");
 assert.equal(randomNpcTrainerName({ useTitle: false, gender: "female" }, () => 0), "Aina");
-assert.equal(randomNpcTrainerName({ useTitle: false, gender: "male" }, () => 0), "Bruno");
+assert.equal(randomNpcTrainerName({ useTitle: false, gender: "male" }, () => 0), "Adrián");
 
 console.log("NPC Trainer generation validation passed.");

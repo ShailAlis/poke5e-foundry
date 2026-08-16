@@ -5,7 +5,7 @@
  * iniciales estén disponibles al nivel 1 y los de cada tramo, en su nivel.
  */
 import fs from "node:fs";
-import { MAX_KNOWN_MOVES, applyLearnedMove, moveEligibility, moveMachine } from "./move-learning.mjs";
+import { MAX_KNOWN_MOVES, applyLearnedMove, filterMoveCatalog, moveEligibility, moveMachine } from "./move-learning.mjs";
 
 const pokemon = JSON.parse(fs.readFileSync(new URL("../data/pokemon.json", import.meta.url))).items;
 const moves = JSON.parse(fs.readFileSync(new URL("../data/moves.json", import.meta.url))).moves;
@@ -48,5 +48,27 @@ const withoutMachine = moveEligibility(machineCase.species, machineCase.move, 20
 if (withoutMachine.availableNow || !withoutMachine.requiresMachine) throw new Error(`${machineCase.move.id}: una MT ausente no debe aparecer como disponible.`);
 const withMachine = moveEligibility(machineCase.species, machineCase.move, 20, { machineIds: new Set([machine.key]) });
 if (!withMachine.availableNow || withMachine.requiresMachine) throw new Error(`${machineCase.move.id}: la MT del inventario no habilita el movimiento.`);
+
+const machineAndEggCase = pokemon.flatMap(species => (species.moves?.tm ?? []).map(machineId => ({ species, machineId })))
+  .map(entry => ({ ...entry, move: moves.find(move => String(move.tm?.id) === String(entry.machineId)) }))
+  .find(({ species, move }) => move
+    && (species.moves?.egg ?? []).includes(move.id)
+    && !Object.entries(species.moves ?? {}).some(([key, ids]) => !["tm", "hm", "egg"].includes(key) && (ids ?? []).includes(move.id)));
+if (!machineAndEggCase) throw new Error("No se encontró un caso compartido entre MT y movimiento de huevo para validar.");
+const sharedMachine = moveMachine(machineAndEggCase.move);
+const sharedWithoutMachine = moveEligibility(machineAndEggCase.species, machineAndEggCase.move, 20);
+if (sharedWithoutMachine.availableNow || !sharedWithoutMachine.requiresMachine) {
+  throw new Error(`${machineAndEggCase.move.id}: la vía de huevo no debe eludir la MT ausente.`);
+}
+if (filterMoveCatalog([machineAndEggCase.move], machineAndEggCase.species, 20, new Set(), { category: "available" }).length) {
+  throw new Error(`${machineAndEggCase.move.id}: una MT ausente no debe aparecer en la lista de disponibles.`);
+}
+const sharedWithMachine = moveEligibility(machineAndEggCase.species, machineAndEggCase.move, 20, { machineIds: new Set([sharedMachine.key]) });
+if (!sharedWithMachine.availableNow || sharedWithMachine.requiresMachine) {
+  throw new Error(`${machineAndEggCase.move.id}: la MT poseída no habilita el movimiento compartido con huevo.`);
+}
+if (filterMoveCatalog([machineAndEggCase.move], machineAndEggCase.species, 20, new Set(), { category: "available", machineIds: new Set([sharedMachine.key]) }).length !== 1) {
+  throw new Error(`${machineAndEggCase.move.id}: una MT poseída debe aparecer en la lista de disponibles.`);
+}
 
 console.log(`Validated move learning for ${pokemon.length} Pokémon and ${moves.length} moves.`);

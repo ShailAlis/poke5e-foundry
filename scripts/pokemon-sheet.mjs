@@ -1093,8 +1093,10 @@ function trainerMoveMachineIds(actor) {
   if (actor?.type !== "character") return result;
   for (const item of actor.items ?? []) {
     if (Number(item.system?.quantity ?? 1) <= 0) continue;
+    if (item.getFlag?.(MODULE_ID, "kind") !== "move-machine") continue;
     const machine = item.getFlag?.(MODULE_ID, "machine");
-    if (machine?.kind && machine.id != null) result.add(`${machine.kind}:${machine.id}`);
+    const kind = String(machine?.kind ?? "").toLocaleLowerCase();
+    if (["tm", "hm"].includes(kind) && machine.id != null && machine.moveId) result.add(`${kind}:${machine.id}`);
   }
   return result;
 }

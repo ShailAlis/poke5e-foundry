@@ -60,7 +60,12 @@ export function moveEligibility(species, move, level = 1, { machineIds = new Set
   if (viaMachine) methods.push({ id: machine.kind, label: `${machine.label} ${machine.id}${machineOwned ? "" : " · no disponible"}`, available: machineOwned });
   if (viaEgg) methods.push({ id: "egg", label: "Huevo" });
   const compatible = methods.length > 0;
-  const availableNow = machineOwned || viaEgg || (requiredLevel != null && Number(level) >= requiredLevel);
+  const availableByLevel = requiredLevel != null && Number(level) >= requiredLevel;
+  // Un movimiento listado también como MT/MO no se desbloquea gratuitamente
+  // por aparecer en la lista de huevo de la especie. La vía natural por nivel
+  // sí sigue siendo suficiente cuando ya se ha alcanzado dicho nivel.
+  const availableByEgg = viaEgg && !viaMachine;
+  const availableNow = availableByLevel || machineOwned || availableByEgg;
   return {
     availableNow,
     compatible,

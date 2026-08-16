@@ -152,10 +152,26 @@ export function trainerControlSr(trainerLevel, path = "none") {
 }
 
 /** Nombres de pila separados por el mismo género que decide el sprite. */
-const FIRST_NAMES = {
-  female: ["Aina", "Alba", "Celia", "Elena", "Hana", "Iris", "Lara", "Mara", "Rina", "Vera", "Zoe"],
-  male: ["Bruno", "Gael", "Hugo", "Iván", "Joel", "Leo", "Marcos", "Nico", "Omar", "Pablo", "Saúl"]
-};
+export const NPC_FIRST_NAMES = Object.freeze({
+  female: Object.freeze([
+    "Aina", "Alba", "Alicia", "Amanda", "Ana", "Andrea", "Ángela", "Ariadna", "Beatriz", "Blanca",
+    "Carla", "Carmen", "Celia", "Claudia", "Daniela", "Elena", "Elisa", "Eva", "Gabriela", "Hana",
+    "Irene", "Iris", "Isabel", "Inés", "Julia", "Laura", "Lara", "Lucía", "Marina", "Mara",
+    "Marta", "Natalia", "Noelia", "Nuria", "Olivia", "Paula", "Raquel", "Rebeca", "Rina", "Rocío",
+    "Sara", "Silvia", "Sofía", "Sonia", "Teresa", "Valeria", "Vega", "Vera", "Victoria", "Zoe",
+    "Adriana", "Alejandra", "Aurora", "Bárbara", "Belén", "Cristina", "Diana", "Estela", "Fátima", "Gloria",
+    "Jimena", "Leire", "Lorena", "Macarena", "Mónica", "Nerea", "Paloma", "Patricia", "Susana", "Triana"
+  ]),
+  male: Object.freeze([
+    "Adrián", "Alberto", "Alejandro", "Álvaro", "Andrés", "Antonio", "Bruno", "Carlos", "César", "Daniel",
+    "David", "Diego", "Eduardo", "Emilio", "Enrique", "Fernando", "Francisco", "Gael", "Gonzalo", "Guillermo",
+    "Héctor", "Hugo", "Ignacio", "Iván", "Javier", "Joel", "Jorge", "José", "Juan", "Leo",
+    "Lucas", "Manuel", "Marcos", "Mario", "Martín", "Mateo", "Miguel", "Nico", "Omar", "Pablo",
+    "Pedro", "Rafael", "Raúl", "Rubén", "Saúl", "Sergio", "Simón", "Tomás", "Víctor", "Yuri",
+    "Abel", "Agustín", "Aitor", "Borja", "Cristian", "Damián", "Eric", "Esteban", "Fabián", "Felipe",
+    "Ismael", "Jaime", "Joaquín", "Lorenzo", "Luis", "Mauricio", "Rodrigo", "Samuel", "Santiago", "Vicente"
+  ])
+});
 
 /**
  * Filtra el catálogo para el generador de NPC: listas de inclusión y exclusión,
@@ -280,7 +296,7 @@ export function randomNpcTrainerName(options = {}, random = Math.random, index =
   if (custom) return Number(options.quantity) > 1 ? `${custom} ${index + 1}` : custom;
   const title = options.useTitle === false ? "" : `${NPC_ARCHETYPES[options.archetype]?.name ?? "Entrenador"} `;
   const gender = resolveNpcTrainerGender(options.gender, random);
-  return `${title}${pick(FIRST_NAMES[gender], random)}`;
+  return `${title}${pick(NPC_FIRST_NAMES[gender], random)}`;
 }
 
 /**
