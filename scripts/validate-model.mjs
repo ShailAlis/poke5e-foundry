@@ -77,8 +77,10 @@ if (trainerFeatures.some(source => source.system.type?.value !== "class" || sour
 const featureUuids = new Map(trainerFeatures.map((source, index) => [source.flags[MODULE_ID].sourceId, `Compendium.world.poke5e-progression.Item.feature${index}`]));
 const trainerClass = trainerClassSource(featureUuids);
 if (trainerClass.type !== "class" || trainerClass.system.identifier !== "trainer") throw new Error("Invalid Trainer class source.");
+if (!trainerClass.img.includes("transparent_poke_ball")) throw new Error("Trainer class has no custom icon.");
 if (trainerClass.system.hd.denomination !== "d6") throw new Error("Invalid Trainer hit die.");
-if (Object.values(trainerClass.system.advancement).some(entry => entry._id.length !== 16)) throw new Error("Trainer advancement IDs must be 16 characters.");
+if (Array.isArray(trainerClass.system.advancement)) throw new Error("Trainer advancements must use the D&D 5e 5.3 mapping schema.");
+if (Object.entries(trainerClass.system.advancement).some(([id, entry]) => id !== entry._id || entry._id.length !== 16)) throw new Error("Trainer advancement IDs must be valid mapping keys.");
 if (!Object.values(trainerClass.system.advancement).some(entry => entry.type === "HitPoints")) throw new Error("Trainer class has no Hit Points advancement.");
 if (!Object.values(trainerClass.system.advancement).some(entry => entry.type === "Trait" && entry.configuration.grants.includes("saves:cha"))) throw new Error("Trainer class has no proficiency advancement.");
 if (!Object.values(trainerClass.system.advancement).some(entry => entry.type === "Trait" && entry.level === 10 && entry.configuration.grants.includes("conditionImmunities:frightened"))) throw new Error("Trainer class has no Resolve advancement.");

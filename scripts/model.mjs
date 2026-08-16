@@ -15,6 +15,7 @@ import { experienceAtLevel } from "./progression.mjs";
 export const MODULE_ID = "poke5e-foundry";
 export const MODULE_PATH = `modules/${MODULE_ID}`;
 export const POKEMON_TOKEN_SCALE = 1.65;
+export const TRAINER_CLASS_ICON = `${MODULE_PATH}/assets/transparent_poke_ball_by_ace_zeroartic_df7u62z-fullview.png`;
 
 /**
  * Compendios de mundo que crea importer.mjs. getPack() los resuelve por esta
@@ -205,7 +206,7 @@ export function trainerClassSource(featureUuids = new Map()) {
         }],
         mode: "default"
       },
-      value: {}
+      value: { chosen: [] }
     },
     P5eResolve000010: {
       _id: "P5eResolve000010",
@@ -218,7 +219,7 @@ export function trainerClassSource(featureUuids = new Map()) {
         choices: [{ count: 1, pool: ["saves:str", "saves:dex", "saves:con", "saves:int", "saves:wis"] }],
         mode: "default"
       },
-      value: {}
+      value: { chosen: [] }
     },
     P5eExpertise0013: {
       _id: "P5eExpertise0013",
@@ -231,7 +232,7 @@ export function trainerClassSource(featureUuids = new Map()) {
         choices: [],
         mode: "expertise"
       },
-      value: {}
+      value: { chosen: [] }
     }
   };
   const byLevel = groupFeaturesByLevel();
@@ -265,7 +266,7 @@ export function trainerClassSource(featureUuids = new Map()) {
   return {
     name: "Entrenador",
     type: "class",
-    img: "icons/svg/people.svg",
+    img: TRAINER_CLASS_ICON,
     system: {
       description: { value: trainerClassDescription(), chat: "" },
       identifier: "trainer",

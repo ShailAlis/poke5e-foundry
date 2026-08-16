@@ -12,7 +12,7 @@ import { Poke5eReference } from "./reference.mjs";
 import { Poke5eTrainerTeam } from "./trainer-team.mjs";
 import { MODULE_ID, displayAssetUrl, getPokemonItems, normalizeDroppedSpecies, randomGenderForRatio, trainerPokeslotLimit } from "./model.mjs";
 import { cleanDeploymentActor, recallPokemon, registerPokemonTokenMovement, syncDeploymentHp, syncPokemonHeldItemToDeployment, syncPokemonHpToDeployment } from "./deployment.mjs";
-import { migrateTrainerFeatureGroups, registerTrainerActorSheet } from "./trainer-actor-sheet.mjs";
+import { migrateTrainerClassAdvancements, migrateTrainerFeatureGroups, registerTrainerActorSheet } from "./trainer-actor-sheet.mjs";
 import { migratePokemonActorSheets, registerPokemonActorSheet } from "./pokemon-actor-sheet.mjs";
 import { damageTraitsForPokemonTypes, registerPokemonDamageTypes } from "./combat.mjs";
 import { Poke5eEncounterBuilder } from "./encounter-builder.mjs";
@@ -124,6 +124,7 @@ Hooks.once("ready", async () => {
     migrateEmbeddedAssetUrls().catch(error => console.error(`${MODULE_ID} | Asset migration failed`, error));
     migratePokemonCombatData().catch(error => console.error(`${MODULE_ID} | Combat data migration failed`, error));
     migrateTrainerFeatureGroups().catch(error => console.error(`${MODULE_ID} | Trainer feature grouping migration failed`, error));
+    migrateTrainerClassAdvancements().catch(error => console.error(`${MODULE_ID} | Trainer advancement migration failed`, error));
   }
 });
 

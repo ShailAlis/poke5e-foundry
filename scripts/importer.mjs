@@ -23,6 +23,7 @@ import {
   trainerFeatureSources,
   trainerClassSource
 } from "./model.mjs";
+import { migrateTrainerClassAdvancements } from "./trainer-actor-sheet.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 const CompendiumCollection = foundry.documents.collections.CompendiumCollection;
@@ -126,6 +127,7 @@ export class Poke5eImporter extends HandlebarsApplicationMixin(ApplicationV2) {
         itemCount += await upsertPackItems(pack, features, status, 90, 95);
         const featureUuids = await progressionFeatureUuids(pack);
         itemCount += await upsertPackItems(pack, [trainerClassSource(featureUuids)], status, 96, 98);
+        await migrateTrainerClassAdvancements();
       }
       if (options.reference) await upsertReferenceJournal();
 

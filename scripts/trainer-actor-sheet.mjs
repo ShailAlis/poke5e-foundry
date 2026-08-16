@@ -7,7 +7,7 @@
  * registerTrainerActorSheet()) y ofrece las mismas acciones que la ventana de
  * trainer-team.mjs. Su plantilla es `templates/trainer-sheet-team.hbs`.
  */
-import { MODULE_ID, MODULE_PATH, displayAssetUrl, displayPokemonName, getPokemonItems, trainerPokeslotLimit } from "./model.mjs";
+import { MODULE_ID, MODULE_PATH, displayAssetUrl, displayPokemonName, getPack, getPokemonItems, trainerClassSource, trainerPokeslotLimit } from "./model.mjs";
 import { Poke5ePokemonSheet } from "./pokemon-sheet.mjs";
 import { Poke5eSpeciesBrowser } from "./species-browser.mjs";
 import { deployPokemon, deployedActorFor, recallPokemon } from "./deployment.mjs";
@@ -213,6 +213,66 @@ export async function migrateTrainerFeatureGroups() {
     }));
     if (updates.length) await actor.updateEmbeddedDocuments("Item", updates);
   }
+}
+
+/**
+ * Sincroniza la progresiÃ³n canÃ³nica con las clases Entrenador antiguas. Actualiza
+ * primero la copia maestra del compendio y despuÃ©s las clases ya embebidas en PJ,
+ * que Foundry mantiene como copias independientes y no actualiza por sÃ­ solo.
+ * Conserva los avances existentes, sus elecciones y cualquier avance
+ * personalizado; solo incorpora las entradas canÃ³nicas que falten.
+ */
+export async function migrateTrainerClassAdvancements() {
+  if (!game.user.isGM) return;
+  const pack = getPack("progression");
+  if (!pack) return;
+  const index = await pack.getIndex({ fields: [`flags.${MODULE_ID}.sourceId`, `flags.${MODULE_ID}.kind`] });
+  const featureUuids = new Map();
+  let trainerClassId = null;
+  for (const entry of index.values()) {
+    const kind = foundry.utils.getProperty(entry, `flags.${MODULE_ID}.kind`);
+    const sourceId = foundry.utils.getProperty(entry, `flags.${MODULE_ID}.sourceId`);
+    if (kind === "trainer-feature" && sourceId) featureUuids.set(sourceId, `Compendium.${pack.collection}.Item.${entry._id}`);
+    if (kind === "trainer-class" && sourceId === "trainer-class") trainerClassId = entry._id;
+  }
+  const expected = trainerClassSource(featureUuids);
+  if (trainerClassId && !pack.locked) {
+    const document = await pack.getDocument(trainerClassId);
+    await updateTrainerClassAdvancements(document, expected.system.advancement, expected.img);
+  }
+  for (const actor of game.actors.filter(entry => entry.type === "character")) {
+    for (const item of actor.itemTypes.class ?? []) {
+      const kind = String(item.getFlag(MODULE_ID, "kind") ?? "");
+      if (kind === "npc-trainer-class" || (item.system.identifier !== "trainer" && !kind.includes("trainer-class"))) continue;
+      const omitLevelOneGrant = kind === "trainer-creation-class";
+      const advancements = omitLevelOneGrant
+        ? Object.fromEntries(Object.entries(expected.system.advancement).filter(([, entry]) => !(entry.type === "ItemGrant" && entry.level === 1)))
+        : expected.system.advancement;
+      await updateTrainerClassAdvancements(item, advancements, expected.img);
+    }
+  }
+}
+
+/** Mezcla la plantilla corregida con el historial y los avances personalizados. */
+async function updateTrainerClassAdvancements(item, expected, icon) {
+  if (!item) return;
+  const stored = item._source?.system?.advancement ?? item.system?.advancement ?? [];
+  const current = Array.isArray(stored) ? stored : Object.values(stored ?? {});
+  const expectedEntries = Array.isArray(expected) ? expected : Object.values(expected ?? {});
+  const byId = new Map(current.filter(entry => entry?._id).map(entry => [entry._id, entry]));
+  const expectedIds = new Set(expectedEntries.map(entry => entry._id));
+  const mergedEntries = expectedEntries.map(entry => {
+    const existing = byId.get(entry._id);
+    return foundry.utils.deepClone(existing ?? entry);
+  });
+  mergedEntries.push(...current.filter(entry => entry?._id && !expectedIds.has(entry._id)).map(entry => foundry.utils.deepClone(entry)));
+  const merged = Object.fromEntries(mergedEntries.map(entry => [entry._id, entry]));
+  const currentMapping = Object.fromEntries(current.filter(entry => entry?._id).map(entry => [entry._id, entry]));
+  const update = {};
+  if (JSON.stringify(currentMapping) !== JSON.stringify(merged)) update["system.advancement"] = merged;
+  if (item._source?.system?.hd?.denomination !== "d6") update["system.hd.denomination"] = "d6";
+  if (item.img !== icon) update.img = icon;
+  if (Object.keys(update).length) await item.update(update);
 }
 
 function isTrainerClassFeature(item) {
