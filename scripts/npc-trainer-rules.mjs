@@ -84,10 +84,11 @@ export const NPC_ARCHETYPES = Object.fromEntries([
 export const NPC_DEFAULT_ARCHETYPE = "ace-trainer";
 
 /** Ruta del sprite de arquetipo segÃºn el gÃ©nero ya resuelto. */
-export function npcTrainerSprite(archetypeId, gender) {
+export function npcTrainerSprite(archetypeId, gender, variant = "tokens") {
   const archetype = NPC_ARCHETYPES[archetypeId] ?? NPC_ARCHETYPES[NPC_DEFAULT_ARCHETYPE];
   const symbol = gender === "female" ? "\u2640" : "\u2642";
-  return `${MODULE_PATH}/assets/NPC trainers/${archetype.name} ${symbol}.png`;
+  const directory = variant === "portraits" ? "portraits" : "tokens";
+  return `${MODULE_PATH}/assets/NPC trainers/${directory}/${archetype.name} ${symbol}.png`;
 }
 
 /** Normaliza valores antiguos y resuelve el gÃ©nero aleatorio una sola vez. */
@@ -150,8 +151,11 @@ export function trainerControlSr(trainerLevel, path = "none") {
   return Math.min(15, base + (path === "guru" && lvl >= 2 ? 1 : 0));
 }
 
-/** Nombres de pila para los NPC sin nombre propio. Los usa randomNpcTrainerName(). */
-const FIRST_NAMES = ["Aina", "Alex", "Bruno", "Celia", "Dani", "Elena", "Gael", "Hana", "Iris", "Joel", "Kai", "Lara", "Leo", "Mara", "Nico", "Noa", "Omar", "Rina", "Saúl", "Vera", "Yuri", "Zoe"];
+/** Nombres de pila separados por el mismo género que decide el sprite. */
+const FIRST_NAMES = {
+  female: ["Aina", "Alba", "Celia", "Elena", "Hana", "Iris", "Lara", "Mara", "Rina", "Vera", "Zoe"],
+  male: ["Bruno", "Gael", "Hugo", "Iván", "Joel", "Leo", "Marcos", "Nico", "Omar", "Pablo", "Saúl"]
+};
 
 /**
  * Filtra el catálogo para el generador de NPC: listas de inclusión y exclusión,
@@ -275,7 +279,8 @@ export function randomNpcTrainerName(options = {}, random = Math.random, index =
   const custom = String(options.name ?? "").trim();
   if (custom) return Number(options.quantity) > 1 ? `${custom} ${index + 1}` : custom;
   const title = options.useTitle === false ? "" : `${NPC_ARCHETYPES[options.archetype]?.name ?? "Entrenador"} `;
-  return `${title}${pick(FIRST_NAMES, random)}`;
+  const gender = resolveNpcTrainerGender(options.gender, random);
+  return `${title}${pick(FIRST_NAMES[gender], random)}`;
 }
 
 /**

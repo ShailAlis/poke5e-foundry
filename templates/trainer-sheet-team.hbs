@@ -14,6 +14,34 @@
     </div>
   </header>
 
+  {{#if pokemon.trainerProgression}}
+    <section class="poke5e-trainer-progression">
+      <div class="poke5e-trainer-progression-heading">
+        <i class="fa-solid fa-graduation-cap"></i>
+        <div>
+          <strong>{{localize "POKE5E.TrainerProgression.Title"}}</strong>
+          <small>{{localize "POKE5E.TrainerProgression.LevelSummary" level=pokemon.trainerProgression.currentLevel xp=pokemon.trainerProgression.total}}</small>
+        </div>
+      </div>
+      <div class="poke5e-trainer-progression-bar">
+        <progress min="0" max="100" value="{{pokemon.trainerProgression.percent}}"></progress>
+        {{#if pokemon.trainerProgression.maximumLevel}}
+          <small>{{localize "POKE5E.TrainerProgression.MaximumLevel"}}</small>
+        {{else if pokemon.trainerProgression.pendingLevels}}
+          <small>{{localize "POKE5E.TrainerProgression.Ready" level=pokemon.trainerProgression.targetLevel}}</small>
+        {{else}}
+          <small>{{localize "POKE5E.Common.XPToLevel" xp=pokemon.trainerProgression.remaining level=pokemon.trainerProgression.nextLevel}}</small>
+        {{/if}}
+      </div>
+      {{#if pokemon.canEdit}}
+        <div class="poke5e-trainer-progression-actions">
+          <button type="button" data-action="addTrainerExperience"><i class="fa-solid fa-plus"></i> {{localize "POKE5E.TrainerProgression.AddXP"}}</button>
+          <button type="button" class="bright" data-action="advanceTrainerClass" {{#unless pokemon.trainerProgression.canAdvance}}disabled{{/unless}}><i class="fa-solid fa-arrow-up"></i> {{localize "POKE5E.TrainerProgression.Advance"}}</button>
+        </div>
+      {{/if}}
+    </section>
+  {{/if}}
+
   <section class="poke5e-currency-panel">
     <i class="fa-solid fa-coins"></i>
     <label><span>{{localize "POKE5E.Currency.Name"}}</span><input type="number" min="0" step="1" value="{{pokemon.pokedollars}}" data-poke5e-pokedollars {{#unless pokemon.canEdit}}disabled{{/unless}}></label>

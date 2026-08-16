@@ -14,6 +14,7 @@ import { deployPokemon, deployedActorFor, recallPokemon } from "./deployment.mjs
 import { attemptCapture } from "./capture.mjs";
 import { experienceProgress } from "./progression.mjs";
 import { adaptTrainerCurrencyFields, pokedollars, updatePokedollars } from "./economy.mjs";
+import { advanceTrainerClassFromExperience, trainerProgressionForActor } from "./trainer-progression.mjs";
 
 const CharacterActorSheet = dnd5e.applications.actor.CharacterActorSheet;
 
@@ -28,6 +29,8 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
     position: { width: 900, height: 1000 },
     actions: {
       browsePokemon: Poke5eTrainerActorSheet.#browsePokemon,
+      addTrainerExperience: Poke5eTrainerActorSheet.#addTrainerExperience,
+      advanceTrainerClass: Poke5eTrainerActorSheet.#advanceTrainerClass,
       capturePokemon: Poke5eTrainerActorSheet.#capturePokemon,
       deployPokemon: Poke5eTrainerActorSheet.#deployPokemon,
       openPokemon: Poke5eTrainerActorSheet.#openPokemon,
@@ -70,6 +73,7 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
         allCount: all.length,
         canEdit: this.actor.isOwner,
         pokedollars: pokedollars(this.actor),
+        trainerProgression: trainerProgressionForActor(this.actor),
         maxTeamSize,
         reserve: [...all.filter(entry => !entry.instance.inTeam), ...active.slice(maxTeamSize).map(entry => ({ ...entry, overflow: true }))],
         slots: Array.from({ length: maxTeamSize }, (_, index) => team[index]
@@ -182,6 +186,22 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
     if (!item) return;
     await recallPokemon(item);
     sheet.render({ force: true });
+  }
+
+  /** Suma PX al actor; el hook de progresión abrirá el avance si alcanza nivel. */
+  static async #addTrainerExperience(event, target) {
+    const sheet = this;
+    if (!sheet.actor.isOwner) return;
+    const amount = await promptTrainerExperience();
+    if (!amount) return;
+    const current = Math.max(0, Math.trunc(Number(sheet.actor.system.details?.xp?.value) || 0));
+    await sheet.actor.update({ "system.details.xp.value": current + amount });
+    sheet.render({ force: true });
+  }
+
+  /** Abre manualmente los avances de clase pendientes según la XP actual. */
+  static async #advanceTrainerClass(event, target) {
+    await advanceTrainerClassFromExperience(this.actor, { sheet: this });
   }
 }
 
@@ -308,4 +328,26 @@ function preparePokemon(item) {
     hpPercent: Math.max(0, Math.min(100, Math.round((hpValue / hpMax) * 100))),
     experience
   };
+}
+
+/** Pide una cantidad positiva de PX para sumarla al Entrenador. */
+async function promptTrainerExperience() {
+  try {
+    return await foundry.applications.api.DialogV2.prompt({
+      window: { title: game.i18n.localize("POKE5E.TrainerProgression.AddDialogTitle") },
+      content: `<div class="poke5e-experience-dialog">
+        <p>${game.i18n.localize("POKE5E.TrainerProgression.AddDialogHint")}</p>
+        <label><span>${game.i18n.localize("POKE5E.TrainerProgression.Amount")}</span><input type="number" name="amount" min="1" step="1" value="100" autofocus></label>
+      </div>`,
+      modal: true,
+      rejectClose: false,
+      ok: {
+        label: game.i18n.localize("POKE5E.TrainerProgression.AddXP"),
+        icon: "fa-solid fa-plus",
+        callback: (event, button) => Math.max(0, Math.trunc(Number(button.form.elements.amount.value) || 0))
+      }
+    });
+  } catch {
+    return 0;
+  }
 }

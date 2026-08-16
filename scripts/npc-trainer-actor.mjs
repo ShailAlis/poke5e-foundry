@@ -36,9 +36,11 @@ export async function createNpcTrainerActor(config, team, data, index = 0) {
   const abilities = applyOriginAndSpecialization(npcTrainerAbilities(config.archetype, config.difficulty), origin, specialization, config.archetype);
   const skillRanks = npcSkillRanks(config.archetype, origin, specialization);
   const hp = npcTrainerHitPoints(level, abilities.con, config.difficulty);
-  const name = randomNpcTrainerName(config, Math.random, index);
   const gender = resolveNpcTrainerGender(config.gender);
-  const icon = String(config.image ?? "").trim() || npcTrainerSprite(config.archetype, gender);
+  const name = randomNpcTrainerName({ ...config, gender }, Math.random, index);
+  const customImage = String(config.image ?? "").trim();
+  const portrait = customImage || npcTrainerSprite(config.archetype, gender, "portraits");
+  const tokenImage = customImage || npcTrainerSprite(config.archetype, gender, "tokens");
   const classItem = trainerClassSource();
   classItem.system.levels = level;
   classItem.system.advancement = {};
@@ -53,13 +55,13 @@ export async function createNpcTrainerActor(config, team, data, index = 0) {
   const source = {
     name,
     type: "character",
-    img: icon,
+    img: portrait,
     folder: config.folderId || null,
     ownership: { default: Number(config.ownership) || 0 },
     prototypeToken: {
       name, actorLink: true, disposition: Number(config.disposition) || 0,
       displayName: finiteNumber(config.displayName, 20), displayBars: finiteNumber(config.displayBars, 20),
-      bar1: { attribute: "attributes.hp" }, texture: { src: icon }, width: 1, height: 1,
+      bar1: { attribute: "attributes.hp" }, texture: { src: tokenImage }, width: 1, height: 1,
       sight: { enabled: Boolean(config.tokenVision), range: Number(config.visionRange) || 0 }
     },
     system: {

@@ -50,8 +50,12 @@ assert.ok(abilities.int > abilities.str);
 assert.equal(Object.keys(NPC_ARCHETYPES).length, 42);
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const spriteDirectory = path.resolve(projectRoot, "assets", "NPC trainers");
-const spriteArchetypeNames = [...new Set(fs.readdirSync(spriteDirectory).map(file => file.replace(/ [\u2640\u2642]\.png$/u, "")))].sort();
-assert.deepEqual(Object.values(NPC_ARCHETYPES).map(entry => entry.name).sort(), spriteArchetypeNames);
+for (const variant of ["portraits", "tokens"]) {
+  const spriteArchetypeNames = [...new Set(fs.readdirSync(path.resolve(spriteDirectory, variant))
+    .filter(file => / [\u2640\u2642]\.png$/u.test(file))
+    .map(file => file.replace(/ [\u2640\u2642]\.png$/u, "")))].sort();
+  assert.deepEqual(Object.values(NPC_ARCHETYPES).map(entry => entry.name).sort(), spriteArchetypeNames);
+}
 for (const [id, archetype] of Object.entries(NPC_ARCHETYPES)) {
   assert.equal(new Set(archetype.abilities).size, 6, `${id} must prioritize all six abilities exactly once.`);
   assert.deepEqual([...archetype.abilities].sort(), ["cha", "con", "dex", "int", "str", "wis"]);
@@ -59,8 +63,10 @@ for (const [id, archetype] of Object.entries(NPC_ARCHETYPES)) {
   assert.equal(new Set(archetype.skills).size, archetype.skills.length, `${id} must not repeat skills.`);
   assert.ok(archetype.skills.every(skill => SKILLS[skill]), `${id} contains an unknown skill.`);
   for (const gender of ["female", "male"]) {
-    const sprite = npcTrainerSprite(id, gender).replace("modules/poke5e-foundry/", "");
-    assert.ok(fs.existsSync(path.resolve(projectRoot, sprite)), `${id} has no ${gender} sprite.`);
+    for (const variant of ["portraits", "tokens"]) {
+      const sprite = npcTrainerSprite(id, gender, variant).replace("modules/poke5e-foundry/", "");
+      assert.ok(fs.existsSync(path.resolve(projectRoot, sprite)), `${id} has no ${gender} ${variant} sprite.`);
+    }
   }
 }
 assert.ok(npcTrainerAbilities("pokemon-ranger", "standard").wis > npcTrainerAbilities("pokemon-ranger", "standard").str);
@@ -72,5 +78,7 @@ assert.equal(resolveNpcTrainerGender("random", () => 0.25), "female");
 assert.equal(resolveNpcTrainerGender("random", () => 0.75), "male");
 assert.equal(randomNpcTrainerName({ name: "Recluta", quantity: 3 }, () => 0, 1), "Recluta 2");
 assert.equal(randomNpcTrainerName({ useTitle: false }, () => 0), "Aina");
+assert.equal(randomNpcTrainerName({ useTitle: false, gender: "female" }, () => 0), "Aina");
+assert.equal(randomNpcTrainerName({ useTitle: false, gender: "male" }, () => 0), "Bruno");
 
 console.log("NPC Trainer generation validation passed.");

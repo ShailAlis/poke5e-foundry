@@ -28,6 +28,7 @@ import { clearPoke5eDataCache, loadPoke5eData } from "./data-service.mjs";
 import { configurePokedollarEconomy } from "./economy.mjs";
 import { synchronizePrimaryParty } from "./primary-party.mjs";
 import { migrateMoveMachineIcons } from "./move-machines.mjs";
+import { registerTrainerExperienceAutomation } from "./trainer-progression.mjs";
 
 /**
  * Arranque temprano: delega el registro de tipos de daño (combat.mjs), fichas
@@ -42,6 +43,7 @@ Hooks.once("init", () => {
   registerTrainerActorSheet();
   registerPokemonActorSheet();
   registerPokemonTokenMovement();
+  registerTrainerExperienceAutomation();
   game.settings.register(MODULE_ID, "darkMode", {
     name: "POKE5E.Settings.DarkMode.Name",
     hint: "POKE5E.Settings.DarkMode.Hint",

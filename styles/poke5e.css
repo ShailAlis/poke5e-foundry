@@ -386,6 +386,14 @@
 .poke5e-sheet-team-header .eyebrow { color: rgba(255, 255, 255, 0.75); }
 .poke5e-sheet-team-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.4rem; }
 .poke5e-sheet-team-actions button { width: auto; margin: 0; white-space: nowrap; }
+.poke5e-trainer-progression { display: grid; grid-template-columns: auto minmax(180px, 1fr) auto; align-items: center; gap: 0.75rem 1rem; padding: 0.7rem 0.8rem; border: 1px solid rgba(61, 125, 184, 0.35); border-radius: 10px; background: rgba(61, 125, 184, 0.09); }
+.poke5e-trainer-progression-heading { display: flex; align-items: center; gap: 0.6rem; }
+.poke5e-trainer-progression-heading > i { color: var(--poke-blue); font-size: 1.35rem; }
+.poke5e-trainer-progression-heading div, .poke5e-trainer-progression-bar { display: grid; gap: 0.18rem; }
+.poke5e-trainer-progression-heading small { white-space: nowrap; }
+.poke5e-trainer-progression-bar progress { width: 100%; accent-color: var(--poke-blue); }
+.poke5e-trainer-progression-actions { display: flex; gap: 0.4rem; }
+.poke5e-trainer-progression-actions button { width: auto; margin: 0; white-space: nowrap; }
 .poke5e-ball.small { width: 54px; height: 54px; }
 .poke5e-sheet-slots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.65rem; margin-top: 0.9rem; }
 .poke5e-sheet-slot {
@@ -762,6 +770,8 @@ body.poke5e-dark-mode .poke5e-contest-compatibility.incompatible { color: #f1b8b
   .poke5e-sheet-team-header { grid-template-columns: 48px 1fr; }
   .poke5e-sheet-team-actions { grid-column: 1 / -1; justify-content: stretch; }
   .poke5e-sheet-team-actions button { flex: 1; }
+  .poke5e-trainer-progression { grid-template-columns: 1fr; }
+  .poke5e-trainer-progression-actions button { flex: 1; }
   .poke5e-sheet-slots { grid-template-columns: 1fr; }
   .poke5e-creator-steps span { font-size: 0; }
   .poke5e-creator-steps b { font-size: 0.72rem; }
