@@ -11,6 +11,7 @@ import {
   evolutionStageCount,
   pokemonAdvancementsBetween
 } from "./progression.mjs";
+import { trainerPathFeatCost } from "./trainer-path-rules.mjs";
 
 const ABILITIES = { str: "FUE", dex: "DES", con: "CON", int: "INT", wis: "SAB", cha: "CAR" };
 
@@ -43,6 +44,7 @@ export async function applyPendingPokemonAdvancements(pokemonItem, data = null) 
   const advancement = pokemonAdvancementsBetween(from, to, { stageCount, speciesRating: species.sr });
   const decision = await promptPokemonAdvancement(pokemonItem, instance, species, advancement, stageCount);
   if (!decision) return false;
+  if (decision.feat) decision.featPoints = trainerPathFeatCost(pokemonItem.parent, decision.feat, decision.featPoints);
 
   const currentAttributes = foundry.utils.deepClone(instance.attributes ?? species.attributes ?? {});
   const abilityResult = applyPokemonAbilityAdvancement(currentAttributes, decision.allocation, advancement, decision.featPoints);
@@ -117,6 +119,7 @@ async function promptPokemonAdvancement(item, instance, species, advancement, st
     <div>${Object.entries(ABILITIES).map(([key, label]) => `<label><span>${label} (${Number(attributes[key]) || 10})</span><input type="number" name="asi-${key}" min="0" max="${advancement.abilityPoints}" step="1" value="0"></label>`).join("")}</div>
     <label><span>Puntos para dote</span><input type="number" name="featPoints" min="0" max="${advancement.featPointLimit}" step="1" value="0"></label>
     <label><span>Dote o nota (opcional)</span><input type="text" name="feat" maxlength="120" placeholder="Nombre de la dote"></label>
+    <p>Poké Mentor reduce Movimiento adicional a 1 punto; Guru reduce Incansable a 1 punto cuando se cumplen sus niveles.</p>
   </fieldset>` : "";
   const features = [
     `${advancement.hitPointLevels} tirada${advancement.hitPointLevels === 1 ? "" : "s"} de ${species.hitDice ?? "d8"} + CON para PG`,

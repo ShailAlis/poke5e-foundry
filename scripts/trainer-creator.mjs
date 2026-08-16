@@ -387,7 +387,9 @@ function specializationSource(rules) {
   const effect = rules.specialization.ability
     ? `Aumenta ${ABILITIES[rules.specialization.ability]} en 1, hasta un máximo de 20.`
     : `Obtienes competencia en ${SKILLS[rules.specialization.skill]}; si ya la tenías, obtienes Pericia.`;
-  return trainerClassFeatureSource(creationItem(`Especialización: ${rules.specialization.name}`, "feat", "specialization", `<p>${effect}</p><p>Los Pokémon de tipo ${titleCase(rules.specialization.type)} obtienen +1 a todas sus pruebas de habilidad.</p>`, "icons/svg/upgrade.svg"));
+  const source = trainerClassFeatureSource(creationItem(`Especialización: ${rules.specialization.name}`, "feat", "specialization", `<p>${effect}</p><p>Los Pokémon de tipo ${titleCase(rules.specialization.type)} obtienen +1 a todas sus pruebas de habilidad.</p>`, "icons/svg/upgrade.svg"));
+  source.flags[MODULE_ID].specializationType = rules.specialization.type;
+  return source;
 }
 
 /**

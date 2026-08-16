@@ -10,6 +10,7 @@
  * trainer-team.mjs y trainer-actor-sheet.mjs.
  */
 import { captureDifficulty, captureHasAdvantage, POKEBALL_IDS } from "./capture-rules.mjs";
+import { hasTrainerPath } from "./trainer-path-rules.mjs";
 import { loadPoke5eData } from "./data-service.mjs";
 import { removeDeployment } from "./deployment.mjs";
 import { MODULE_ID, displayPokemonName, getPokemonItems, trainerLevel, trainerPokeslotLimit } from "./model.mjs";
@@ -103,7 +104,12 @@ export async function attemptCapture(trainer) {
     ballId: ball.sourceId,
     context
   });
-  const advantage = captureHasAdvantage(statuses);
+  let advantage = captureHasAdvantage(statuses);
+  let collectorAdvantage = false;
+  if (!advantage && hasTrainerPath(trainer, "pokemon-collector", 5)) {
+    collectorAdvantage = await useCollectorCaptureAdvantage(trainer, species.name);
+    advantage = collectorAdvantage;
+  }
   let total = Infinity;
   if (!difficulty.automaticSuccess) {
     const modifier = skillModifier(trainer, "ani");
@@ -111,7 +117,7 @@ export async function attemptCapture(trainer) {
     total = Number(roll.total) || 0;
     await roll.toMessage({
       speaker: ChatMessage.getSpeaker({ actor: trainer }),
-      flavor: `Captura de ${species.name} con ${ballName}${advantage ? " · Ventaja por estado" : ""} · CD ${difficulty.dc}`
+      flavor: `Captura de ${species.name} con ${ballName}${advantage ? ` · ${collectorAdvantage ? "¡Hazte con todos!" : "Ventaja por estado"}` : ""} · CD ${difficulty.dc}`
     });
   }
   const success = difficulty.automaticSuccess || total >= difficulty.dc;
@@ -133,6 +139,23 @@ export async function attemptCapture(trainer) {
     game.socket.emit(SOCKET, payload);
     ui.notifications.info(game.i18n.localize("POKE5E.Capture.WaitingForGM"));
   }
+}
+
+async function useCollectorCaptureAdvantage(trainer, pokemonName) {
+  const feature = [...(trainer.items ?? [])].find(item => item.getFlag?.(MODULE_ID, "pathId") === "pokemon-collector" && Number(item.getFlag?.(MODULE_ID, "level")) === 5);
+  if (!feature) return false;
+  const maximum = Number(feature.system?.uses?.max) || 1;
+  const spent = Number(feature.system?.uses?.spent) || 0;
+  if (spent >= maximum) return false;
+  const confirmed = await foundry.applications.api.DialogV2.confirm({
+    window: { title: game.i18n.localize("POKE5E.TrainerPaths.CollectorCaptureTitle") },
+    content: `<p>${game.i18n.format("POKE5E.TrainerPaths.CollectorCapturePrompt", { pokemon: foundry.utils.escapeHTML(pokemonName) })}</p>`,
+    modal: true,
+    rejectClose: false
+  });
+  if (!confirmed) return false;
+  await feature.update({ "system.uses.spent": spent + 1 });
+  return true;
 }
 
 /**

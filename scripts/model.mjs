@@ -290,24 +290,29 @@ export function trainerFeatureSources() {
 
 /** Convierte cada rasgo de camino en una dote de clase enlazable por UUID. */
 export function trainerPathFeatureSources() {
-  return TRAINER_PATHS.flatMap(path => path.features.map(entry => ({
-    name: entry.name,
-    type: "feat",
-    img: "icons/svg/upgrade.svg",
-    system: {
-      description: { value: `<p>${escapeHtml(entry.description)}</p>`, chat: "" },
-      identifier: `trainer-path-${path.id}-${entry.level}`,
-      requirements: `${path.name} ${entry.level}`,
-      type: { value: "class", subtype: "" }
-    },
-    flags: { [MODULE_ID]: { kind: "trainer-path-feature", sourceId: `trainer-path-feature-${path.id}-${entry.level}`, level: entry.level, pathId: path.id, featureOrigin: "trainer" } }
-  })));
+  return TRAINER_PATHS.flatMap(path => path.features.map(entry => {
+    const automation = pathFeatureAutomation(path.id, entry.level);
+    return {
+      name: entry.name,
+      type: "feat",
+      img: "icons/svg/upgrade.svg",
+      system: {
+        description: { value: `<p>${escapeHtml(entry.description)}</p><p><strong>Gestión:</strong> ${escapeHtml(automationLabel(automation))}</p>`, chat: "" },
+        identifier: `trainer-path-${path.id}-${entry.level}`,
+        requirements: `${path.name} ${entry.level}`,
+        type: { value: "class", subtype: "" },
+        ...pathFeatureUses(path.id, entry.level)
+      },
+      effects: pathFeatureEffects(path.id, entry.level),
+      flags: { [MODULE_ID]: { kind: "trainer-path-feature", sourceId: `trainer-path-feature-${path.id}-${entry.level}`, level: entry.level, pathId: path.id, featureOrigin: "trainer", automation } }
+    };
+  }));
 }
 
 /** Construye las subclases nativas de D&D 5e que representan los caminos. */
 export function trainerPathSources(featureUuids = new Map()) {
   return TRAINER_PATHS.map((path, pathIndex) => {
-    const advancement = {};
+    const advancement = pathTraitAdvancements(path.id, pathIndex);
     for (const entry of path.features) {
       const uuid = featureUuids.get(`trainer-path-feature-${path.id}-${entry.level}`);
       if (!uuid) continue;
@@ -722,6 +727,81 @@ function pathFeature(level, name, description) {
 
 function trainerPath(id, name, features) {
   return { id, name, features };
+}
+
+function pathFeatureUses(pathId, level) {
+  const resources = {
+    "ace-trainer:5": { max: "max(1, 1 + @abilities.dex.mod)", period: "lr" },
+    "hobbyist:5": { max: "max(1, 1 + @abilities.wis.mod)", period: "lr" },
+    "poke-mentor:9": { max: "1", period: "sr" },
+    "researcher:2": { max: "@prof", period: "lr" },
+    "pokemon-collector:5": { max: "1", period: "lr" },
+    "nurse:5": { max: "@prof", period: "lr" },
+    "grunt:2": { max: "@classes.trainer.levels", period: "lr" },
+    "tactician:2": { max: "@classes.trainer.levels", period: "lr" },
+    "guru:15": { max: "max(1, 1 + @abilities.wis.mod)", period: "lr" }
+  };
+  const resource = resources[`${pathId}:${level}`];
+  return resource ? { uses: { spent: 0, max: resource.max, recovery: [{ period: resource.period, type: "recoverAll" }] } } : {};
+}
+
+function pathFeatureAutomation(pathId, level) {
+  if (["commander", "pokemon-breeder"].includes(pathId)) return "supplement";
+  const automatic = new Set(["ace-trainer:2", "poke-mentor:2", "pokemon-collector:2", "pokemon-collector:5", "nurse:2", "nurse:5", "type-master:2", "type-master:5", "ranger:2", "guru:2", "guru:5"]);
+  const resource = new Set(["ace-trainer:5", "hobbyist:5", "poke-mentor:9", "researcher:2", "grunt:2", "tactician:2", "guru:15"]);
+  const key = `${pathId}:${level}`;
+  if (automatic.has(key)) return "automatic";
+  if (resource.has(key)) return "resource";
+  return "manual";
+}
+
+function pathFeatureEffects(pathId, level) {
+  if (pathId !== "ranger" || level !== 2) return [];
+  return [{
+    name: "Explorador — movimiento",
+    img: "icons/svg/wing.svg",
+    disabled: false,
+    transfer: true,
+    changes: [
+      { key: "system.attributes.movement.walk", mode: 2, value: "10", priority: 20 },
+      { key: "system.attributes.movement.climb", mode: 4, value: "floor(@attributes.movement.walk / 2)", priority: 30 },
+      { key: "system.attributes.movement.swim", mode: 4, value: "floor(@attributes.movement.walk / 2)", priority: 30 }
+    ]
+  }];
+}
+
+function automationLabel(value) {
+  if (value === "automatic") return "Automática por el módulo";
+  if (value === "resource") return "Recurso con usos en la ficha; resolución del efecto por el jugador";
+  if (value === "supplement") return "Requiere su suplemento opcional";
+  return "Resolución manual según la descripción";
+}
+
+function pathTraitAdvancements(pathId, pathIndex) {
+  const definitions = {
+    hobbyist: { level: 2, title: "Competencias de Aficionado", grants: [], choices: [{ count: 2, pool: ["skills:acr", "skills:arc", "skills:ath", "skills:dec", "skills:his", "skills:ins", "skills:itm", "skills:inv", "skills:med", "skills:nat", "skills:prc", "skills:prf", "skills:per", "skills:rel", "skills:slt", "skills:ste", "skills:sur"] }], mode: "default" },
+    "pokemon-collector": { level: 2, title: "Pericia en Trato con Animales", grants: ["skills:ani"], choices: [], mode: "expertise" },
+    nurse: { level: 2, title: "Competencia en Medicina", grants: ["skills:med"], choices: [], mode: "default" },
+    ranger: { level: 2, title: "Competencias de Ranger", grants: ["skills:nat", "skills:sur"], choices: [], mode: "default" }
+  };
+  const definition = definitions[pathId];
+  if (!definition) return {};
+  const id = `P5ePathT${String(pathIndex + 1).padStart(2, "0")}02`.padEnd(16, "0");
+  return {
+    [id]: {
+      _id: id,
+      type: "Trait",
+      level: definition.level,
+      title: definition.title,
+      configuration: {
+        allowReplacements: true,
+        grants: definition.grants,
+        choices: definition.choices,
+        mode: definition.mode
+      },
+      value: { chosen: [] }
+    }
+  };
 }
 
 function pathDescription(path) {

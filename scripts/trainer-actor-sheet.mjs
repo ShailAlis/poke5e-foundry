@@ -7,7 +7,7 @@
  * registerTrainerActorSheet()) y ofrece las mismas acciones que la ventana de
  * trainer-team.mjs. Su plantilla es `templates/trainer-sheet-team.hbs`.
  */
-import { MODULE_ID, MODULE_PATH, displayAssetUrl, displayPokemonName, getPack, getPokemonItems, trainerClassSource, trainerPokeslotLimit } from "./model.mjs";
+import { MODULE_ID, MODULE_PATH, displayAssetUrl, displayPokemonName, getPack, getPokemonItems, trainerClassSource, trainerPathFeatureSources, trainerPathSources, trainerPokeslotLimit } from "./model.mjs";
 import { Poke5ePokemonSheet } from "./pokemon-sheet.mjs";
 import { Poke5eSpeciesBrowser } from "./species-browser.mjs";
 import { deployPokemon, deployedActorFor, recallPokemon } from "./deployment.mjs";
@@ -31,6 +31,8 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
       browsePokemon: Poke5eTrainerActorSheet.#browsePokemon,
       addTrainerExperience: Poke5eTrainerActorSheet.#addTrainerExperience,
       advanceTrainerClass: Poke5eTrainerActorSheet.#advanceTrainerClass,
+      spendPathResource: Poke5eTrainerActorSheet.#spendPathResource,
+      restorePathResource: Poke5eTrainerActorSheet.#restorePathResource,
       capturePokemon: Poke5eTrainerActorSheet.#capturePokemon,
       deployPokemon: Poke5eTrainerActorSheet.#deployPokemon,
       openPokemon: Poke5eTrainerActorSheet.#openPokemon,
@@ -67,6 +69,11 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
     const maxTeamSize = trainerPokeslotLimit(this.actor);
     const active = all.filter(entry => entry.instance.inTeam);
     const team = active.slice(0, maxTeamSize);
+    const pathResources = (this.actor.itemTypes.feat ?? []).filter(item => item.getFlag(MODULE_ID, "pathId") && item.system?.uses?.max).map(item => {
+      const maximum = Math.max(0, Number(item.system.uses.max) || Number(item.system.uses.value) || 0);
+      const spent = Math.max(0, Number(item.system.uses.spent) || 0);
+      return { itemId: item.id, name: item.name, maximum, value: Math.max(0, maximum - spent) };
+    });
     return {
       ...context,
       pokemon: {
@@ -74,6 +81,8 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
         canEdit: this.actor.isOwner,
         pokedollars: pokedollars(this.actor),
         trainerProgression: trainerProgressionForActor(this.actor),
+        pathResources,
+        hasPathResources: pathResources.length > 0,
         maxTeamSize,
         reserve: [...all.filter(entry => !entry.instance.inTeam), ...active.slice(maxTeamSize).map(entry => ({ ...entry, overflow: true }))],
         slots: Array.from({ length: maxTeamSize }, (_, index) => team[index]
@@ -203,6 +212,25 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
   static async #advanceTrainerClass(event, target) {
     await advanceTrainerClassFromExperience(this.actor, { sheet: this });
   }
+
+  static async #spendPathResource(event, target) {
+    const item = this.actor.items.get(target.dataset.itemId);
+    if (!item) return;
+    const maximum = Math.max(0, Number(item.system.uses.max) || Number(item.system.uses.value) || 0);
+    const spent = Math.max(0, Number(item.system.uses.spent) || 0);
+    if (spent >= maximum) return;
+    await item.update({ "system.uses.spent": spent + 1 });
+    this.render({ force: true });
+  }
+
+  static async #restorePathResource(event, target) {
+    const item = this.actor.items.get(target.dataset.itemId);
+    if (!item) return;
+    const spent = Math.max(0, Number(item.system.uses.spent) || 0);
+    if (!spent) return;
+    await item.update({ "system.uses.spent": spent - 1 });
+    this.render({ force: true });
+  }
 }
 
 /**
@@ -246,16 +274,21 @@ export async function migrateTrainerClassAdvancements() {
   if (!game.user.isGM) return;
   const pack = getPack("progression");
   if (!pack) return;
+  await ensureTrainerPathDocuments(pack);
   const index = await pack.getIndex({ fields: [`flags.${MODULE_ID}.sourceId`, `flags.${MODULE_ID}.kind`] });
   const featureUuids = new Map();
+  const pathFeatureUuids = new Map();
   let trainerClassId = null;
   for (const entry of index.values()) {
     const kind = foundry.utils.getProperty(entry, `flags.${MODULE_ID}.kind`);
     const sourceId = foundry.utils.getProperty(entry, `flags.${MODULE_ID}.sourceId`);
     if (kind === "trainer-feature" && sourceId) featureUuids.set(sourceId, `Compendium.${pack.collection}.Item.${entry._id}`);
+    if (kind === "trainer-path-feature" && sourceId) pathFeatureUuids.set(sourceId, `Compendium.${pack.collection}.Item.${entry._id}`);
     if (kind === "trainer-class" && sourceId === "trainer-class") trainerClassId = entry._id;
   }
   const expected = trainerClassSource(featureUuids);
+  const expectedPaths = new Map(trainerPathSources(pathFeatureUuids).map(source => [source.system.identifier, source]));
+  const expectedPathFeatures = new Map(trainerPathFeatureSources().map(source => [source.flags[MODULE_ID].sourceId, source]));
   if (trainerClassId && !pack.locked) {
     const document = await pack.getDocument(trainerClassId);
     await updateTrainerClassAdvancements(document, expected.system.advancement, expected.img);
@@ -270,11 +303,73 @@ export async function migrateTrainerClassAdvancements() {
         : expected.system.advancement;
       await updateTrainerClassAdvancements(item, advancements, expected.img);
     }
+    for (const item of actor.itemTypes.subclass ?? []) {
+      if (item.system.classIdentifier !== "trainer") continue;
+      const pathId = item.getFlag(MODULE_ID, "pathId") ?? item.system.identifier;
+      const path = expectedPaths.get(pathId);
+      if (path) await updateTrainerClassAdvancements(item, path.system.advancement, path.img, { updateHitDie: false });
+    }
+    for (const item of actor.itemTypes.feat ?? []) {
+      const sourceId = item.getFlag(MODULE_ID, "sourceId");
+      const expectedFeature = expectedPathFeatures.get(sourceId);
+      if (!expectedFeature) continue;
+      const update = {
+        "system.description": expectedFeature.system.description,
+        effects: expectedFeature.effects,
+        [`flags.${MODULE_ID}.automation`]: expectedFeature.flags[MODULE_ID].automation
+      };
+      if (expectedFeature.system.uses) {
+        const spent = Number(item.system?.uses?.spent) || 0;
+        update["system.uses"] = { ...expectedFeature.system.uses, spent };
+      }
+      await item.update(update);
+    }
+    const obsoletePathFeatures = actor.items.filter(item => {
+      const sourceId = String(item.getFlag(MODULE_ID, "sourceId") ?? "");
+      return /^trainer-feature-trainer-path-(?:1|5|9|15)$/.test(sourceId);
+    });
+    if (obsoletePathFeatures.length) await actor.deleteEmbeddedDocuments("Item", obsoletePathFeatures.map(item => item.id));
   }
 }
 
+/** Crea los caminos que falten para que la selección de nivel 2 sea inmediata. */
+async function ensureTrainerPathDocuments(pack) {
+  if (pack.locked) await pack.configure({ locked: false });
+  let index = await pack.getIndex({ fields: [`flags.${MODULE_ID}.sourceId`, `flags.${MODULE_ID}.kind`] });
+  const bySourceId = new Map([...index.values()].map(entry => [foundry.utils.getProperty(entry, `flags.${MODULE_ID}.sourceId`), entry]));
+  const obsolete = new Set([1, 5, 9, 15].map(level => `trainer-feature-trainer-path-${level}`));
+  const obsoleteIds = [...bySourceId.entries()].filter(([sourceId]) => obsolete.has(sourceId)).map(([, entry]) => entry._id);
+  if (obsoleteIds.length) await Item.implementation.deleteDocuments(obsoleteIds, { pack: pack.collection });
+
+  const pathFeatureSources = trainerPathFeatureSources();
+  const missingFeatures = pathFeatureSources.filter(source => !bySourceId.has(source.flags[MODULE_ID].sourceId));
+  const existingFeatureUpdates = pathFeatureSources
+    .filter(source => bySourceId.has(source.flags[MODULE_ID].sourceId))
+    .map(source => ({ ...source, _id: bySourceId.get(source.flags[MODULE_ID].sourceId)._id }));
+  if (existingFeatureUpdates.length) await Item.implementation.updateDocuments(existingFeatureUpdates, { pack: pack.collection });
+  if (missingFeatures.length) await Item.implementation.createDocuments(missingFeatures, { pack: pack.collection });
+
+  index = await pack.getIndex({ fields: [`flags.${MODULE_ID}.sourceId`, `flags.${MODULE_ID}.kind`] });
+  const featureUuids = new Map();
+  const existingSources = new Set();
+  for (const entry of index.values()) {
+    const sourceId = foundry.utils.getProperty(entry, `flags.${MODULE_ID}.sourceId`);
+    const kind = foundry.utils.getProperty(entry, `flags.${MODULE_ID}.kind`);
+    if (sourceId) existingSources.add(sourceId);
+    if (kind === "trainer-path-feature" && sourceId) featureUuids.set(sourceId, `Compendium.${pack.collection}.Item.${entry._id}`);
+  }
+  const pathSources = trainerPathSources(featureUuids);
+  const refreshedBySourceId = new Map([...index.values()].map(entry => [foundry.utils.getProperty(entry, `flags.${MODULE_ID}.sourceId`), entry]));
+  const missingPaths = pathSources.filter(source => !existingSources.has(source.flags[MODULE_ID].sourceId));
+  const existingPathUpdates = pathSources
+    .filter(source => existingSources.has(source.flags[MODULE_ID].sourceId))
+    .map(source => ({ ...source, _id: refreshedBySourceId.get(source.flags[MODULE_ID].sourceId)._id }));
+  if (existingPathUpdates.length) await Item.implementation.updateDocuments(existingPathUpdates, { pack: pack.collection });
+  if (missingPaths.length) await Item.implementation.createDocuments(missingPaths, { pack: pack.collection });
+}
+
 /** Mezcla la plantilla corregida con el historial y los avances personalizados. */
-async function updateTrainerClassAdvancements(item, expected, icon) {
+async function updateTrainerClassAdvancements(item, expected, icon, { updateHitDie = true } = {}) {
   if (!item) return;
   const stored = item._source?.system?.advancement ?? item.system?.advancement ?? [];
   const current = Array.isArray(stored) ? stored : Object.values(stored ?? {});
@@ -283,14 +378,19 @@ async function updateTrainerClassAdvancements(item, expected, icon) {
   const expectedIds = new Set(expectedEntries.map(entry => entry._id));
   const mergedEntries = expectedEntries.map(entry => {
     const existing = byId.get(entry._id);
-    return foundry.utils.deepClone(existing ?? entry);
+    if (!existing) return foundry.utils.deepClone(entry);
+    const canonical = foundry.utils.deepClone(entry);
+    canonical.value = foundry.utils.deepClone(existing.value ?? entry.value ?? {});
+    return canonical;
   });
-  mergedEntries.push(...current.filter(entry => entry?._id && !expectedIds.has(entry._id)).map(entry => foundry.utils.deepClone(entry)));
+  mergedEntries.push(...current
+    .filter(entry => entry?._id && !expectedIds.has(entry._id) && !String(entry._id).startsWith("P5e"))
+    .map(entry => foundry.utils.deepClone(entry)));
   const merged = Object.fromEntries(mergedEntries.map(entry => [entry._id, entry]));
   const currentMapping = Object.fromEntries(current.filter(entry => entry?._id).map(entry => [entry._id, entry]));
   const update = {};
   if (JSON.stringify(currentMapping) !== JSON.stringify(merged)) update["system.advancement"] = merged;
-  if (item._source?.system?.hd?.denomination !== "d6") update["system.hd.denomination"] = "d6";
+  if (updateHitDie && item._source?.system?.hd?.denomination !== "d6") update["system.hd.denomination"] = "d6";
   if (item.img !== icon) update.img = icon;
   if (Object.keys(update).length) await item.update(update);
 }

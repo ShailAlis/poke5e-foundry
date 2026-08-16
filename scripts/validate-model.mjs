@@ -95,11 +95,14 @@ if (trainerFeatures.some(source => source.system.type?.value !== "class" || sour
 const featureUuids = new Map(trainerFeatures.map((source, index) => [source.flags[MODULE_ID].sourceId, `Compendium.world.poke5e-progression.Item.feature${index}`]));
 const pathFeatures = trainerPathFeatureSources();
 if (TRAINER_PATHS.length !== 13 || pathFeatures.length !== 52) throw new Error("Expected 13 Trainer paths with four features each.");
+if (pathFeatures.some(source => !["automatic", "resource", "manual", "supplement"].includes(source.flags[MODULE_ID].automation))) throw new Error("Every Trainer path feature must declare its automation mode.");
 for (const [index, source] of pathFeatures.entries()) featureUuids.set(source.flags[MODULE_ID].sourceId, `Compendium.world.poke5e-progression.Item.pathFeature${index}`);
 const trainerPaths = trainerPathSources(featureUuids);
 if (trainerPaths.length !== TRAINER_PATHS.length) throw new Error("Invalid Trainer path source count.");
 if (trainerPaths.some(source => source.type !== "subclass" || source.system.classIdentifier !== "trainer")) throw new Error("Trainer paths must be Trainer subclasses.");
-if (trainerPaths.some(source => Object.keys(source.system.advancement).length !== 4)) throw new Error("Every Trainer path must grant four advancements.");
+if (trainerPaths.some(source => Object.values(source.system.advancement).filter(entry => entry.type === "ItemGrant").length !== 4)) throw new Error("Every Trainer path must grant four feature advancements.");
+if (!trainerPaths.find(source => source.system.identifier === "pokemon-collector")?.system.advancement || !Object.values(trainerPaths.find(source => source.system.identifier === "pokemon-collector").system.advancement).some(entry => entry.type === "Trait" && entry.configuration.mode === "expertise")) throw new Error("Pokémon Collector must grant Animal Handling expertise.");
+if (!pathFeatures.find(source => source.flags[MODULE_ID].pathId === "grunt" && source.flags[MODULE_ID].level === 2)?.system.uses?.max) throw new Error("Grunt must expose its Shadow Point resource.");
 const trainerClass = trainerClassSource(featureUuids);
 if (trainerClass.type !== "class" || trainerClass.system.identifier !== "trainer") throw new Error("Invalid Trainer class source.");
 if (!trainerClass.img.includes("transparent_poke_ball")) throw new Error("Trainer class has no custom icon.");

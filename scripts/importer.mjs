@@ -125,6 +125,7 @@ export class Poke5eImporter extends HandlebarsApplicationMixin(ApplicationV2) {
       if (options.progression) {
         setStatus(status, "Creando la clase de Entrenador…", 90);
         const pack = await ensurePack("progression");
+        await removeLegacyTrainerPathMarkers(pack);
         const features = [...trainerFeatureSources(), ...trainerPathFeatureSources()];
         itemCount += await upsertPackItems(pack, features, status, 90, 95);
         const featureUuids = await progressionFeatureUuids(pack);
@@ -175,6 +176,16 @@ async function removeUnavailableSpecies(pack) {
   const ids = [...index.values()]
     .filter(entry => foundry.utils.getProperty(entry, `flags.${MODULE_ID}.kind`) === "species")
     .filter(entry => Number(foundry.utils.getProperty(entry, `${speciesPath}.number`)) === 0)
+    .map(entry => entry._id);
+  if (ids.length) await Item.implementation.deleteDocuments(ids, { pack: pack.collection });
+}
+
+/** Retira las antiguas dotes descriptivas sustituidas por subclases reales. */
+async function removeLegacyTrainerPathMarkers(pack) {
+  const obsolete = new Set([1, 5, 9, 15].map(level => `trainer-feature-trainer-path-${level}`));
+  const index = await pack.getIndex({ fields: [`flags.${MODULE_ID}.sourceId`] });
+  const ids = [...index.values()]
+    .filter(entry => obsolete.has(foundry.utils.getProperty(entry, `flags.${MODULE_ID}.sourceId`)))
     .map(entry => entry._id);
   if (ids.length) await Item.implementation.deleteDocuments(ids, { pack: pack.collection });
 }

@@ -66,6 +66,7 @@ export function moveEligibility(species, move, level = 1, { machineIds = new Set
   // sí sigue siendo suficiente cuando ya se ha alcanzado dicho nivel.
   const availableByEgg = viaEgg && !viaMachine;
   const availableNow = availableByLevel || machineOwned || availableByEgg;
+  const usesMachine = machineOwned && !availableByLevel && !availableByEgg;
   return {
     availableNow,
     compatible,
@@ -73,6 +74,7 @@ export function moveEligibility(species, move, level = 1, { machineIds = new Set
     methods,
     requiredLevel,
     requiresMachine: !availableNow && viaMachine && !machineOwned,
+    usesMachine,
     machine
   };
 }

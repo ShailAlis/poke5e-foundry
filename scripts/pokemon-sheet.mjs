@@ -19,6 +19,7 @@ import { CONTEST_TYPES, contestAppealOutcome, contestCompatibility, contestDetai
 import { applyMoveStatuses, pokemonStatusEntries, pokemonStatusId, removePokemonStatus } from "./status-effects.mjs";
 import { applyMoveOngoingEffects, moveHasImmediateDamage, ongoingEffectEntries, removeOngoingEffect } from "./ongoing-effects.mjs";
 import { applyMoveModifierEffects, consumeCapturedMoveModifiers, moveModifierEntries, moveModifierIdsToConsume, pokemonCombatModifiers, removeMoveModifier, targetedPokemonModifiers } from "./move-modifiers.mjs";
+import { hasTrainerPath, machineConsumption, pokemonPathMoveBonuses } from "./trainer-path-rules.mjs";
 import {
   activateHeldItem,
   applyPostMoveHeldItemEffects,
@@ -112,7 +113,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const level = Number(instance.level) || 1;
     const moves = (instance.moves ?? []).map(entry => {
       const move = data.movesById.get(entry.moveId);
-      return move ? prepareMove(entry, move, combatSpecies, level, data.contestEffectsById, this.contestType, heldItem) : null;
+      return move ? prepareMove(entry, move, combatSpecies, level, data.contestEffectsById, this.contestType, heldItem, this.pokemonItem.parent) : null;
     }).filter(Boolean);
     const knownMoveIds = new Set((instance.moves ?? []).map(entry => entry.moveId));
     const machineIds = trainerMoveMachineIds(this.pokemonItem.parent);
@@ -185,7 +186,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
         },
         total: catalog.length,
         truncated: catalog.length > 120,
-        entries: catalog.slice(0, 120).map(entry => prepareCatalogMove(entry, data.movesById.get(entry.id), combatSpecies, level, data.contestEffectsById, this.contestType))
+        entries: catalog.slice(0, 120).map(entry => prepareCatalogMove(entry, data.movesById.get(entry.id), combatSpecies, level, data.contestEffectsById, this.contestType, this.pokemonItem.parent))
       },
       abilities,
       abilityScores,
@@ -528,6 +529,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     if (instance.moves.some(entry => entry.moveId === move.id)) return ui.notifications.warn(game.i18n.localize("POKE5E.PokemonNotifications.MoveKnown"));
     if (!await this.#addMove(instance, move, data.movesById)) return;
     await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
+    if (eligibility.usesMachine) await consumeMoveMachine(this.pokemonItem.parent, eligibility.machine);
     this.render({ force: true });
   }
 
@@ -556,6 +558,10 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       if (!eligibility.availableNow) return notifyMoveUnavailable(move, eligibility);
       const data = await loadPoke5eData();
       if (!await this.#addMove(instance, move, data.movesById)) return;
+      await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
+      if (eligibility.usesMachine) await consumeMoveMachine(this.pokemonItem.parent, eligibility.machine);
+      this.render({ force: true });
+      return;
     } else if (kind === "ability") {
       if (instance.abilities.includes(sourceId)) return ui.notifications.warn(game.i18n.localize("POKE5E.PokemonNotifications.AbilityKnown"));
       instance.abilities.push(sourceId);
@@ -619,6 +625,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       sourceId: instance.heldItem?.sourceId, speciesId: storedSpecies.id, speciesTypes: effectiveTypes,
       move, proficiency, hasDamage: moveHasImmediateDamage(move)
     });
+    const pathProfile = pokemonPathMoveBonuses(this.pokemonItem.parent, effectiveTypes, move.type, { healing: moveIsHealing(move) });
     if (!heldProfile.allowed) return ui.notifications.warn(game.i18n.format("POKE5E.PokemonNotifications.DamagingMovesOnly", { item: instance.heldItem.name }));
     if (!choiceHeldItemAllowsMove(instance.heldItem, move.id)) return ui.notifications.warn(game.i18n.format("POKE5E.PokemonNotifications.ChoiceLocked", { item: instance.heldItem.name }));
     const moveModifier = getMoveModifier(species, move) + heldProfile.moveModifierBonus;
@@ -632,7 +639,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const targetedModifiers = targetedPokemonModifiers(selectedTokens);
     const consumedModifierIds = moveModifierIdsToConsume(combatActor, "move");
     const damageMoveModifier = moveModifier * heldProfile.damageMoveMultiplier * combatModifiers.moveModifierMultiplier;
-    const formula = moveHasImmediateDamage(move) ? damageFormula(move, level, damageMoveModifier, species, combatModifiers.damage + heldProfile.damage, heldProfile.stab) : null;
+    const formula = moveHasImmediateDamage(move) ? damageFormula(move, level, damageMoveModifier, species, combatModifiers.damage + heldProfile.damage + pathProfile.damage, heldProfile.stab + pathProfile.stab) : null;
     const damageType = formula ? await chooseDamageType(move) : null;
     if (formula && !damageType) return;
 
@@ -653,7 +660,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       const die = advantage === disadvantage ? "1d20" : advantage ? "2d20kh" : "2d20kl";
       const effectDice = combatModifiers.attackDice.map(formula => ` + ${formula}`).join("");
       const effectProficiency = combatModifiers.suppressAttackProficiency ? 0 : proficiency;
-      const attack = await new Roll(`${die} + @mod + @prof + @effect${effectDice}`, { mod: attackMoveModifier, prof: effectProficiency, effect: combatModifiers.attack + heldProfile.attack }).evaluate();
+      const attack = await new Roll(`${die} + @mod + @prof + @effect${effectDice}`, { mod: attackMoveModifier, prof: effectProficiency, effect: combatModifiers.attack + heldProfile.attack + pathProfile.attack }).evaluate();
       await attack.toMessage({ speaker, flavor: `${flavor} (${titleCase(move.attack.scope)})` });
       const natural = Number(attack.dice?.[0]?.results?.find(result => result.active)?.result ?? attack.dice?.[0]?.total) || 0;
       attackResult = {
@@ -968,13 +975,14 @@ function evolutionConditionLabel(condition, data) {
  * datos de concurso y un aviso si dejó de ser compatible con la especie.
  * Auxiliar de _prepareContext(); su gemela para el catálogo es prepareCatalogMove().
  */
-function prepareMove(entry, move, species, level, effectsById, contestType, heldItem = null) {
+function prepareMove(entry, move, species, level, effectsById, contestType, heldItem = null, trainer = null) {
   const proficiency = 2 + Math.floor((level - 1) / 4);
   const effectiveMove = heldItemEffectiveMove(move, { sourceId: heldItem?.sourceId, speciesId: species.id });
   const profile = heldItemMoveModifiers({
     sourceId: heldItem?.sourceId, speciesId: species.id, speciesTypes: species.type ?? [],
     move: effectiveMove, proficiency, hasDamage: moveHasImmediateDamage(effectiveMove)
   });
+  const pathProfile = pokemonPathMoveBonuses(trainer, species.type ?? [], effectiveMove.type, { healing: moveIsHealing(effectiveMove) });
   const modifier = getMoveModifier(species, effectiveMove) + profile.moveModifierBonus;
   const attackModifier = modifier * profile.attackMoveMultiplier;
   const damageModifier = modifier * profile.damageMoveMultiplier;
@@ -988,9 +996,9 @@ function prepareMove(entry, move, species, level, effectsById, contestType, held
     description: moveDescription(effectiveMove),
     pp: entry.pp,
     hasPp: Number(entry.pp?.max) > 0,
-    attackBonus: effectiveMove.attack?.scope ? signed(attackModifier + proficiency + profile.attack) : null,
+    attackBonus: effectiveMove.attack?.scope ? signed(attackModifier + proficiency + profile.attack + pathProfile.attack) : null,
     saveDc: effectiveMove.save ? 8 + attackModifier + proficiency : null,
-    damage: damageFormula(effectiveMove, level, damageModifier, species, profile.damage, profile.stab) ?? "—",
+    damage: damageFormula(effectiveMove, level, damageModifier, species, profile.damage + pathProfile.damage, profile.stab + pathProfile.stab) ?? "—",
     contest: prepareContestDisplay(effectiveMove, effectsById, contestType),
     learningMethods: eligibility.methods,
     learningWarning: eligibility.compatible && !eligibility.availableNow
@@ -1004,19 +1012,20 @@ function prepareMove(entry, move, species, level, effectsById, contestType, held
  * calculados que prepareMove(), partiendo de lo que devuelve filterMoveCatalog()
  * y sin los PP, que solo existen una vez aprendido.
  */
-function prepareCatalogMove(entry, move, species, level, effectsById, contestType) {
+function prepareCatalogMove(entry, move, species, level, effectsById, contestType, trainer = null) {
   if (!move) return entry;
   const modifier = getMoveModifier(species, move);
   const proficiency = 2 + Math.floor((level - 1) / 4);
+  const pathProfile = pokemonPathMoveBonuses(trainer, species.type ?? [], move.type, { healing: moveIsHealing(move) });
   return {
     ...entry,
     time: move.time ?? "—",
     range: move.range ?? "—",
     duration: move.duration ?? "—",
     description: moveDescription(move),
-    attackBonus: move.attack?.scope ? signed(modifier + proficiency) : null,
+    attackBonus: move.attack?.scope ? signed(modifier + proficiency + pathProfile.attack) : null,
     saveDc: move.save ? 8 + modifier + proficiency : null,
-    damage: damageFormula(move, level, modifier, species) ?? "—",
+    damage: damageFormula(move, level, modifier, species, pathProfile.damage, pathProfile.stab) ?? "—",
     contest: prepareContestDisplay(move, effectsById, contestType)
   };
 }
@@ -1101,6 +1110,29 @@ function trainerMoveMachineIds(actor) {
   return result;
 }
 
+/** Consume una MT al enseñar; las MO no se gastan y Poké Mentor duplica usos. */
+async function consumeMoveMachine(actor, machine) {
+  const item = [...(actor?.items ?? [])].find(candidate => {
+    if (candidate.getFlag?.(MODULE_ID, "kind") !== "move-machine") return false;
+    const stored = candidate.getFlag?.(MODULE_ID, "machine");
+    return String(stored?.kind) === String(machine?.kind) && String(stored?.id) === String(machine?.id) && Number(candidate.system?.quantity ?? 1) > 0;
+  });
+  if (!item) return;
+  const used = Number(item.getFlag(MODULE_ID, "machine")?.used) || 0;
+  const result = machineConsumption({
+    kind: machine.kind,
+    quantity: item.system.quantity,
+    used,
+    pokeMentor: hasTrainerPath(actor, "poke-mentor", 2)
+  });
+  if (result.delete) await item.delete();
+  else await item.update({ "system.quantity": result.quantity, [`flags.${MODULE_ID}.machine.used`]: result.used });
+  const key = machine.kind === "hm"
+    ? "POKE5E.PokemonNotifications.HmReusable"
+    : result.consumed ? "POKE5E.PokemonNotifications.TmConsumed" : "POKE5E.PokemonNotifications.TmUseRemaining";
+  ui.notifications.info(game.i18n.format(key, { machine: `${machine.label} ${machine.id}` }));
+}
+
 /**
  * Calcula MOVE, el modificador de un movimiento: el mayor de las características
  * que admite su campo `power`, o 0 si no usa ninguna. Base del bonificador de
@@ -1123,6 +1155,11 @@ function getMoveModifier(species, move) {
  * movimiento no causa daño.
  * La usan prepareMove(), prepareCatalogMove() y #rollMove().
  */
+function moveIsHealing(move) {
+  const types = Array.isArray(move?.damage?.type) ? move.damage.type : [move?.damage?.type].filter(Boolean);
+  return types.includes("healing");
+}
+
 function damageFormula(move, level, moveModifier, species, effectDamage = 0, heldItemStab = 0) {
   const diceByLevel = move.damage?.dice;
   if (!diceByLevel) return null;

@@ -12,6 +12,7 @@
 import { MODULE_ID, POKEMON_TOKEN_SCALE, displayPokemonName, portraitUrl, remoteAssetUrl } from "./model.mjs";
 import { loadPoke5eData } from "./data-service.mjs";
 import { damageTraitsForPokemonTypes } from "./combat.mjs";
+import { hasTrainerPath } from "./trainer-path-rules.mjs";
 import { pokemonStatusEffectSource } from "./status-effects.mjs";
 import { actorHasRecallLock } from "./ongoing-effects.mjs";
 import {
@@ -510,7 +511,7 @@ async function deployedActorSource(pokemonItem) {
   const pokemonAttributes = instance.attributes ?? species.attributes ?? {};
   const abilities = {};
   for (const key of ["str", "dex", "con", "int", "wis", "cha"]) {
-    abilities[key] = { value: Number(pokemonAttributes[key]) || 10, proficient: species.savingThrows?.includes(key) ? 1 : 0 };
+    abilities[key] = { value: Number(pokemonAttributes[key]) || 10, proficient: species.savingThrows?.includes(key) || (key === "wis" && hasTrainerPath(trainer, "guru", 5)) ? 1 : 0 };
   }
   const movement = { walk: 0, fly: 0, swim: 0, burrow: 0, climb: 0, units: "ft", hover: false };
   for (const speed of species.speed ?? []) {

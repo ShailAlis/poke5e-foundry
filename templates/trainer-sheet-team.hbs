@@ -42,6 +42,21 @@
     </section>
   {{/if}}
 
+  {{#if pokemon.hasPathResources}}
+    <section class="poke5e-trainer-progression">
+      <div class="poke5e-trainer-progression-heading"><i class="fa-solid fa-road"></i><div><strong>{{localize "POKE5E.TrainerPaths.Resources"}}</strong><small>{{localize "POKE5E.TrainerPaths.ResourcesHint"}}</small></div></div>
+      {{#each pokemon.pathResources}}
+        <div class="poke5e-trainer-progression-actions">
+          <strong>{{name}}: {{value}}/{{maximum}}</strong>
+          {{#if ../pokemon.canEdit}}
+            <button type="button" data-action="spendPathResource" data-item-id="{{itemId}}" title="{{localize "POKE5E.TrainerPaths.Spend"}}"><i class="fa-solid fa-minus"></i></button>
+            <button type="button" data-action="restorePathResource" data-item-id="{{itemId}}" title="{{localize "POKE5E.TrainerPaths.Restore"}}"><i class="fa-solid fa-plus"></i></button>
+          {{/if}}
+        </div>
+      {{/each}}
+    </section>
+  {{/if}}
+
   <section class="poke5e-currency-panel">
     <i class="fa-solid fa-coins"></i>
     <label><span>{{localize "POKE5E.Currency.Name"}}</span><input type="number" min="0" step="1" value="{{pokemon.pokedollars}}" data-poke5e-pokedollars {{#unless pokemon.canEdit}}disabled{{/unless}}></label>

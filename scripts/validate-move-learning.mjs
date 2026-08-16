@@ -47,7 +47,7 @@ const machine = moveMachine(machineCase.move);
 const withoutMachine = moveEligibility(machineCase.species, machineCase.move, 20);
 if (withoutMachine.availableNow || !withoutMachine.requiresMachine) throw new Error(`${machineCase.move.id}: una MT ausente no debe aparecer como disponible.`);
 const withMachine = moveEligibility(machineCase.species, machineCase.move, 20, { machineIds: new Set([machine.key]) });
-if (!withMachine.availableNow || withMachine.requiresMachine) throw new Error(`${machineCase.move.id}: la MT del inventario no habilita el movimiento.`);
+if (!withMachine.availableNow || withMachine.requiresMachine || !withMachine.usesMachine) throw new Error(`${machineCase.move.id}: la MT del inventario no habilita el movimiento como consumible.`);
 
 const machineAndEggCase = pokemon.flatMap(species => (species.moves?.tm ?? []).map(machineId => ({ species, machineId })))
   .map(entry => ({ ...entry, move: moves.find(move => String(move.tm?.id) === String(entry.machineId)) }))
