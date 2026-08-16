@@ -28,12 +28,15 @@ const movesById = new Map(moves.map(move => [move.id, move]));
 const {
   MODULE_ID,
   TRAINER_FEATURES,
+  TRAINER_PATHS,
   displayAssetUrl,
   randomGenderForRatio,
   speciesItemSource,
   pokemonItemSourceFromSpecies,
   moveMachineItemSource,
   trainerFeatureSources,
+  trainerPathFeatureSources,
+  trainerPathSources,
   trainerClassSource,
   moveMachineIcon,
   trainerPokeslotLimit
@@ -90,6 +93,13 @@ const trainerFeatures = trainerFeatureSources();
 if (trainerFeatures.length !== TRAINER_FEATURES.filter(entry => entry.grant).length) throw new Error("Invalid Trainer feature count.");
 if (trainerFeatures.some(source => source.system.type?.value !== "class" || source.flags[MODULE_ID].featureOrigin !== "trainer")) throw new Error("Trainer features must retain their class origin.");
 const featureUuids = new Map(trainerFeatures.map((source, index) => [source.flags[MODULE_ID].sourceId, `Compendium.world.poke5e-progression.Item.feature${index}`]));
+const pathFeatures = trainerPathFeatureSources();
+if (TRAINER_PATHS.length !== 13 || pathFeatures.length !== 52) throw new Error("Expected 13 Trainer paths with four features each.");
+for (const [index, source] of pathFeatures.entries()) featureUuids.set(source.flags[MODULE_ID].sourceId, `Compendium.world.poke5e-progression.Item.pathFeature${index}`);
+const trainerPaths = trainerPathSources(featureUuids);
+if (trainerPaths.length !== TRAINER_PATHS.length) throw new Error("Invalid Trainer path source count.");
+if (trainerPaths.some(source => source.type !== "subclass" || source.system.classIdentifier !== "trainer")) throw new Error("Trainer paths must be Trainer subclasses.");
+if (trainerPaths.some(source => Object.keys(source.system.advancement).length !== 4)) throw new Error("Every Trainer path must grant four advancements.");
 const trainerClass = trainerClassSource(featureUuids);
 if (trainerClass.type !== "class" || trainerClass.system.identifier !== "trainer") throw new Error("Invalid Trainer class source.");
 if (!trainerClass.img.includes("transparent_poke_ball")) throw new Error("Trainer class has no custom icon.");
@@ -100,9 +110,10 @@ if (!Object.values(trainerClass.system.advancement).some(entry => entry.type ===
 if (!Object.values(trainerClass.system.advancement).some(entry => entry.type === "Trait" && entry.configuration.grants.includes("saves:cha"))) throw new Error("Trainer class has no proficiency advancement.");
 if (!Object.values(trainerClass.system.advancement).some(entry => entry.type === "Trait" && entry.level === 10 && entry.configuration.grants.includes("conditionImmunities:frightened"))) throw new Error("Trainer class has no Resolve advancement.");
 if (!Object.values(trainerClass.system.advancement).some(entry => entry.type === "Trait" && entry.level === 13 && entry.configuration.mode === "expertise" && entry.configuration.grants.includes("skills:ani"))) throw new Error("Trainer class has no Pokémon Tracker expertise advancement.");
+if (!Object.values(trainerClass.system.advancement).some(entry => entry.type === "Subclass" && entry.level === 2)) throw new Error("Trainer class has no Trainer Path subclass advancement.");
 for (const feature of TRAINER_FEATURES) {
   if (!feature.grant) {
-    if (!Object.values(trainerClass.system.advancement).some(entry => entry.type === "AbilityScoreImprovement" && entry.level === feature.level)) throw new Error(`Trainer ASI not configured at level ${feature.level}.`);
+    if ((feature.id.startsWith("ability-score-improvement") || feature.id === "epic-boon") && !Object.values(trainerClass.system.advancement).some(entry => entry.type === "AbilityScoreImprovement" && entry.level === feature.level)) throw new Error(`Trainer ASI not configured at level ${feature.level}.`);
     continue;
   }
   const grant = Object.values(trainerClass.system.advancement).find(entry => entry.type === "ItemGrant" && entry.level === feature.level);

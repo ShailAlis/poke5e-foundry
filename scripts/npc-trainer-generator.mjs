@@ -1,7 +1,7 @@
 /**
  * Interfaz del generador de Entrenadores NPC, exclusiva del director. Reúne en
  * un formulario todas las opciones del NPC (identidad, nivel, origen,
- * especialización, arquetipo, dificultad, inventario, token y permisos) y del
+ * arquetipo, dificultad, inventario, token y permisos) y del
  * equipo, permite ajustarlo Pokémon a Pokémon y lanza la creación.
  *
  * Las reglas están en npc-trainer-rules.mjs y la creación de documentos en
@@ -12,9 +12,9 @@
  */
 import { loadPoke5eData } from "./data-service.mjs";
 import { MODULE_PATH, portraitUrl, trainerPokeslotsForLevel } from "./model.mjs";
-import { NATURES, ORIGINS, SPECIALIZATIONS } from "./trainer-creation-data.mjs";
+import { NATURES, ORIGINS } from "./trainer-creation-data.mjs";
 import { createNpcTrainerActor, ensureNpcTrainerFolder, placeNpcTrainer } from "./npc-trainer-actor.mjs";
-import { NPC_ARCHETYPES, NPC_DEFAULT_ARCHETYPE, NPC_DIFFICULTIES, NPC_TRAINER_PATHS, filterNpcTrainerSpecies, generateNpcTrainerTeam, trainerControlSr } from "./npc-trainer-rules.mjs";
+import { NPC_ARCHETYPES, NPC_DEFAULT_ARCHETYPE, NPC_DIFFICULTIES, filterNpcTrainerSpecies, generateNpcTrainerTeam, trainerControlSr } from "./npc-trainer-rules.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -74,13 +74,11 @@ export class Poke5eNpcTrainerGenerator extends HandlebarsApplicationMixin(Applic
       canCreate: entries.length > 0 && !this.creating,
       archetypeOptions: optionMap(NPC_ARCHETYPES),
       difficultyOptions: optionMap(NPC_DIFFICULTIES),
-      pathOptions: { random: game.i18n.localize("POKE5E.Options.Random"), ...optionMap(NPC_TRAINER_PATHS) },
       originOptions: { random: game.i18n.localize("POKE5E.Options.Random"), ...Object.fromEntries(ORIGINS.map(entry => [entry.id, entry.name])) },
-      specializationOptions: { random: game.i18n.localize("POKE5E.Options.RandomFeminine"), ...Object.fromEntries(SPECIALIZATIONS.map(entry => [entry.type, `${entry.name} · ${titleCase(entry.type)}`])) },
       genderOptions: { random: game.i18n.localize("POKE5E.Options.Random"), male: game.i18n.localize("POKE5E.Options.Male"), female: game.i18n.localize("POKE5E.Options.Female") },
       natureOptions: Object.fromEntries(NATURES.map(nature => [nature, nature])),
       environmentOptions: localizeOptionMap({ coast: "CoastWater", mountain: "Mountain", other: "OtherEnvironment" }),
-      compositionOptions: localizeOptionMap({ random: "FullyRandom", varied: "VariedTypes", specialized: "BySpecialization", "ace-last": "AceLast" }),
+      compositionOptions: localizeOptionMap({ random: "FullyRandom", varied: "VariedTypes", specialized: "ByThemeType", "ace-last": "AceLast" }),
       powerBiasOptions: localizeOptionMap({ balanced: "Balanced", low: "PreferLowCR", high: "PreferHighCR" }),
       levelStrategyOptions: localizeOptionMap({ range: "RandomInRange", fixed: "SameAsTrainer", ascending: "Staggered" }),
       typeModeOptions: localizeOptionMap({ all: "MustHaveBoth", any: "MayHaveEither" }),
@@ -91,7 +89,7 @@ export class Poke5eNpcTrainerGenerator extends HandlebarsApplicationMixin(Applic
       displayBarsOptions: localizeOptionMap({ 0: "Never", 10: "OnHover", 20: "Always", 40: "OwnerOnly" }),
       deployCountOptions: localizeOptionMap({ 0: "None", 1: "First", 2: "FirstTwo", all: "WholeTeam" }),
       quantityPlural: Number(this.config.quantity) !== 1,
-      controlSr: trainerControlSr(this.config.trainerLevel, this.config.path === "random" ? "none" : this.config.path),
+      controlSr: trainerControlSr(this.config.trainerLevel),
       typeOptions: uniqueOptions(data.pokemon.flatMap(entry => entry.type ?? []), titleCase),
       biomeOptions: uniqueOptions(data.pokemon.flatMap(entry => entry.habitat?.biomes ?? []), titleCase),
       regionOptions: uniqueOptions(data.pokemon.flatMap(entry => [...(entry.habitat?.regions ?? []), entry.habitat?.nativeRegion].filter(Boolean))),
@@ -143,7 +141,7 @@ export class Poke5eNpcTrainerGenerator extends HandlebarsApplicationMixin(Applic
     const input = event.currentTarget;
     this.config[input.dataset.config] = input.type === "checkbox" ? input.checked : input.value;
     if (input.dataset.config === "trainerLevel") this.team = this.team.slice(0, trainerPokeslotsForLevel(this.config.trainerLevel));
-    if (["quantity", "trainerLevel", "path", "respectControlLimit", "typePrimary", "typeSecondary", "typeMode", "region", "biome", "srMin", "srMax", "levelMax", "stage", "includeIds", "excludeIds"].includes(input.dataset.config)) this.render({ force: true });
+    if (["quantity", "trainerLevel", "respectControlLimit", "typePrimary", "typeSecondary", "typeMode", "region", "biome", "srMin", "srMax", "levelMax", "stage", "includeIds", "excludeIds"].includes(input.dataset.config)) this.render({ force: true });
   }
 
   /**
@@ -156,14 +154,14 @@ export class Poke5eNpcTrainerGenerator extends HandlebarsApplicationMixin(Applic
 
   /**
    * Sortea el equipo con generateNpcTrainerTeam() sobre las especies filtradas.
-   * Si se pidió composición temática sin fijar especialización, elige una al azar
-   * y lo advierte.
+   * Si se pidió composición temática sin fijar un tipo, elige uno al azar.
    */
   async #generateTeam() {
     this.#captureAll();
-    if (this.config.composition === "specialized" && this.config.specialization === "random") {
-      this.config.specialization = SPECIALIZATIONS[Math.floor(Math.random() * SPECIALIZATIONS.length)].type;
-      ui.notifications.info(game.i18n.localize("POKE5E.NpcGenerator.RandomSpecializationChosen"));
+    if (this.config.composition === "specialized" && !this.config.teamType) {
+      const types = [...new Set((await loadPoke5eData()).pokemon.flatMap(entry => entry.type ?? []))];
+      this.config.teamType = types[Math.floor(Math.random() * types.length)] ?? "";
+      ui.notifications.info(game.i18n.localize("POKE5E.NpcGenerator.RandomThemeTypeChosen"));
     }
     const data = await loadPoke5eData();
     const pool = filterNpcTrainerSpecies(data.pokemon, this.config, data.evolutions);
@@ -275,8 +273,8 @@ export class Poke5eNpcTrainerGenerator extends HandlebarsApplicationMixin(Applic
 function defaultConfig() {
   return {
     quantity: 1, name: "", image: "", useTitle: true, gender: "random", age: "", trainerLevel: 5,
-    origin: "random", specialization: "random", path: "random", archetype: NPC_DEFAULT_ARCHETYPE, difficulty: "standard", notes: "",
-    teamSize: 3, composition: "varied", powerBias: "balanced", levelStrategy: "range", levelMin: 3, levelMax: 6,
+    origin: "random", archetype: NPC_DEFAULT_ARCHETYPE, difficulty: "standard", notes: "",
+    teamSize: 3, composition: "varied", teamType: "", powerBias: "balanced", levelStrategy: "range", levelMin: 3, levelMax: 6,
     uniqueSpecies: true, shinyChance: 0, randomNature: true, nature: "Hardy",
     query: "", typePrimary: "", typeSecondary: "", typeMode: "all", region: "", biome: "", srMin: "", srMax: "",
     stage: "any", includeIds: "", excludeIds: "", respectControlLimit: true,
@@ -287,8 +285,8 @@ function defaultConfig() {
 }
 
 /**
- * Convierte en desplegable un catálogo con entradas {name}, como NPC_ARCHETYPES,
- * NPC_DIFFICULTIES o NPC_TRAINER_PATHS.
+ * Convierte en desplegable un catálogo con entradas {name}, como NPC_ARCHETYPES
+ * o NPC_DIFFICULTIES.
  */
 function optionMap(entries) { return Object.fromEntries(Object.entries(entries).map(([key, value]) => [key, value.name])); }
 function localizeOptionMap(entries) { return Object.fromEntries(Object.entries(entries).map(([value, key]) => [value, game.i18n.localize(`POKE5E.Options.${key}`)])); }

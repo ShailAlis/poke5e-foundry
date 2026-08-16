@@ -18,8 +18,6 @@
         <label><span>{{localize "POKE5E.NpcGenerator.Archetype"}}</span><select data-config="archetype">{{selectOptions archetypeOptions selected=config.archetype}}</select></label>
         <label><span>{{localize "POKE5E.NpcGenerator.Difficulty"}}</span><select data-config="difficulty">{{selectOptions difficultyOptions selected=config.difficulty}}</select></label>
         <label><span>{{localize "POKE5E.NpcGenerator.Origin"}}</span><select data-config="origin">{{selectOptions originOptions selected=config.origin}}</select></label>
-        <label><span>{{localize "POKE5E.NpcGenerator.Specialization"}}</span><select data-config="specialization">{{selectOptions specializationOptions selected=config.specialization}}</select></label>
-        <label><span>{{localize "POKE5E.NpcGenerator.TrainerPath"}}</span><select data-config="path">{{selectOptions pathOptions selected=config.path}}</select></label>
         <label><span>{{localize "POKE5E.Common.Gender"}}</span><select data-config="gender">{{selectOptions genderOptions selected=config.gender}}</select></label>
         <label><span>{{localize "POKE5E.Common.Age"}} <small>({{localize "POKE5E.Common.Optional"}})</small></span><input type="text" value="{{config.age}}" data-config="age"></label>
         <label class="check"><input type="checkbox" data-config="useTitle" {{#if config.useTitle}}checked{{/if}}> {{localize "POKE5E.NpcGenerator.AddArchetype"}}</label>
@@ -32,6 +30,7 @@
       <div class="poke5e-npc-fields team-rules">
         <label><span>{{localize "POKE5E.NpcGenerator.TeamSize" max=maxTeamSize}}</span><input type="number" min="1" max="{{maxTeamSize}}" value="{{config.teamSize}}" data-config="teamSize"></label>
         <label><span>{{localize "POKE5E.NpcGenerator.Composition"}}</span><select data-config="composition">{{selectOptions compositionOptions selected=config.composition}}</select></label>
+        <label><span>{{localize "POKE5E.NpcGenerator.ThemeType"}}</span><select data-config="teamType">{{selectOptions typeOptions selected=config.teamType blank=(localize "POKE5E.Options.Random")}}</select></label>
         <label><span>{{localize "POKE5E.NpcGenerator.Power"}}</span><select data-config="powerBias">{{selectOptions powerBiasOptions selected=config.powerBias}}</select></label>
         <label><span>{{localize "POKE5E.Common.Levels"}}</span><select data-config="levelStrategy">{{selectOptions levelStrategyOptions selected=config.levelStrategy}}</select></label>
         <fieldset><legend>{{localize "POKE5E.NpcGenerator.LevelRange"}}</legend><input type="number" min="1" max="20" value="{{config.levelMin}}" data-config="levelMin"><span>—</span><input type="number" min="1" max="20" value="{{config.levelMax}}" data-config="levelMax"></fieldset>

@@ -27,7 +27,7 @@ const fireOrWater = filterNpcTrainerSpecies(pokemon, { typePrimary: "fire", type
 assert.ok(fireOrWater.every(species => species.type.includes("fire") || species.type.includes("water")));
 assert.equal(trainerControlSr(1), 2);
 assert.equal(trainerControlSr(8), 10);
-assert.equal(trainerControlSr(14, "guru"), 15);
+assert.equal(trainerControlSr(14), 14);
 const controlled = filterNpcTrainerSpecies(pokemon, { trainerLevel: 3, levelMax: 20, respectControlLimit: true }, evolutions);
 assert.ok(controlled.every(species => Number(species.sr) <= 5));
 
@@ -38,7 +38,7 @@ assert.ok(baseForms.every(species => !evolvedIds.has(species.id)));
 const waterPool = filterNpcTrainerSpecies(pokemon, { typePrimary: "water", levelMax: 12, srMax: 8 }, evolutions);
 const team = generateNpcTrainerTeam(waterPool, {
   teamSize: 6, trainerLevel: 8, levelMin: 5, levelMax: 10, levelStrategy: "range",
-  uniqueSpecies: true, difficulty: "standard", composition: "specialized", specialization: "water"
+  uniqueSpecies: true, difficulty: "standard", composition: "specialized", teamType: "water"
 }, () => 0.42);
 assert.equal(team.length, 4);
 assert.equal(new Set(team.map(entry => entry.speciesId)).size, 4);

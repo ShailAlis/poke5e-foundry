@@ -21,6 +21,8 @@ import {
   gearItemSource,
   moveMachineItemSource,
   trainerFeatureSources,
+  trainerPathFeatureSources,
+  trainerPathSources,
   trainerClassSource
 } from "./model.mjs";
 import { migrateTrainerClassAdvancements } from "./trainer-actor-sheet.mjs";
@@ -123,10 +125,11 @@ export class Poke5eImporter extends HandlebarsApplicationMixin(ApplicationV2) {
       if (options.progression) {
         setStatus(status, "Creando la clase de Entrenador…", 90);
         const pack = await ensurePack("progression");
-        const features = trainerFeatureSources();
+        const features = [...trainerFeatureSources(), ...trainerPathFeatureSources()];
         itemCount += await upsertPackItems(pack, features, status, 90, 95);
         const featureUuids = await progressionFeatureUuids(pack);
-        itemCount += await upsertPackItems(pack, [trainerClassSource(featureUuids)], status, 96, 98);
+        itemCount += await upsertPackItems(pack, trainerPathSources(featureUuids), status, 95, 97);
+        itemCount += await upsertPackItems(pack, [trainerClassSource(featureUuids)], status, 97, 98);
         await migrateTrainerClassAdvancements();
       }
       if (options.reference) await upsertReferenceJournal();
@@ -223,7 +226,7 @@ async function progressionFeatureUuids(pack) {
   const index = await pack.getIndex({ fields: [`flags.${MODULE_ID}.sourceId`, `flags.${MODULE_ID}.kind`] });
   const entries = new Map();
   for (const entry of index.values()) {
-    if (foundry.utils.getProperty(entry, `flags.${MODULE_ID}.kind`) !== "trainer-feature") continue;
+    if (!["trainer-feature", "trainer-path-feature"].includes(foundry.utils.getProperty(entry, `flags.${MODULE_ID}.kind`))) continue;
     const sourceId = foundry.utils.getProperty(entry, `flags.${MODULE_ID}.sourceId`);
     if (sourceId) entries.set(sourceId, `Compendium.${pack.collection}.Item.${entry._id}`);
   }

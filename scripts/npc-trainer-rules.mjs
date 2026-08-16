@@ -118,37 +118,13 @@ export const NPC_DIFFICULTIES = {
 };
 
 /**
- * Caminos de Entrenador disponibles para los NPC, con su descripción. Solo el
- * Guru altera el cálculo (en trainerControlSr()); el resto es descriptivo y lo
- * muestran npc-trainer-generator.mjs y la biografía del actor.
- */
-export const NPC_TRAINER_PATHS = {
-  none: { name: "Sin camino", description: "No aplica rasgos de camino." },
-  ace: { name: "Ace Trainer", description: "Especialista en potenciar ataques, daño y decisiones tácticas en combate." },
-  hobbyist: { name: "Hobbyist", description: "Entrenador versátil con más especializaciones y competencias." },
-  mentor: { name: "Poké Mentor", description: "Maestro de movimientos, MT y desarrollo de sus Pokémon." },
-  researcher: { name: "Researcher", description: "Analiza capacidades, movimientos y evoluciones Pokémon." },
-  collector: { name: "Pokémon Collector", description: "Experto en rastreo, control del daño y capturas." },
-  nurse: { name: "Nurse", description: "Especialista en curación, cocina y tratamiento de estados." },
-  typeMaster: { name: "Type Master", description: "Potencia a los Pokémon que coinciden con sus especializaciones de tipo." },
-  commander: { name: "Commander", description: "Obtiene ventajas mediante el vínculo y las órdenes de equipo." },
-  grunt: { name: "Grunt", description: "Usa tácticas criminales y Puntos de Sombra para sabotear al rival." },
-  tactician: { name: "Tactician", description: "Gasta Puntos Tácticos para curar, defender y dirigir ataques." },
-  ranger: { name: "Ranger", description: "Explorador, rastreador y especialista en capturas en campo abierto." },
-  guru: { name: "Guru", description: "Aumenta su límite de control y fortalece mente, cuerpo y espíritu." },
-  breeder: { name: "Pokémon Breeder", description: "Especialista en crianza, herencia y diversidad Pokémon." }
-};
-
-/**
- * SR máximo que un Entrenador puede controlar según su nivel, con +1 para el
- * camino Guru a partir del nivel 2 y un tope de 15. La usan
+ * SR máximo que un Entrenador puede controlar según su nivel. La usan
  * filterNpcTrainerSpecies() como límite automático y npc-trainer-generator.mjs
  * para mostrarlo.
  */
-export function trainerControlSr(trainerLevel, path = "none") {
+export function trainerControlSr(trainerLevel) {
   const lvl = level(trainerLevel, 1);
-  const base = lvl >= 17 ? 15 : lvl >= 14 ? 14 : lvl >= 11 ? 12 : lvl >= 8 ? 10 : lvl >= 6 ? 8 : lvl >= 3 ? 5 : 2;
-  return Math.min(15, base + (path === "guru" && lvl >= 2 ? 1 : 0));
+  return lvl >= 17 ? 15 : lvl >= 14 ? 14 : lvl >= 11 ? 12 : lvl >= 8 ? 10 : lvl >= 6 ? 8 : lvl >= 3 ? 5 : 2;
 }
 
 /** Nombres de pila separados por el mismo género que decide el sprite. */
@@ -186,7 +162,7 @@ export function filterNpcTrainerSpecies(species, filters = {}, evolutions = []) 
   const excludes = idSet(filters.excludeIds);
   const evolved = new Set(evolutions.map(entry => entry.to));
   const evolves = new Set(evolutions.map(entry => entry.from));
-  const automaticSrMax = filters.respectControlLimit === true ? trainerControlSr(filters.trainerLevel, filters.path) : Infinity;
+  const automaticSrMax = filters.respectControlLimit === true ? trainerControlSr(filters.trainerLevel) : Infinity;
   const effectiveSrMax = hasNumber(filters.srMax) ? Math.min(Number(filters.srMax), automaticSrMax) : automaticSrMax;
   return species.filter(entry => {
     if (Number(entry.number) <= 0) return false;
@@ -241,8 +217,8 @@ export function generateNpcTrainerTeam(pool, options = {}, random = Math.random)
       const varied = candidates.filter(species => (species.type ?? []).some(type => !usedTypes.has(type)));
       if (varied.length) candidates = varied;
     }
-    if (options.composition === "specialized" && options.specialization) {
-      const themed = candidates.filter(species => (species.type ?? []).includes(options.specialization));
+    if (options.composition === "specialized" && options.teamType) {
+      const themed = candidates.filter(species => (species.type ?? []).includes(options.teamType));
       if (themed.length) candidates = themed;
     }
     const species = weightedChoice(candidates, options, random);
