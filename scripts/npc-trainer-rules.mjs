@@ -12,7 +12,7 @@
  * Arquetipos de NPC. Cada uno ordena las características de mayor a menor —ese
  * orden lo aplica npcTrainerAbilities()— y fija sus competencias.
  */
-export const NPC_ARCHETYPES = {
+const NPC_ARCHETYPE_PROFILES = {
   balanced: { name: "Equilibrado", abilities: ["cha", "dex", "wis", "con", "int", "str"], skills: ["ani", "prc", "ins"] },
   ace: { name: "Entrenador experto", abilities: ["cha", "wis", "dex", "con", "int", "str"], skills: ["ani", "ins", "per"] },
   rival: { name: "Rival", abilities: ["dex", "cha", "con", "wis", "str", "int"], skills: ["acr", "itm", "ins"] },
@@ -34,6 +34,74 @@ export const NPC_ARCHETYPES = {
   villain: { name: "Agente criminal", abilities: ["cha", "dex", "int", "con", "wis", "str"], skills: ["itm", "dec", "ste"] },
   boss: { name: "Jefe / Campeón", abilities: ["cha", "con", "wis", "dex", "int", "str"], skills: ["ani", "itm", "ins", "prc"] }
 };
+
+/** Arquetipos disponibles, derivados uno a uno de los sprites incluidos. */
+export const NPC_ARCHETYPES = Object.fromEntries([
+  ["ace-trainer", "Ace Trainer", "ace"],
+  ["aristocrat", "Aristocrat", "gymLeader"],
+  ["artist", "Artist", "performer"],
+  ["backpacker", "Backpacker", "ranger"],
+  ["biker", "Biker", "athletic"],
+  ["bird-keeper", "Bird Keeper", "ranger"],
+  ["bug-catcher", "Bug Catcher", "ranger"],
+  ["business-executive", "Business Executive", "tactical"],
+  ["camper", "Camper", "ranger"],
+  ["chef", "Chef", "medic"],
+  ["collector", "Collector", "collector"],
+  ["criminal-grunt", "Criminal Grunt", "villain"],
+  ["cyclist", "Cyclist", "agile"],
+  ["dancer", "Dancer", "performer"],
+  ["dragon-tamer", "Dragon Tamer", "ace"],
+  ["elite-criminal", "Elite Criminal", "villain"],
+  ["fighter", "Fighter", "athletic"],
+  ["fisher", "Fisher", "sailor"],
+  ["gardener", "Gardener", "breeder"],
+  ["hiker", "Hiker", "mountaineer"],
+  ["juggler", "Juggler", "performer"],
+  ["karateka", "Karateka", "athletic"],
+  ["medium", "Medium", "mystic"],
+  ["musician", "Musician", "performer"],
+  ["nurse", "Nurse", "medic"],
+  ["picnicker", "Picnicker", "ranger"],
+  ["poke-fan", "Pok\u00e9 Fan", "balanced"],
+  ["poke-maniac", "Pok\u00e9 Maniac", "researcher"],
+  ["pokemon-breeder", "Pok\u00e9mon Breeder", "breeder"],
+  ["pokemon-ranger", "Pok\u00e9mon Ranger", "ranger"],
+  ["psychic", "Psychic", "mystic"],
+  ["sailor", "Sailor", "sailor"],
+  ["school-kid", "School Kid", "researcher"],
+  ["scientist", "Scientist", "researcher"],
+  ["sky-trainer", "Sky Trainer", "agile"],
+  ["socialite", "Socialite", "gymLeader"],
+  ["super-nerd", "Super Nerd", "engineer"],
+  ["swimmer", "Swimmer", "athletic"],
+  ["tourist", "Tourist", "balanced"],
+  ["veteran", "Veteran", "ace"],
+  ["youngster", "Youngster", "rival"],
+  ["youth-trainer", "Youth Trainer", "balanced"]
+].map(([id, name, profile]) => [id, namedArchetype(name, profile)]));
+
+export const NPC_DEFAULT_ARCHETYPE = "ace-trainer";
+
+/** Ruta del sprite de arquetipo segÃºn el gÃ©nero ya resuelto. */
+export function npcTrainerSprite(archetypeId, gender) {
+  const archetype = NPC_ARCHETYPES[archetypeId] ?? NPC_ARCHETYPES[NPC_DEFAULT_ARCHETYPE];
+  const symbol = gender === "female" ? "\u2640" : "\u2642";
+  return `${MODULE_PATH}/assets/NPC trainers/${archetype.name} ${symbol}.png`;
+}
+
+/** Normaliza valores antiguos y resuelve el gÃ©nero aleatorio una sola vez. */
+export function resolveNpcTrainerGender(value, random = Math.random) {
+  const normalized = String(value ?? "random").trim().toLocaleLowerCase();
+  if (["female", "femenino"].includes(normalized)) return "female";
+  if (["male", "masculino"].includes(normalized)) return "male";
+  return random() < 0.5 ? "female" : "male";
+}
+
+function namedArchetype(name, profileId) {
+  const profile = NPC_ARCHETYPE_PROFILES[profileId] ?? NPC_ARCHETYPE_PROFILES.balanced;
+  return { name, abilities: [...profile.abilities], skills: [...profile.skills] };
+}
 
 /**
  * Grados de dificultad, que ajustan características, PG y el nivel de los
@@ -178,9 +246,9 @@ export function generateNpcTrainerTeam(pool, options = {}, random = Math.random)
  * La usa npc-trainer-actor.mjs al crear el actor.
  */
 export function npcTrainerAbilities(archetypeId, difficultyId) {
-  const archetype = NPC_ARCHETYPES[archetypeId] ?? NPC_ARCHETYPES.balanced;
+  const archetype = NPC_ARCHETYPES[archetypeId] ?? NPC_ARCHETYPES[NPC_DEFAULT_ARCHETYPE];
   const difficulty = NPC_DIFFICULTIES[difficultyId] ?? NPC_DIFFICULTIES.standard;
-  const array = archetypeId === "boss" ? [17, 15, 14, 13, 12, 10] : [15, 14, 13, 12, 10, 8];
+  const array = difficultyId === "boss" ? [17, 15, 14, 13, 12, 10] : [15, 14, 13, 12, 10, 8];
   const result = { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 };
   archetype.abilities.forEach((ability, index) => { result[ability] = Math.max(3, Math.min(20, array[index] + difficulty.abilityBonus)); });
   return result;
@@ -234,4 +302,4 @@ function idSet(value) { return new Set(normalized(value).split(/[\s,;]+/).filter
 function hasNumber(value) { return value !== "" && value != null && Number.isFinite(Number(value)); }
 /** Acota un nivel al rango 1-20 con valor de reserva. Auxiliar de todo el archivo. */
 function level(value, fallback) { return Math.max(1, Math.min(20, Math.trunc(Number(value) || fallback || 1))); }
-import { trainerPokeslotsForLevel } from "./model.mjs";
+import { MODULE_PATH, trainerPokeslotsForLevel } from "./model.mjs";

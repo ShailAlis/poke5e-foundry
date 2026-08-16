@@ -8,7 +8,9 @@
  */
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { NPC_ARCHETYPES, filterNpcTrainerSpecies, generateNpcTrainerTeam, npcTrainerAbilities, npcTrainerHitPoints, randomNpcTrainerName, trainerControlSr } from "./npc-trainer-rules.mjs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { NPC_ARCHETYPES, filterNpcTrainerSpecies, generateNpcTrainerTeam, npcTrainerAbilities, npcTrainerHitPoints, npcTrainerSprite, randomNpcTrainerName, resolveNpcTrainerGender, trainerControlSr } from "./npc-trainer-rules.mjs";
 import { SKILLS } from "./trainer-creation-data.mjs";
 
 const pokemon = JSON.parse(fs.readFileSync(new URL("../data/pokemon.json", import.meta.url))).items;
@@ -43,19 +45,31 @@ assert.equal(new Set(team.map(entry => entry.speciesId)).size, 4);
 assert.ok(team.every(entry => entry.level >= 5 && entry.level <= 10));
 assert.ok(team.every(entry => pokemon.find(species => species.id === entry.speciesId).type.includes("water")));
 
-const abilities = npcTrainerAbilities("tactical", "elite");
+const abilities = npcTrainerAbilities("scientist", "elite");
 assert.ok(abilities.int > abilities.str);
-assert.equal(Object.keys(NPC_ARCHETYPES).length, 20);
+assert.equal(Object.keys(NPC_ARCHETYPES).length, 42);
+const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const spriteDirectory = path.resolve(projectRoot, "assets", "NPC trainers");
+const spriteArchetypeNames = [...new Set(fs.readdirSync(spriteDirectory).map(file => file.replace(/ [\u2640\u2642]\.png$/u, "")))].sort();
+assert.deepEqual(Object.values(NPC_ARCHETYPES).map(entry => entry.name).sort(), spriteArchetypeNames);
 for (const [id, archetype] of Object.entries(NPC_ARCHETYPES)) {
   assert.equal(new Set(archetype.abilities).size, 6, `${id} must prioritize all six abilities exactly once.`);
   assert.deepEqual([...archetype.abilities].sort(), ["cha", "con", "dex", "int", "str", "wis"]);
   assert.ok(archetype.skills.length >= 3, `${id} must grant at least three skills.`);
   assert.equal(new Set(archetype.skills).size, archetype.skills.length, `${id} must not repeat skills.`);
   assert.ok(archetype.skills.every(skill => SKILLS[skill]), `${id} contains an unknown skill.`);
+  for (const gender of ["female", "male"]) {
+    const sprite = npcTrainerSprite(id, gender).replace("modules/poke5e-foundry/", "");
+    assert.ok(fs.existsSync(path.resolve(projectRoot, sprite)), `${id} has no ${gender} sprite.`);
+  }
 }
-assert.ok(npcTrainerAbilities("ranger", "standard").wis > npcTrainerAbilities("ranger", "standard").str);
-assert.ok(npcTrainerAbilities("engineer", "standard").int > npcTrainerAbilities("engineer", "standard").cha);
+assert.ok(npcTrainerAbilities("pokemon-ranger", "standard").wis > npcTrainerAbilities("pokemon-ranger", "standard").str);
+assert.ok(npcTrainerAbilities("super-nerd", "standard").int > npcTrainerAbilities("super-nerd", "standard").cha);
 assert.ok(npcTrainerHitPoints(10, 14, "boss") > npcTrainerHitPoints(10, 14, "standard"));
+assert.equal(resolveNpcTrainerGender("Femenino"), "female");
+assert.equal(resolveNpcTrainerGender("male"), "male");
+assert.equal(resolveNpcTrainerGender("random", () => 0.25), "female");
+assert.equal(resolveNpcTrainerGender("random", () => 0.75), "male");
 assert.equal(randomNpcTrainerName({ name: "Recluta", quantity: 3 }, () => 0, 1), "Recluta 2");
 assert.equal(randomNpcTrainerName({ useTitle: false }, () => 0), "Aina");
 

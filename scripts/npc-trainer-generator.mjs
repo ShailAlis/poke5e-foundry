@@ -14,7 +14,7 @@ import { loadPoke5eData } from "./data-service.mjs";
 import { MODULE_PATH, portraitUrl, trainerPokeslotsForLevel } from "./model.mjs";
 import { NATURES, ORIGINS, SPECIALIZATIONS } from "./trainer-creation-data.mjs";
 import { createNpcTrainerActor, ensureNpcTrainerFolder, placeNpcTrainer } from "./npc-trainer-actor.mjs";
-import { NPC_ARCHETYPES, NPC_DIFFICULTIES, NPC_TRAINER_PATHS, filterNpcTrainerSpecies, generateNpcTrainerTeam, trainerControlSr } from "./npc-trainer-rules.mjs";
+import { NPC_ARCHETYPES, NPC_DEFAULT_ARCHETYPE, NPC_DIFFICULTIES, NPC_TRAINER_PATHS, filterNpcTrainerSpecies, generateNpcTrainerTeam, trainerControlSr } from "./npc-trainer-rules.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -77,7 +77,7 @@ export class Poke5eNpcTrainerGenerator extends HandlebarsApplicationMixin(Applic
       pathOptions: { random: game.i18n.localize("POKE5E.Options.Random"), ...optionMap(NPC_TRAINER_PATHS) },
       originOptions: { random: game.i18n.localize("POKE5E.Options.Random"), ...Object.fromEntries(ORIGINS.map(entry => [entry.id, entry.name])) },
       specializationOptions: { random: game.i18n.localize("POKE5E.Options.RandomFeminine"), ...Object.fromEntries(SPECIALIZATIONS.map(entry => [entry.type, `${entry.name} · ${titleCase(entry.type)}`])) },
-      genderOptions: { random: game.i18n.localize("POKE5E.Options.Random"), Masculino: game.i18n.localize("POKE5E.Options.Male"), Femenino: game.i18n.localize("POKE5E.Options.Female"), "No binario": game.i18n.localize("POKE5E.Options.NonBinary") },
+      genderOptions: { random: game.i18n.localize("POKE5E.Options.Random"), male: game.i18n.localize("POKE5E.Options.Male"), female: game.i18n.localize("POKE5E.Options.Female") },
       natureOptions: Object.fromEntries(NATURES.map(nature => [nature, nature])),
       environmentOptions: localizeOptionMap({ coast: "CoastWater", mountain: "Mountain", other: "OtherEnvironment" }),
       compositionOptions: localizeOptionMap({ random: "FullyRandom", varied: "VariedTypes", specialized: "BySpecialization", "ace-last": "AceLast" }),
@@ -275,7 +275,7 @@ export class Poke5eNpcTrainerGenerator extends HandlebarsApplicationMixin(Applic
 function defaultConfig() {
   return {
     quantity: 1, name: "", image: "", useTitle: true, gender: "random", age: "", trainerLevel: 5,
-    origin: "random", specialization: "random", path: "random", archetype: "balanced", difficulty: "standard", notes: "",
+    origin: "random", specialization: "random", path: "random", archetype: NPC_DEFAULT_ARCHETYPE, difficulty: "standard", notes: "",
     teamSize: 3, composition: "varied", powerBias: "balanced", levelStrategy: "range", levelMin: 3, levelMax: 6,
     uniqueSpecies: true, shinyChance: 0, randomNature: true, nature: "Hardy",
     query: "", typePrimary: "", typeSecondary: "", typeMode: "all", region: "", biome: "", srMin: "", srMax: "",

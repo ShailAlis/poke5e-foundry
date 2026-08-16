@@ -7,7 +7,7 @@
  * Pokémon individual (movimientos, PP, PG y sexo) y que la clase Entrenador
  * enlace todos sus rasgos y mejoras de característica.
  */
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -21,6 +21,7 @@ globalThis.foundry = {
 };
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "data");
+const projectRoot = resolve(root, "..");
 const pokemon = JSON.parse(await readFile(resolve(root, "pokemon.json"), "utf8")).items;
 const moves = JSON.parse(await readFile(resolve(root, "moves.json"), "utf8")).moves;
 const movesById = new Map(moves.map(move => [move.id, move]));
@@ -34,13 +35,27 @@ const {
   moveMachineItemSource,
   trainerFeatureSources,
   trainerClassSource,
+  moveMachineIcon,
   trainerPokeslotLimit
 } = await import("./model.mjs");
 
-const machineSources = moves.filter(move => move.tm?.id != null || move.hm?.id != null).map(moveMachineItemSource);
+const machineMoves = moves.filter(move => move.tm?.id != null || move.hm?.id != null);
+const machineSources = machineMoves.map(moveMachineItemSource);
 if (machineSources.length !== 256) throw new Error(`Expected 256 move machines, found ${machineSources.length}.`);
 if (new Set(machineSources.map(source => source.flags[MODULE_ID].sourceId)).size !== machineSources.length) throw new Error("Move-machine source IDs must be unique.");
 if (machineSources.some(source => source.flags[MODULE_ID].kind !== "move-machine" || !source.flags[MODULE_ID].machine?.moveId)) throw new Error("Invalid move-machine item source.");
+for (const [index, source] of machineSources.entries()) {
+  const move = machineMoves[index];
+  const kind = source.flags[MODULE_ID].machine.kind;
+  if (source.flags[MODULE_ID].machine.type !== move.type) throw new Error(`${move.id}: move-machine type was not stored.`);
+  if (source.img !== moveMachineIcon(move, kind)) throw new Error(`${move.id}: inconsistent move-machine icon.`);
+  if (kind === "hm") {
+    if (source.img !== "icons/svg/book.svg") throw new Error(`${move.id}: expected the generic machine icon.`);
+    continue;
+  }
+  if (!source.img.startsWith("modules/poke5e-foundry/assets/icons/MTs/")) throw new Error(`${move.id}: missing typed TM icon.`);
+  await access(resolve(projectRoot, source.img.replace("modules/poke5e-foundry/", "")));
+}
 
 const trainerAt = level => ({ system: { details: { level } }, items: [] });
 if (trainerPokeslotLimit(trainerAt(1)) !== 3 || trainerPokeslotLimit(trainerAt(5)) !== 4 || trainerPokeslotLimit(trainerAt(10)) !== 5 || trainerPokeslotLimit(trainerAt(15)) !== 6) {

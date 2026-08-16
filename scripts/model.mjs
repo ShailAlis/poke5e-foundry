@@ -16,6 +16,27 @@ export const MODULE_ID = "poke5e-foundry";
 export const MODULE_PATH = `modules/${MODULE_ID}`;
 export const POKEMON_TOKEN_SCALE = 1.65;
 export const TRAINER_CLASS_ICON = `${MODULE_PATH}/assets/transparent_poke_ball_by_ace_zeroartic_df7u62z-fullview.png`;
+const DEFAULT_MACHINE_ICON = "icons/svg/book.svg";
+const TM_ICON_BY_TYPE = Object.freeze({
+  bug: "MT_tipo_bicho_EP.png",
+  dark: "MT_tipo_siniestro_EP.png",
+  dragon: "MT_tipo_drag\u00f3n_EP.png",
+  electric: "MT_tipo_el\u00e9ctrico_EP.png",
+  fairy: "MT_tipo_hada_EP.png",
+  fighting: "MT_tipo_lucha_EP.png",
+  fire: "MT_tipo_fuego_EP.png",
+  flying: "MT_tipo_volador_EP.png",
+  ghost: "MT_tipo_fantasma_EP.png",
+  grass: "MT_tipo_planta_EP.png",
+  ground: "MT_tipo_tierra_EP.png",
+  ice: "MT_tipo_hielo_EP.png",
+  normal: "MT_tipo_normal_EP.png",
+  poison: "MT_tipo_veneno_EP.png",
+  psychic: "MT_tipo_ps\u00edquico_EP.png",
+  rock: "MT_tipo_roca_EP.png",
+  steel: "MT_tipo_acero_EP.png",
+  water: "MT_tipo_agua_EP.png"
+});
 
 /**
  * Compendios de mundo que crea importer.mjs. getPack() los resuelve por esta
@@ -148,14 +169,21 @@ export function moveMachineItemSource(move) {
   return {
     name: `${definition.label} ${definition.id} — ${move.name}`,
     type: "loot",
-    img: "icons/svg/book.svg",
+    img: moveMachineIcon(move, definition.kind),
     system: {
       description: { value: `<p>Permite enseñar <strong>${escapeHtml(move.name)}</strong> a un Pokémon compatible.</p>`, chat: "" },
       quantity: 1,
       price: { value: Number(definition.cost) || 0, denomination: "gp" }
     },
-    flags: { [MODULE_ID]: { kind: "move-machine", sourceId, category: "machine", machine: { kind: definition.kind, id: definition.id, moveId: move.id } } }
+    flags: { [MODULE_ID]: { kind: "move-machine", sourceId, category: "machine", machine: { kind: definition.kind, id: definition.id, moveId: move.id, type: move.type } } }
   };
+}
+
+/** Devuelve el sprite de MT correspondiente al tipo del movimiento. */
+export function moveMachineIcon(move, machineKind = "tm") {
+  if (machineKind !== "tm") return DEFAULT_MACHINE_ICON;
+  const file = TM_ICON_BY_TYPE[String(move?.type ?? "").toLowerCase()];
+  return file ? `${MODULE_PATH}/assets/icons/MTs/${file}` : DEFAULT_MACHINE_ICON;
 }
 
 /**

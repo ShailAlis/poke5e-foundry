@@ -13,23 +13,9 @@ import { buildWildInstance } from "./encounter-generator.mjs";
 import { deployPokemon } from "./deployment.mjs";
 import { MODULE_ID, gearItemSource, pokemonItemSourceFromSpecies, portraitUrl, speciesItemSource, trainerClassSource } from "./model.mjs";
 import { NATURES, ORIGINS, SKILLS, SPECIALIZATIONS } from "./trainer-creation-data.mjs";
-import { NPC_ARCHETYPES, NPC_TRAINER_PATHS, npcTrainerAbilities, npcTrainerHitPoints, randomNpcTrainerName } from "./npc-trainer-rules.mjs";
+import { NPC_ARCHETYPES, NPC_DEFAULT_ARCHETYPE, NPC_TRAINER_PATHS, npcTrainerAbilities, npcTrainerHitPoints, npcTrainerSprite, randomNpcTrainerName, resolveNpcTrainerGender } from "./npc-trainer-rules.mjs";
 import { chooseTokenPosition } from "./wild-deployment.mjs";
 import { pokedollarCurrency } from "./economy.mjs";
-
-/**
- * Icono por defecto de cada arquetipo, usado como retrato e imagen de token
- * cuando no se indica uno propio.
- */
-const ARCHETYPE_ICONS = {
-  balanced: "icons/svg/people.svg", ace: "icons/svg/crown.svg", rival: "icons/svg/fist.svg",
-  gymLeader: "icons/svg/crown.svg", tactical: "icons/svg/eye.svg", athletic: "icons/svg/fist.svg",
-  agile: "icons/svg/wing.svg", ranger: "icons/svg/eye.svg", mountaineer: "icons/svg/fist.svg",
-  sailor: "icons/svg/wing.svg", researcher: "icons/svg/book.svg", engineer: "icons/svg/book.svg",
-  detective: "icons/svg/eye.svg", medic: "icons/svg/heal.svg", breeder: "icons/svg/heal.svg",
-  collector: "icons/svg/book.svg", mystic: "icons/svg/eye.svg", performer: "icons/svg/sound.svg",
-  villain: "icons/svg/hazard.svg", boss: "icons/svg/crown.svg"
-};
 
 /**
  * Crea el actor de un Entrenador NPC (solo director). Resuelve origen,
@@ -51,7 +37,8 @@ export async function createNpcTrainerActor(config, team, data, index = 0) {
   const skillRanks = npcSkillRanks(config.archetype, origin, specialization);
   const hp = npcTrainerHitPoints(level, abilities.con, config.difficulty);
   const name = randomNpcTrainerName(config, Math.random, index);
-  const icon = String(config.image ?? "").trim() || ARCHETYPE_ICONS[config.archetype] || "icons/svg/mystery-man.svg";
+  const gender = resolveNpcTrainerGender(config.gender);
+  const icon = String(config.image ?? "").trim() || npcTrainerSprite(config.archetype, gender);
   const classItem = trainerClassSource();
   classItem.system.levels = level;
   classItem.system.advancement = {};
@@ -83,7 +70,7 @@ export async function createNpcTrainerActor(config, team, data, index = 0) {
         movement: { walk: 30, fly: 0, swim: origin.id === "hoennian" && config.hoennEnvironment === "coast" ? 30 : 0, burrow: 0, climb: origin.id === "hoennian" && config.hoennEnvironment === "mountain" ? 10 : 0, units: "ft", hover: false }
       },
       details: {
-        gender: config.gender === "random" ? randomGender() : config.gender,
+        gender: game.i18n.localize(gender === "female" ? "POKE5E.Options.Female" : "POKE5E.Options.Male"),
         age: String(config.age || ""),
         biography: { value: biographyHtml(config, origin, specialization, path, team, data) }
       },
@@ -265,7 +252,7 @@ function selectPath(id, level) {
 function applyOriginAndSpecialization(base, origin, specialization, archetypeId) {
   const result = { ...base };
   let pair = origin.abilities;
-  if (pair === "any-two") pair = (NPC_ARCHETYPES[archetypeId] ?? NPC_ARCHETYPES.balanced).abilities.slice(0, 2);
+  if (pair === "any-two") pair = (NPC_ARCHETYPES[archetypeId] ?? NPC_ARCHETYPES[NPC_DEFAULT_ARCHETYPE]).abilities.slice(0, 2);
   if (Array.isArray(pair[0])) pair = pair[0];
   result[pair[0]] = Math.min(20, result[pair[0]] + 2);
   result[pair[1]] = Math.min(20, result[pair[1]] + 1);
@@ -294,8 +281,6 @@ function biographyHtml(config, origin, specialization, path, team, data) {
   return `<h2>Entrenador NPC</h2><p><strong>Arquetipo:</strong> ${escapeHtml(NPC_ARCHETYPES[config.archetype]?.name ?? config.archetype)} · <strong>Origen:</strong> ${escapeHtml(origin.name)} · <strong>Especialización:</strong> ${escapeHtml(specialization.name)} · <strong>Camino:</strong> ${escapeHtml(path?.name ?? "Ninguno")}</p><p><strong>Equipo:</strong> ${escapeHtml(roster)}</p><p>${escapeHtml(config.notes ?? "")}</p>`;
 }
 
-/** Género al azar del NPC cuando se configura como aleatorio. */
-function randomGender() { return ["Masculino", "Femenino", "No binario"][Math.floor(Math.random() * 3)]; }
 /** Acota un valor numérico a un rango. Lo usa el nivel de Entrenador. */
 function clamp(value, minimum, maximum) { return Math.max(minimum, Math.min(maximum, Math.trunc(Number(value) || minimum))); }
 /** Devuelve el número si es válido y, si no, la reserva. Auxiliar de los ajustes de token. */

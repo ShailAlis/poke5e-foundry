@@ -26,6 +26,8 @@ import { registerMoveModifierEffects } from "./move-modifiers.mjs";
 import { restoreHeldItemChargesAfterRest } from "./held-items.mjs";
 import { clearPoke5eDataCache, loadPoke5eData } from "./data-service.mjs";
 import { configurePokedollarEconomy } from "./economy.mjs";
+import { synchronizePrimaryParty } from "./primary-party.mjs";
+import { migrateMoveMachineIcons } from "./move-machines.mjs";
 
 /**
  * Arranque temprano: delega el registro de tipos de daño (combat.mjs), fichas
@@ -125,6 +127,8 @@ Hooks.once("ready", async () => {
     migratePokemonCombatData().catch(error => console.error(`${MODULE_ID} | Combat data migration failed`, error));
     migrateTrainerFeatureGroups().catch(error => console.error(`${MODULE_ID} | Trainer feature grouping migration failed`, error));
     migrateTrainerClassAdvancements().catch(error => console.error(`${MODULE_ID} | Trainer advancement migration failed`, error));
+    synchronizePrimaryParty().catch(error => console.error(`${MODULE_ID} | Primary Party synchronization failed`, error));
+    migrateMoveMachineIcons().catch(error => console.error(`${MODULE_ID} | Move-machine icon migration failed`, error));
   }
 });
 
@@ -174,8 +178,29 @@ Hooks.on("preCreateItem", item => {
 Hooks.on("preCreateActor", actor => enforceHumanActorSource(actor));
 /** Abre el asistente de creación de Entrenador tras crear un personaje sin completar. */
 Hooks.on("createActor", (actor, options, userId) => {
+  if (game.user.isGM && actor.type === "character") synchronizePrimaryParty().catch(error => console.error(`${MODULE_ID} | Primary Party synchronization failed`, error));
   if (userId !== game.user.id || actor.type !== "character" || actor.getFlag(MODULE_ID, "trainerCreation")?.completed) return;
   setTimeout(() => new Poke5eTrainerCreator({ actor }).render(true), 250);
+});
+
+/** Mantiene la Primary Party al cambiar permisos, asignaciones o borrar PJ. */
+Hooks.on("updateActor", (actor, changes, options) => {
+  if (!game.user.isGM) return;
+  const characterChanged = actor.type === "character" && (
+    foundry.utils.hasProperty(changes, "ownership") || foundry.utils.hasProperty(changes, `flags.${MODULE_ID}.trainerCreation`)
+  );
+  const groupChanged = actor.type === "group" && foundry.utils.hasProperty(changes, "system.members") && !options?.poke5ePrimaryParty;
+  if (characterChanged || groupChanged) {
+    synchronizePrimaryParty().catch(error => console.error(`${MODULE_ID} | Primary Party synchronization failed`, error));
+  }
+});
+Hooks.on("deleteActor", actor => {
+  if (game.user.isGM && ["character", "group"].includes(actor.type)) synchronizePrimaryParty().catch(error => console.error(`${MODULE_ID} | Primary Party synchronization failed`, error));
+});
+Hooks.on("updateUser", (_user, changes) => {
+  if (game.user.isGM && (foundry.utils.hasProperty(changes, "character") || foundry.utils.hasProperty(changes, "role"))) {
+    synchronizePrimaryParty().catch(error => console.error(`${MODULE_ID} | Primary Party synchronization failed`, error));
+  }
 });
 
 /** Botones de cabecera en las fichas antiguas (ApplicationV1), vía addLegacyHeaderControl(). */
