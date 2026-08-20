@@ -13,7 +13,8 @@ import {
   buildWildInstance,
   filterEncounterSpecies,
   generateEncounter,
-  naturalMovesAtLevel
+  naturalMovesAtLevel,
+  withEggMoveChance
 } from "./encounter-generator.mjs";
 
 const pokemon = JSON.parse(await readFile(new URL("../data/pokemon.json", import.meta.url), "utf8")).items;
@@ -40,5 +41,26 @@ assert.equal(instance.experience, 12000);
 assert(instance.moves.length <= 4);
 assert(instance.moves.every(entry => entry.pp.max === movesById.get(entry.moveId).pp));
 assert.equal(instance.inTeam, false);
+
+// Los movimientos huevo no se pueden elegir al subir de nivel (move-learning.mjs);
+// la generación aleatoria es su única vía de aparición, con una probabilidad baja.
+let eggId = 0;
+const alwaysEgg = buildWildInstance(bulbasaur, movesById, { level: 1, random: () => 0, idFactory: () => `egg-${++eggId}` });
+assert(alwaysEgg.moves.some(entry => (bulbasaur.moves.egg ?? []).includes(entry.moveId)), "random() === 0 must always roll below EGG_MOVE_CHANCE and include an egg move.");
+let noEggId = 0;
+const neverEgg = buildWildInstance(bulbasaur, movesById, { level: 1, random: () => 0.99, idFactory: () => `no-egg-${++noEggId}` });
+assert(neverEgg.moves.every(entry => !(bulbasaur.moves.egg ?? []).includes(entry.moveId)), "random() near 1 must never roll below EGG_MOVE_CHANCE.");
+
+// withEggMoveChance() es la misma probabilidad aplicada a una lista de
+// movimientos ya cerrada (Pokémon inicial del asistente de creación de
+// entrenador), en vez de a la bolsa de la que buildWildInstance() escoge cuatro.
+const starterMoves = (bulbasaur.moves.start ?? []).slice(0, 4).map(moveId => ({ id: moveId, moveId, pp: { value: 1, max: 1 } }));
+const starterWithEgg = withEggMoveChance(starterMoves, bulbasaur, movesById, { random: () => 0, idFactory: () => "egg-slot" });
+assert(starterWithEgg.some(entry => (bulbasaur.moves.egg ?? []).includes(entry.moveId)), "random() === 0 must always add/replace with an egg move.");
+assert(starterWithEgg.length <= 4, "withEggMoveChance() must never exceed four known moves.");
+const starterWithoutEgg = withEggMoveChance(starterMoves, bulbasaur, movesById, { random: () => 0.99 });
+assert.deepEqual(starterWithoutEgg, starterMoves, "random() near 1 must return the original moves untouched.");
+const shortList = withEggMoveChance(starterMoves.slice(0, 2), bulbasaur, movesById, { random: () => 0, idFactory: () => "egg-slot" });
+assert.equal(shortList.length, 3, "With fewer than four known moves, the egg move should be added rather than replace one.");
 
 console.log("Encounter generation validation passed.");

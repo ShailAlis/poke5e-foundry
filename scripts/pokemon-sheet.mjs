@@ -18,7 +18,43 @@ import { deployedActorFor, recallPokemon, syncPokemonHeldItemToDeployment, syncP
 import { CONTEST_TYPES, contestAppealOutcome, contestCompatibility, contestDetailsForMove, contestTypeOptions } from "./contests.mjs";
 import { applyMoveStatuses, pokemonStatusEntries, pokemonStatusId, removePokemonStatus } from "./status-effects.mjs";
 import { applyMoveOngoingEffects, moveHasImmediateDamage, ongoingEffectEntries, removeOngoingEffect } from "./ongoing-effects.mjs";
-import { applyMoveModifierEffects, consumeCapturedMoveModifiers, moveModifierEntries, moveModifierIdsToConsume, pokemonCombatModifiers, removeMoveModifier, targetedPokemonModifiers } from "./move-modifiers.mjs";
+import { applyMoveLock, applyMoveModifierEffects, attackHitsPokemonTarget, consecutiveStrikeStacks, consumeCapturedMoveModifiers, isMoveRecharging, moveModifierEntries, moveModifierIdsToConsume, pokemonCombatModifiers, removeAllMoveModifiers, removeMoveModifier, resetConsecutiveStrike, targetedPokemonModifiers } from "./move-modifiers.mjs";
+import { CHAIN_MULTI_HIT_MOVES, CONSECUTIVE_ESCALATION_MOVES, diceMultiplierForStacks, resolveChainHits, scaleDiceCount } from "./multi-hit.mjs";
+import { DRAIN_FRACTION_MOVES, RECOIL_FRACTION_MOVES, recoilAmount } from "./recoil.mjs";
+import { markFalseSwipeTarget, requestFaintTargets, requestHpEffect, rollFailedSaves } from "./hp-effects.mjs";
+import { releaseBideDamage } from "./bide.mjs";
+import { requestHeldItemSwap } from "./item-swap.mjs";
+import { requestForcedSwitch, selfForcedSwitch } from "./forced-switch.mjs";
+import { FULL_NEGATION_MOVES, HALF_NEGATION_MOVES, SURVIVE_MOVES, armDamageShield } from "./damage-shields.mjs";
+import { FIELD_PULSE_MOVES, FIELD_RULE_MOVES, TERRAIN_MOVES, WEATHER_BALL_TYPES, WEATHER_MOVES, clearField, currentField, requestFieldEffect } from "./terrain-effects.mjs";
+
+const DAMAGE_SHIELD_MOVES = new Set([...FULL_NEGATION_MOVES, ...HALF_NEGATION_MOVES, ...SURVIVE_MOVES]);
+
+const SELF_SWITCH_MOVES = new Set(["baton-pass", "chilly-reception", "flip-turn", "parting-shot", "u-turn", "volt-switch"]);
+const TARGET_SWITCH_MOVES = new Set(["circle-throw", "dragon-tail"]);
+
+const ITEM_SWAP_SAVE_MOVES = new Set(["switcheroo"]);
+
+const HP_EFFECT_MOVES = new Set(["endeavor", "ruination", "natures-madness"]);
+/** Movimientos que dejan a 0 PG al propio usuario tras resolverse (Fatalidad Final, Autodestrucción). */
+const SELF_FAINT_MOVES = new Set(["final-gambit", "self-destruct"]);
+
+/** Movimientos cuyos dados se doblan si el clima indicado está activo (Síntesis en Día Soleado). */
+const WEATHER_DICE_DOUBLE_MOVES = { synthesis: "sun" };
+/** Movimientos cuyo modificador MOVE se dobla si el clima indicado está activo (Rayo Solar/Hoja Solar en sol, Recuperar Costa en tormenta de arena). */
+const WEATHER_MODIFIER_DOUBLE_MOVES = { "solar-beam": "sun", "solar-blade": "sun", "shore-up": "sandstorm" };
+/** Los 8 estados que puede tener un objetivo, para comprobar "si el objetivo sufre cualquier estado" (Hex, Desfile Infernal, Andanada Tóxica). */
+const POKEMON_STATUS_IDS = ["badly-poisoned", "burned", "frozen", "paralyzed", "poisoned", "asleep", "confused", "flinched"];
+/** Doblan el modificador MOVE del daño si el objetivo sufre cualquier estado. */
+const TARGET_STATUS_MODIFIER_DOUBLE_MOVES = new Set(["hex", "infernal-parade", "barb-barrage"]);
+/** Doblan los dados de daño si el objetivo sufre alguno de estos estados concretos (Golpe Tóxico, Sales Aromáticas). */
+const TARGET_STATUS_DICE_DOUBLE_MOVES = { venoshock: ["poisoned", "badly-poisoned"], "smelling-salts": ["paralyzed"] };
+/** Doblan el modificador MOVE del daño si el objetivo conserva al menos la mitad de sus PG máximos (Escurrir). */
+const TARGET_HP_MODIFIER_DOUBLE_MOVES = new Set(["wring-out"]);
+/** Multiplican los dados de daño según los PG actuales del propio usuario (Golpe Descuido, Inversión: ×2 por debajo del 50%, ×3 por debajo del 10%). */
+const SELF_HP_DICE_MULTIPLIER_MOVES = new Set(["flail", "reversal"]);
+/** Reducen a la mitad los dados de daño si el propio usuario está por debajo del 50% de sus PG máximos (Chorro de Agua). */
+const SELF_HP_HALF_DICE_MOVES = new Set(["water-spout"]);
 import { hasTrainerPath, machineConsumption, pokemonPathMoveBonuses } from "./trainer-path-rules.mjs";
 import {
   activateHeldItem,
@@ -609,6 +645,12 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const entry = instance.moves.find(candidate => candidate.id === event.currentTarget.dataset.moveEntryId);
     const catalogMove = data.movesById.get(entry?.moveId);
     if (!entry || !catalogMove) return;
+    if (catalogMove.id === "bide") return this.#rollBide(instance, entry, catalogMove);
+    if (catalogMove.id === "sleep-talk") return this.#rollSleepTalk(instance, entry, data);
+    if (catalogMove.id === "metal-burst") return this.#rollMetalBurst(instance, entry, catalogMove);
+    if (catalogMove.id === "counter") return this.#rollRetaliation(instance, entry, catalogMove, { dice: "1d4", damageType: "fighting", trackingKey: "counterArmed", label: "Melee" });
+    if (catalogMove.id === "mirror-coat") return this.#rollRetaliation(instance, entry, catalogMove, { dice: "1d6", damageType: "psychic", trackingKey: "mirrorCoatArmed", label: "Ranged" });
+    if (catalogMove.id === "explosion") return this.#rollExplosion(instance, entry, catalogMove);
     if (Number(entry.pp.max) > 0 && Number(entry.pp.value) <= 0) {
       return ui.notifications.warn(game.i18n.format("POKE5E.Notifications.NoPP", { name: displayPokemonName(this.pokemonItem), move: catalogMove.name }));
     }
@@ -634,20 +676,39 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const flavor = `${name} — ${move.name}`;
     const speaker = ChatMessage.getSpeaker({ actor: this.pokemonItem.parent, alias: name });
     const combatActor = this.pokemonItem.parent?.getFlag?.(MODULE_ID, "kind") === "wild" ? this.pokemonItem.parent : deployedActorFor(this.pokemonItem);
+    if (isMoveRecharging(combatActor, move.id)) return ui.notifications.warn(game.i18n.format("POKE5E.Notifications.Recharging", { name, move: move.name }));
+    if (pokemonCombatModifiers(combatActor).moveLockAll) return ui.notifications.warn(game.i18n.format("POKE5E.Notifications.MoveLocked", { name, move: move.name }));
     const selectedTokens = [...(game.user.targets ?? [])];
     const combatModifiers = pokemonCombatModifiers(combatActor, { targetUuids: selectedTokens.map(token => token.actor?.uuid).filter(Boolean) });
     const targetedModifiers = targetedPokemonModifiers(selectedTokens);
     const consumedModifierIds = moveModifierIdsToConsume(combatActor, "move");
-    const damageMoveModifier = moveModifier * heldProfile.damageMoveMultiplier * combatModifiers.moveModifierMultiplier;
-    const formula = moveHasImmediateDamage(move) ? damageFormula(move, level, damageMoveModifier, species, combatModifiers.damage + heldProfile.damage + pathProfile.damage, heldProfile.stab + pathProfile.stab) : null;
-    const damageType = formula ? await chooseDamageType(move) : null;
+    const targetAsleep = move.id === "wake-up-slap" && selectedTokens.some(token => token.actor?.statuses?.has(pokemonStatusId("asleep")));
+    const activeWeather = currentField(game.combat).weather?.id ?? null;
+    const targetHasAnyStatus = selectedTokens.some(token => POKEMON_STATUS_IDS.some(id => token.actor?.statuses?.has(pokemonStatusId(id))));
+    const targetStatusModifierMultiplier = TARGET_STATUS_MODIFIER_DOUBLE_MOVES.has(move.id) && targetHasAnyStatus ? 2 : 1;
+    const ownHpFraction = combatActor?.system?.attributes?.hp?.max ? Number(combatActor.system.attributes.hp.value) / Number(combatActor.system.attributes.hp.max) : 1;
+    const targetHpFraction = selectedTokens[0]?.actor?.system?.attributes?.hp?.max ? Number(selectedTokens[0].actor.system.attributes.hp.value) / Number(selectedTokens[0].actor.system.attributes.hp.max) : 1;
+    const targetHpModifierMultiplier = TARGET_HP_MODIFIER_DOUBLE_MOVES.has(move.id) && targetHpFraction >= 0.5 ? 2 : 1;
+    const weatherModifierMultiplier = WEATHER_MODIFIER_DOUBLE_MOVES[move.id] && WEATHER_MODIFIER_DOUBLE_MOVES[move.id] === activeWeather ? 2 : 1;
+    const damageMoveModifier = moveModifier * (targetAsleep ? 2 : 1) * weatherModifierMultiplier * targetStatusModifierMultiplier * targetHpModifierMultiplier * heldProfile.damageMoveMultiplier * combatModifiers.moveModifierMultiplier;
+    const escalation = CONSECUTIVE_ESCALATION_MOVES[move.id];
+    const escalationMultiplier = escalation ? diceMultiplierForStacks(consecutiveStrikeStacks(combatActor, move.id)) : 1;
+    const weatherDiceMultiplier = (WEATHER_DICE_DOUBLE_MOVES[move.id] && WEATHER_DICE_DOUBLE_MOVES[move.id] === activeWeather) || (move.id === "weather-ball" && activeWeather) ? 2 : 1;
+    const targetStatusDiceMultiplier = TARGET_STATUS_DICE_DOUBLE_MOVES[move.id]?.some(id => selectedTokens.some(token => token.actor?.statuses?.has(pokemonStatusId(id)))) ? 2 : 1;
+    const selfHpDiceMultiplier = SELF_HP_DICE_MULTIPLIER_MOVES.has(move.id) ? (ownHpFraction <= 0.1 ? 3 : ownHpFraction < 0.5 ? 2 : 1) : SELF_HP_HALF_DICE_MOVES.has(move.id) && ownHpFraction < 0.5 ? 0.5 : 1;
+    const finalGambitFormula = move.id === "final-gambit" ? appendModifier(String(Math.max(0, Number(combatActor?.system?.attributes?.hp?.value) || 0)), (species.type ?? []).includes(move.type) ? 2 + heldProfile.stab : 0) : null;
+    const trumpCardBonus = move.id === "trump-card" ? moveModifier * Math.max(0, Number(entry.pp.max) - Number(entry.pp.value)) : 0;
+    const formula = finalGambitFormula ?? (moveHasImmediateDamage(move) ? damageFormula(move, level, damageMoveModifier, species, combatModifiers.damage + heldProfile.damage + pathProfile.damage + trumpCardBonus, heldProfile.stab + pathProfile.stab, escalationMultiplier * weatherDiceMultiplier * targetStatusDiceMultiplier * selfHpDiceMultiplier) : null);
+    let damageType = formula ? await chooseDamageType(move) : null;
     if (formula && !damageType) return;
+    if (damageType === "normal" && move.type === "normal" && currentField(game.combat).pulse?.id === "ion-deluge") damageType = "electric";
+    if (move.id === "weather-ball" && activeWeather && WEATHER_BALL_TYPES[activeWeather]) damageType = WEATHER_BALL_TYPES[activeWeather];
+    if (move.id === "final-gambit") damageType = "fighting";
 
-    if (Number(entry.pp.max) > 0) {
-      entry.pp.value = Math.max(0, Number(entry.pp.value) - 1);
-      await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
-      if (Number(entry.pp.value) === 0) await tryLeppaBerryReaction(this.pokemonItem, entry.id);
-    }
+    instance.lastMoveId = move.id;
+    if (Number(entry.pp.max) > 0) entry.pp.value = Math.max(0, Number(entry.pp.value) - 1);
+    await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
+    if (Number(entry.pp.max) > 0 && Number(entry.pp.value) === 0) await tryLeppaBerryReaction(this.pokemonItem, entry.id);
 
     let attackResult = null;
     if (move.attack?.scope) {
@@ -655,26 +716,88 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       const powerAbilities = Array.isArray(move.power) ? move.power : [move.power].filter(Boolean);
       const abilityAdvantage = combatModifiers.attackAdvantageAbilities.some(key => powerAbilities.includes(key));
       const meleeAdvantage = combatModifiers.meleeAttackAdvantage && move.attack.scope === "melee";
-      const advantage = combatModifiers.attackAdvantage || abilityAdvantage || meleeAdvantage || targetedModifiers.incomingAttackAdvantage;
+      const terrainAdvantage = move.id === "psyblade" && currentField(game.combat).terrain?.id === "electric-terrain";
+      const weatherAdvantage = move.id === "hydro-steam" && activeWeather === "sun";
+      const advantage = combatModifiers.attackAdvantage || abilityAdvantage || meleeAdvantage || targetedModifiers.incomingAttackAdvantage || terrainAdvantage || weatherAdvantage;
       const disadvantage = statusDisadvantage || combatModifiers.attackDisadvantage;
       const die = advantage === disadvantage ? "1d20" : advantage ? "2d20kh" : "2d20kl";
       const effectDice = combatModifiers.attackDice.map(formula => ` + ${formula}`).join("");
       const effectProficiency = combatModifiers.suppressAttackProficiency ? 0 : proficiency;
       const attack = await new Roll(`${die} + @mod + @prof + @effect${effectDice}`, { mod: attackMoveModifier, prof: effectProficiency, effect: combatModifiers.attack + heldProfile.attack + pathProfile.attack }).evaluate();
       await attack.toMessage({ speaker, flavor: `${flavor} (${titleCase(move.attack.scope)})` });
-      const natural = Number(attack.dice?.[0]?.results?.find(result => result.active)?.result ?? attack.dice?.[0]?.total) || 0;
+      const rolledNatural = Number(attack.dice?.[0]?.results?.find(result => result.active)?.result ?? attack.dice?.[0]?.total) || 0;
+      const guaranteed = combatModifiers.guaranteedHit || combatModifiers.guaranteedCritical;
+      const natural = guaranteed ? 20 : rolledNatural;
       attackResult = {
         natural,
-        total: Number(attack.total) || 0,
-        critical: natural >= Math.max(1, 20 - heldProfile.criticalRange)
+        total: guaranteed ? Number.MAX_SAFE_INTEGER : Number(attack.total) || 0,
+        critical: combatModifiers.guaranteedCritical || natural >= Math.max(1, 20 - heldProfile.criticalRange)
       };
     } else if (move.save) {
       const dc = 8 + attackMoveModifier + proficiency;
       const attributes = (move.save.attribute ?? []).map(key => key.toUpperCase()).join("/");
       await ChatMessage.create({ speaker, content: `<div class="dnd5e chat-card"><header class="card-header"><h3>${escapeHtml(flavor)}</h3></header><p><strong>Salvación ${escapeHtml(attributes)} CD ${dc}</strong></p>${moveDescription(move)}</div>` });
+      if (HP_EFFECT_MOVES.has(move.id)) {
+        if (!selectedTokens.length) ui.notifications.warn(game.i18n.format("POKE5E.StatusEffects.NoTarget", { move: move.name }));
+        else await requestHpEffect({ moveId: move.id, selectedTokens, saveDc: dc, sourceCombatActor: combatActor, sourceName: name, speaker });
+      }
+      if (ITEM_SWAP_SAVE_MOVES.has(move.id)) {
+        if (!selectedTokens.length) ui.notifications.warn(game.i18n.format("POKE5E.StatusEffects.NoTarget", { move: move.name }));
+        else {
+          const failed = await rollFailedSaves(selectedTokens, "dex", dc, speaker, move.name);
+          for (const target of failed) await requestHeldItemSwap({ sourcePokemonItem: this.pokemonItem, targetActor: target.actor, sourceName: name, targetName: target.tokenName });
+        }
+      }
+      if (move.id === "disable") {
+        if (!selectedTokens.length) ui.notifications.warn(game.i18n.format("POKE5E.StatusEffects.NoTarget", { move: move.name }));
+        else {
+          const failed = await rollFailedSaves(selectedTokens, "wis", dc, speaker, move.name);
+          for (const target of failed) {
+            const targetPokemonItem = await pokemonItemForActor(target.actor);
+            const lastMoveId = targetPokemonItem?.getFlag(MODULE_ID, "instance")?.lastMoveId;
+            const lastMove = lastMoveId ? data.movesById.get(lastMoveId) : null;
+            if (!lastMove) continue;
+            await applyMoveLock(target.actor, lastMoveId, { durationRounds: null, concentration: true, sourceName: name, description: `${lastMove.name} no puede usarse mientras ${escapeHtml(name)} mantenga la concentración en Anular.` });
+          }
+        }
+      }
+      if (move.id === "spite") {
+        if (!selectedTokens.length) ui.notifications.warn(game.i18n.format("POKE5E.StatusEffects.NoTarget", { move: move.name }));
+        else {
+          const failed = await rollFailedSaves(selectedTokens, "wis", dc, speaker, move.name);
+          for (const target of failed) {
+            const targetPokemonItem = await pokemonItemForActor(target.actor);
+            const targetInstance = targetPokemonItem?.getFlag(MODULE_ID, "instance");
+            const lastEntry = targetInstance?.moves?.find(candidate => candidate.moveId === targetInstance.lastMoveId);
+            if (!targetPokemonItem || !lastEntry || Number(lastEntry.pp?.max) <= 0) continue;
+            const drop = await new Roll("1d4").evaluate();
+            await drop.toMessage({ speaker: ChatMessage.getSpeaker({ actor: target.actor, alias: target.tokenName }), flavor: `${target.tokenName} — PP perdidos por Rencor` });
+            const nextInstance = foundry.utils.deepClone(targetInstance);
+            const nextEntry = nextInstance.moves.find(candidate => candidate.id === lastEntry.id);
+            nextEntry.pp.value = Math.max(0, Number(lastEntry.pp.value) - Number(drop.total));
+            await targetPokemonItem.setFlag(MODULE_ID, "instance", nextInstance);
+          }
+        }
+      }
+      if (move.id === "pain-split") {
+        if (!selectedTokens.length) ui.notifications.warn(game.i18n.format("POKE5E.StatusEffects.NoTarget", { move: move.name }));
+        else {
+          const failed = await rollFailedSaves(selectedTokens, "con", dc, speaker, move.name);
+          for (const target of failed) {
+            const targetHp = target.actor.system.attributes?.hp;
+            const sourceHp = combatActor?.system.attributes?.hp;
+            if (!targetHp || !sourceHp) continue;
+            const average = Math.floor((Number(targetHp.value) + Number(sourceHp.value)) / 2);
+            await target.actor.update({ "system.attributes.hp.value": Math.min(Number(targetHp.max) || average, average) });
+            await combatActor.update({ "system.attributes.hp.value": Math.min(Number(sourceHp.max) || average, average) });
+            await ChatMessage.create({ speaker, content: `<div class="dnd5e chat-card poke5e-status-card"><p>${escapeHtml(flavor)} iguala sus PG con ${escapeHtml(target.tokenName)} a ${average}.</p></div>` });
+          }
+        }
+      }
     } else {
       await ChatMessage.create({ speaker, content: `<div class="dnd5e chat-card"><header class="card-header"><h3>${escapeHtml(flavor)}</h3></header>${moveDescription(move)}</div>` });
     }
+    let dealtDamageTotal = null;
     if (formula) {
       const DamageRoll = CONFIG.Dice?.DamageRoll;
       if (DamageRoll) {
@@ -683,6 +806,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
         const damageRolls = [await new DamageRoll(formula, {}, damageOptions).evaluate()];
         if (burned) damageRolls.push(await new DamageRoll(formula, {}, damageOptions).evaluate());
         const damage = damageRolls.reduce((lowest, candidate) => Number(candidate.total) < Number(lowest.total) ? candidate : lowest);
+        dealtDamageTotal = Number(damage.total) || 0;
         const rollType = damageType === "healing" ? "healing" : "damage";
         await damage.toMessage({
           speaker,
@@ -694,9 +818,65 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
         const damageRolls = [await new Roll(formula).evaluate()];
         if (burned) damageRolls.push(await new Roll(formula).evaluate());
         const damage = damageRolls.reduce((lowest, candidate) => Number(candidate.total) < Number(lowest.total) ? candidate : lowest);
+        dealtDamageTotal = Number(damage.total) || 0;
         await damage.toMessage({ speaker, flavor: `${flavor} — ${typeLabel(damageType)}${burned ? ` · Quemado: menor de ${damageRolls.map(roll => roll.total).join("/")}` : ""}` });
       }
     }
+    const selectedHit = Boolean(attackResult) && selectedTokens.some(token => attackHitsPokemonTarget(attackResult, token.actor));
+    const recoilFraction = RECOIL_FRACTION_MOVES[move.id];
+    if (recoilFraction && selectedHit && dealtDamageTotal != null) await applySelfRecoil(this.pokemonItem.parent, combatActor, recoilAmount(dealtDamageTotal, recoilFraction), speaker, flavor);
+    const drainFraction = DRAIN_FRACTION_MOVES[move.id];
+    if (drainFraction && dealtDamageTotal != null && (attackResult ? selectedHit : true)) {
+      const cap = move.id === "parabolic-charge" ? 5 * level : Infinity;
+      await applySelfDrain(combatActor, Math.min(cap, recoilAmount(dealtDamageTotal, drainFraction)), speaker, flavor);
+    }
+    if (SELF_FAINT_MOVES.has(move.id) && combatActor && Number(combatActor.system.attributes?.hp?.value) > 0) {
+      await combatActor.update({ "system.attributes.hp.value": 0 });
+      await ChatMessage.create({ speaker, content: `<div class="dnd5e chat-card poke5e-status-card"><p>${escapeHtml(flavor)} se debilita al activar el movimiento.</p></div>` });
+    }
+    if (move.id === "false-swipe" && attackResult) {
+      for (const token of selectedTokens) if (attackHitsPokemonTarget(attackResult, token.actor)) await markFalseSwipeTarget(token.actor);
+    }
+    if (move.id === "trick" && attackResult) {
+      for (const token of selectedTokens) {
+        if (!attackHitsPokemonTarget(attackResult, token.actor)) continue;
+        await requestHeldItemSwap({ sourcePokemonItem: this.pokemonItem, targetActor: token.actor, sourceName: name, targetName: token.name });
+      }
+    }
+    if (move.id === "clear-smog" && attackResult) {
+      for (const token of selectedTokens) if (attackHitsPokemonTarget(attackResult, token.actor)) await removeAllMoveModifiers(token.actor);
+    }
+    if (move.id === "wake-up-slap" && targetAsleep && attackResult) {
+      for (const token of selectedTokens) {
+        if (!attackHitsPokemonTarget(attackResult, token.actor)) continue;
+        const targetPokemonItem = await pokemonItemForActor(token.actor);
+        if (targetPokemonItem) await removePokemonStatus(targetPokemonItem, "asleep");
+      }
+    }
+    if (move.id === "purify" && selectedTokens.length) {
+      let curedAny = false;
+      for (const token of selectedTokens) {
+        const targetPokemonItem = await pokemonItemForActor(token.actor);
+        const conditions = [...(targetPokemonItem?.getFlag(MODULE_ID, "instance")?.conditions ?? [])];
+        for (const id of conditions) { await removePokemonStatus(targetPokemonItem, id); curedAny = true; }
+      }
+      if (curedAny) {
+        const heal = 2 * level;
+        const hp = combatActor.system.attributes?.hp;
+        if (hp) await combatActor.update({ "system.attributes.hp.value": Math.min(Number(hp.max) || Number(hp.value), Number(hp.value) + heal) });
+        await ChatMessage.create({ speaker, content: `<div class="dnd5e chat-card poke5e-status-card"><p>${escapeHtml(flavor)} cura estados y recupera ${heal} PG.</p></div>` });
+      }
+    }
+    if (move.id === "refresh") {
+      for (const id of ["poisoned", "badly-poisoned", "paralyzed", "burned"]) {
+        if ((instance.conditions ?? []).includes(id)) await removePokemonStatus(this.pokemonItem, id);
+      }
+    }
+    if (move.id === "take-heart") {
+      for (const id of [...(instance.conditions ?? [])]) await removePokemonStatus(this.pokemonItem, id);
+    }
+    if (formula && selectedHit && CHAIN_MULTI_HIT_MOVES.has(move.id)) await rollChainMultiHit(move, level, damageType, flavor, speaker);
+    if (escalation && !escalation.automatic && attackResult && !selectedHit) await resetConsecutiveStrike(combatActor, move.id);
     const statusResolution = await applyMoveStatuses({ move, attack: attackResult, saveDc: 8 + attackMoveModifier + proficiency, sourceActor: this.pokemonItem.parent, sourceCombatActor: combatActor, sourceName: name });
     await applyMoveOngoingEffects({
       move, attack: attackResult, saveDc: 8 + attackMoveModifier + proficiency,
@@ -712,6 +892,206 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     await consumeCapturedMoveModifiers(combatActor, consumedModifierIds);
     if (formula) await applyPostMoveHeldItemEffects(this.pokemonItem, heldProfile, proficiency);
     if (await lockChoiceHeldItem(this.pokemonItem, move.id)) await syncPokemonHeldItemToDeployment(this.pokemonItem);
+    if (DAMAGE_SHIELD_MOVES.has(move.id)) await armDamageShield(combatActor, move.id);
+    if (TERRAIN_MOVES[move.id]) await requestFieldEffect(game.combat, "terrain", move.id, TERRAIN_MOVES[move.id].rounds, name);
+    if (WEATHER_MOVES[move.id]) await requestFieldEffect(game.combat, "weather", WEATHER_MOVES[move.id].id, WEATHER_MOVES[move.id].rounds, name);
+    if (move.id === "chilly-reception") await requestFieldEffect(game.combat, "weather", "snow", 5, name);
+    if (FIELD_RULE_MOVES[move.id]) await requestFieldEffect(game.combat, "fieldRule", move.id, FIELD_RULE_MOVES[move.id].rounds, name);
+    if (FIELD_PULSE_MOVES[move.id]) await requestFieldEffect(game.combat, "pulse", move.id, FIELD_PULSE_MOVES[move.id].rounds, name);
+    if (move.id === "defog") await clearField(game.combat);
+    if (move.id === "grassy-glide" && currentField(game.combat).terrain?.id === "grassy-terrain") {
+      await ChatMessage.create({ speaker, content: `<div class="dnd5e chat-card poke5e-status-card"><p>${escapeHtml(flavor)} está sobre Terreno de Hierba: +10 pies de velocidad y sin provocar ataques de oportunidad hasta su siguiente turno (bono descriptivo, ajústalo manualmente en la ficha).</p></div>` });
+    }
+    if (TARGET_SWITCH_MOVES.has(move.id) && attackResult) {
+      for (const token of selectedTokens) if (attackHitsPokemonTarget(attackResult, token.actor)) await requestForcedSwitch(token.actor, name);
+    }
+    if (SELF_SWITCH_MOVES.has(move.id)) {
+      this.render({ force: true });
+      await selfForcedSwitch(this.pokemonItem);
+      return;
+    }
+    this.render({ force: true });
+  }
+
+  /**
+   * Onda Choque (Bide) tiene dos fases que no encajan en el flujo normal de
+   * #rollMove(): la primera activación solo empieza a acumular el daño que
+   * recibe el usuario (registerBideTracking() en bide.mjs se encarga de
+   * sumarlo); la segunda lo libera doblado como ataque a distancia con
+   * releaseBideDamage(), sin gastar PP en la fase de acumulación.
+   */
+  async #rollBide(instance, entry, move) {
+    const name = displayPokemonName(this.pokemonItem);
+    const speaker = ChatMessage.getSpeaker({ actor: this.pokemonItem.parent, alias: name });
+    if (!instance.bideTracking) {
+      if (Number(entry.pp.max) > 0 && Number(entry.pp.value) <= 0) {
+        return ui.notifications.warn(game.i18n.format("POKE5E.Notifications.NoPP", { name, move: move.name }));
+      }
+      instance.bideTracking = true;
+      instance.bideDamage = 0;
+      if (Number(entry.pp.max) > 0) entry.pp.value = Math.max(0, Number(entry.pp.value) - 1);
+      await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
+      await ChatMessage.create({ speaker, content: `<div class="dnd5e chat-card"><header class="card-header"><h3>${escapeHtml(name)} — ${escapeHtml(move.name)}</h3></header><p>Empieza a acumular el daño que reciba hasta su próximo turno.</p></div>` });
+      this.render({ force: true });
+      return;
+    }
+    const level = Number(instance.level) || 1;
+    const proficiency = 2 + Math.floor((level - 1) / 4);
+    const storedSpecies = this.pokemonItem.getFlag(MODULE_ID, "species") ?? {};
+    const species = { ...storedSpecies, attributes: instance.attributes ?? storedSpecies.attributes ?? {} };
+    const attackMoveModifier = getMoveModifier(species, move);
+    const attack = await new Roll("1d20 + @mod + @prof", { mod: attackMoveModifier, prof: proficiency }).evaluate();
+    await attack.toMessage({ speaker, flavor: `${name} — ${move.name} (Ranged)` });
+    const damageTotal = releaseBideDamage(instance.bideDamage);
+    const DamageRoll = CONFIG.Dice?.DamageRoll;
+    const damage = DamageRoll
+      ? await new DamageRoll(String(Math.max(1, damageTotal)), {}, { type: "typeless" }).evaluate()
+      : await new Roll(String(Math.max(1, damageTotal))).evaluate();
+    await damage.toMessage({ speaker, flavor: `${name} — ${move.name} — Típeless (doble del daño recibido)`, flags: { dnd5e: { messageType: "roll", roll: { type: "damage" }, targets: targetDescriptors() } } });
+    instance.bideTracking = false;
+    instance.bideDamage = 0;
+    await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
+    this.render({ force: true });
+  }
+
+  /**
+   * Hablar Dormido solo puede usarse dormido y activa un movimiento propio
+   * elegido al azar (con tiempo de activación "1 action", ni él mismo) en su
+   * lugar, reutilizando #rollMove() con un evento sintético para no duplicar
+   * toda su lógica de ataque, daño y efectos.
+   */
+  async #rollSleepTalk(instance, entry, data) {
+    const name = displayPokemonName(this.pokemonItem);
+    if (!(instance.conditions ?? []).includes("asleep")) {
+      return ui.notifications.warn(game.i18n.format("POKE5E.Notifications.SleepTalkAwake", { name }));
+    }
+    if (Number(entry.pp.max) > 0 && Number(entry.pp.value) <= 0) {
+      return ui.notifications.warn(game.i18n.format("POKE5E.Notifications.NoPP", { name, move: data.movesById.get(entry.moveId)?.name ?? "Sleep Talk" }));
+    }
+    const candidates = instance.moves.filter(candidate => {
+      if (candidate.id === entry.id) return false;
+      const catalogMove = data.movesById.get(candidate.moveId);
+      if (catalogMove?.time !== "1 action") return false;
+      return Number(candidate.pp?.max) === 0 || Number(candidate.pp?.value) > 0;
+    });
+    if (!candidates.length) return ui.notifications.warn(game.i18n.format("POKE5E.Notifications.SleepTalkNone", { name }));
+    const chosen = candidates[Math.floor(Math.random() * candidates.length)];
+    if (Number(entry.pp.max) > 0) {
+      entry.pp.value = Math.max(0, Number(entry.pp.value) - 1);
+      await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
+    }
+    await this.#rollMove({ currentTarget: { dataset: { moveEntryId: chosen.id } } });
+  }
+
+  /**
+   * Golpe Metálico (metal-burst) tiene el mismo problema de dos fases que
+   * Onda Choque, así que reutiliza su rastreo (bide.mjs), pero devuelve el
+   * golpe de inmediato contra un objetivo elegido en vez de esperar un turno:
+   * la primera activación arma el rastreo, la segunda (con un objetivo
+   * seleccionado) lo libera como ataque cuerpo a cuerpo con desventaja.
+   */
+  async #rollMetalBurst(instance, entry, move) {
+    const name = displayPokemonName(this.pokemonItem);
+    const speaker = ChatMessage.getSpeaker({ actor: this.pokemonItem.parent, alias: name });
+    if (Number(entry.pp.max) > 0 && Number(entry.pp.value) <= 0) {
+      return ui.notifications.warn(game.i18n.format("POKE5E.Notifications.NoPP", { name, move: move.name }));
+    }
+    if (!instance.metalBurstTracking) {
+      instance.metalBurstTracking = true;
+      instance.metalBurstDamage = 0;
+      if (Number(entry.pp.max) > 0) entry.pp.value = Math.max(0, Number(entry.pp.value) - 1);
+      await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
+      await ChatMessage.create({ speaker, content: `<div class="dnd5e chat-card"><header class="card-header"><h3>${escapeHtml(name)} — ${escapeHtml(move.name)}</h3></header><p>Preparado para devolver el próximo golpe cuerpo a cuerpo que reciba.</p></div>` });
+      this.render({ force: true });
+      return;
+    }
+    const selectedTokens = [...(game.user.targets ?? [])];
+    if (!selectedTokens.length) return ui.notifications.warn(game.i18n.format("POKE5E.StatusEffects.NoTarget", { move: move.name }));
+    const level = Number(instance.level) || 1;
+    const proficiency = 2 + Math.floor((level - 1) / 4);
+    const storedSpecies = this.pokemonItem.getFlag(MODULE_ID, "species") ?? {};
+    const species = { ...storedSpecies, attributes: instance.attributes ?? storedSpecies.attributes ?? {} };
+    const attackMoveModifier = getMoveModifier(species, move);
+    const attack = await new Roll("2d20kl + @mod + @prof", { mod: attackMoveModifier, prof: proficiency }).evaluate();
+    await attack.toMessage({ speaker, flavor: `${name} — ${move.name} (Melee, con desventaja)` });
+    const damageTotal = Math.min(Number(instance.metalBurstDamage) || 0, 5 * level);
+    if (damageTotal > 0) {
+      const DamageRoll = CONFIG.Dice?.DamageRoll;
+      const damage = DamageRoll
+        ? await new DamageRoll(String(damageTotal), {}, { type: "steel" }).evaluate()
+        : await new Roll(String(damageTotal)).evaluate();
+      await damage.toMessage({ speaker, flavor: `${name} — ${move.name} — Acero (igual al daño recibido, tope 5× nivel)`, flags: { dnd5e: { messageType: "roll", roll: { type: "damage" }, targets: targetDescriptors() } } });
+    }
+    instance.metalBurstTracking = false;
+    instance.metalBurstDamage = 0;
+    await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
+    this.render({ force: true });
+  }
+
+  /**
+   * Contraataque (counter) y Copión (mirror-coat) son reacciones de dos fases
+   * como Golpe Metálico, pero con dados fijos en vez de devolver el daño
+   * recibido: la primera activación solo arma la reacción, la segunda —con un
+   * objetivo seleccionado— la libera como ataque con los dados y el tipo que
+   * indica cada movimiento.
+   */
+  async #rollRetaliation(instance, entry, move, { dice, damageType, trackingKey, label }) {
+    const name = displayPokemonName(this.pokemonItem);
+    const speaker = ChatMessage.getSpeaker({ actor: this.pokemonItem.parent, alias: name });
+    if (Number(entry.pp.max) > 0 && Number(entry.pp.value) <= 0) {
+      return ui.notifications.warn(game.i18n.format("POKE5E.Notifications.NoPP", { name, move: move.name }));
+    }
+    if (!instance[trackingKey]) {
+      instance[trackingKey] = true;
+      if (Number(entry.pp.max) > 0) entry.pp.value = Math.max(0, Number(entry.pp.value) - 1);
+      await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
+      await ChatMessage.create({ speaker, content: `<div class="dnd5e chat-card"><header class="card-header"><h3>${escapeHtml(name)} — ${escapeHtml(move.name)}</h3></header><p>Preparado para devolver el próximo golpe que reciba.</p></div>` });
+      this.render({ force: true });
+      return;
+    }
+    const selectedTokens = [...(game.user.targets ?? [])];
+    if (!selectedTokens.length) return ui.notifications.warn(game.i18n.format("POKE5E.StatusEffects.NoTarget", { move: move.name }));
+    const level = Number(instance.level) || 1;
+    const proficiency = 2 + Math.floor((level - 1) / 4);
+    const storedSpecies = this.pokemonItem.getFlag(MODULE_ID, "species") ?? {};
+    const species = { ...storedSpecies, attributes: instance.attributes ?? storedSpecies.attributes ?? {} };
+    const attackMoveModifier = getMoveModifier(species, move);
+    const attack = await new Roll("1d20 + @mod + @prof", { mod: attackMoveModifier, prof: proficiency }).evaluate();
+    await attack.toMessage({ speaker, flavor: `${name} — ${move.name} (${label})` });
+    const DamageRoll = CONFIG.Dice?.DamageRoll;
+    const formula = appendModifier(dice, attackMoveModifier);
+    const damage = DamageRoll
+      ? await new DamageRoll(formula, {}, { type: damageType }).evaluate()
+      : await new Roll(formula).evaluate();
+    await damage.toMessage({ speaker, flavor: `${name} — ${move.name} — ${typeLabel(damageType)}`, flags: { dnd5e: { messageType: "roll", roll: { type: "damage" }, targets: targetDescriptors() } } });
+    instance[trackingKey] = false;
+    await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
+    this.render({ force: true });
+  }
+
+  /**
+   * Explosión no tiene dados de daño: solo funciona con un 20 natural en 1d20,
+   * y en ese caso deja a 0 PG a todos los objetivos seleccionados en el radio
+   * (sin tirada de salvación ni de ataque). El fallo automático por diferencia
+   * de nivel/SR no se comprueba aquí. Se resuelve directamente en vez de pasar
+   * por el flujo normal de #rollMove() porque no encaja ni en attack ni en save.
+   */
+  async #rollExplosion(instance, entry, move) {
+    const name = displayPokemonName(this.pokemonItem);
+    const speaker = ChatMessage.getSpeaker({ actor: this.pokemonItem.parent, alias: name });
+    if (Number(entry.pp.max) > 0 && Number(entry.pp.value) <= 0) {
+      return ui.notifications.warn(game.i18n.format("POKE5E.Notifications.NoPP", { name, move: move.name }));
+    }
+    const selectedTokens = [...(game.user.targets ?? [])];
+    if (Number(entry.pp.max) > 0) entry.pp.value = Math.max(0, Number(entry.pp.value) - 1);
+    await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
+    const roll = await new Roll("1d20").evaluate();
+    await roll.toMessage({ speaker, flavor: `${name} — ${move.name}` });
+    if (Number(roll.total) === 20) {
+      await requestFaintTargets(selectedTokens, name);
+    } else {
+      await ChatMessage.create({ speaker, content: `<div class="dnd5e chat-card poke5e-status-card"><p>La explosión no llega a activarse.</p></div>` });
+    }
     this.render({ force: true });
   }
 
@@ -1001,10 +1381,24 @@ function prepareMove(entry, move, species, level, effectsById, contestType, held
     damage: damageFormula(effectiveMove, level, damageModifier, species, profile.damage + pathProfile.damage, profile.stab + pathProfile.stab) ?? "—",
     contest: prepareContestDisplay(effectiveMove, effectsById, contestType),
     learningMethods: eligibility.methods,
-    learningWarning: eligibility.compatible && !eligibility.availableNow
-      ? `Requiere nivel ${eligibility.requiredLevel}`
-      : eligibility.compatible ? "" : "No figura en los movimientos de esta especie"
+    learningWarning: learningWarning(eligibility)
   };
+}
+
+/**
+ * Explica por qué un movimiento compatible no está disponible todavía: nivel
+ * pendiente, MT/MO no poseída o —caso de los movimientos huevo, que
+ * moveEligibility() nunca marca como disponibles al subir de nivel— que solo
+ * se obtienen al generar el Pokémon. Auxiliar de prepareMove() y
+ * prepareCatalogMove().
+ */
+function learningWarning(eligibility) {
+  if (!eligibility.compatible) return "No figura en los movimientos de esta especie";
+  if (eligibility.availableNow) return "";
+  if (eligibility.requiredLevel != null) return `Requiere nivel ${eligibility.requiredLevel}`;
+  if (eligibility.requiresMachine) return `Requiere ${eligibility.machine.label} ${eligibility.machine.id}`;
+  if (eligibility.methods.some(method => method.id === "egg")) return "Solo se aprende al generar el Pokémon (huevo)";
+  return "";
 }
 
 /**
@@ -1121,7 +1515,7 @@ async function consumeMoveMachine(actor, machine) {
   const used = Number(item.getFlag(MODULE_ID, "machine")?.used) || 0;
   const result = machineConsumption({
     kind: machine.kind,
-    quantity: item.system.quantity,
+    quantity: item.system?.quantity ?? 1,
     used,
     pokeMentor: hasTrainerPath(actor, "poke-mentor", 2)
   });
@@ -1160,12 +1554,10 @@ function moveIsHealing(move) {
   return types.includes("healing");
 }
 
-function damageFormula(move, level, moveModifier, species, effectDamage = 0, heldItemStab = 0) {
-  const diceByLevel = move.damage?.dice;
-  if (!diceByLevel) return null;
-  const tiers = Object.keys(diceByLevel).map(Number).filter(tier => tier <= level).sort((a, b) => b - a);
-  const dice = diceByLevel[String(tiers[0] ?? 1)];
-  if (!dice) return null;
+function damageFormula(move, level, moveModifier, species, effectDamage = 0, heldItemStab = 0, diceMultiplier = 1) {
+  const baseDice = resolveDamageDice(move, level);
+  if (!baseDice) return null;
+  const dice = diceMultiplier !== 1 ? scaleDiceCount(baseDice, diceMultiplier) : baseDice;
   const modifier = move.damage.modifier;
   let formula = String(dice);
   if (modifier === "MOVE") formula = appendModifier(dice, moveModifier);
@@ -1174,6 +1566,88 @@ function damageFormula(move, level, moveModifier, species, effectDamage = 0, hel
   else if (typeof modifier === "string" && modifier.startsWith("MOVE +")) formula = appendModifier(dice, moveModifier + (Number(modifier.split("+")[1]) || 0));
   else if (modifier === "MOVE + STAB") formula = appendModifier(dice, moveModifier + ((species.type ?? []).includes(move.type) ? 2 + heldItemStab : 0));
   return appendModifier(formula, effectDamage);
+}
+
+/** Dados de daño del nivel actual, sin modificador. Auxiliar de damageFormula() y de la cadena de golpes múltiples. */
+function resolveDamageDice(move, level) {
+  const diceByLevel = move.damage?.dice;
+  if (!diceByLevel) return null;
+  const tiers = Object.keys(diceByLevel).map(Number).filter(tier => tier <= level).sort((a, b) => b - a);
+  return diceByLevel[String(tiers[0] ?? 1)] ?? null;
+}
+
+/**
+ * Tira la cadena de golpes múltiples tras un impacto inicial: hasta 4 tiradas
+ * de 1d4, continuando mientras salga 3 o 4 (resolveChainHits()), y publica un
+ * único mensaje con el daño de los golpes adicionales confirmados —solo los
+ * dados del movimiento, sin repetir el modificador MOVE, tal como describe el
+ * texto original. Auxiliar de #rollMove().
+ */
+async function rollChainMultiHit(move, level, damageType, flavor, speaker) {
+  const chainRolls = [];
+  for (let i = 0; i < 4; i++) {
+    const roll = await new Roll("1d4").evaluate();
+    chainRolls.push(Number(roll.total));
+    if (Number(roll.total) < 3) break;
+  }
+  const extraHits = resolveChainHits(chainRolls);
+  if (!extraHits) return;
+  const baseDice = resolveDamageDice(move, level);
+  if (!baseDice) return;
+  const extraFormula = Array(extraHits).fill(baseDice).join(" + ");
+  const DamageRoll = CONFIG.Dice?.DamageRoll;
+  const extraDamage = DamageRoll
+    ? await new DamageRoll(extraFormula, {}, { type: damageType }).evaluate()
+    : await new Roll(extraFormula).evaluate();
+  await extraDamage.toMessage({
+    speaker,
+    flavor: `${flavor} — ${extraHits} golpe${extraHits === 1 ? "" : "s"} adicional${extraHits === 1 ? "" : "es"} (${typeLabel(damageType)})`
+  });
+}
+
+/**
+ * Localiza el Item Pokémon que respalda a un actor de combate: por el UUID que
+ * guarda un desplegado o, si no lo hay, entre los Items embebidos de un
+ * salvaje. Mismo patrón duplicado ya presente en status-effects.mjs,
+ * held-items.mjs y ongoing-effects.mjs. Auxiliar de #rollMove() para los
+ * movimientos que curan o consultan el estado de un objetivo ajeno
+ * (Purificación, Bofetón Despertador...).
+ */
+async function pokemonItemForActor(actor) {
+  const uuid = actor?.getFlag(MODULE_ID, "pokemonItemUuid");
+  if (uuid) return fromUuid(uuid);
+  return actor?.items?.find(item => item.getFlag(MODULE_ID, "kind") === "pokemon") ?? null;
+}
+
+/**
+ * Descuenta el retroceso proporcional (Head Charge, Head Smash...) de los PG
+ * del propio usuario y lo anuncia en el chat. El actor de combate siempre
+ * pertenece a quien tira el movimiento, así que no necesita el delegado de
+ * socket que sí usan los efectos sobre objetivos ajenos. Auxiliar de
+ * #rollMove().
+ */
+async function applySelfRecoil(ownerActor, combatActor, amount, speaker, flavor) {
+  if (!combatActor || amount <= 0) return;
+  const hp = combatActor.system.attributes?.hp;
+  if (!hp) return;
+  await combatActor.update({ "system.attributes.hp.value": Math.max(0, Number(hp.value) - amount) });
+  await ChatMessage.create({ speaker, content: `<div class="dnd5e chat-card poke5e-status-card"><p>${escapeHtml(flavor)} — retroceso: <strong>${amount}</strong> PG típeless.</p></div>` });
+}
+
+/**
+ * Cura al propio usuario una fracción del daño infligido (Absorber, Golpe
+ * Drenaje, Drenadoras, Drenadoras, Chupavidas...). Mismo motivo que
+ * applySelfRecoil(): el actor de combate siempre pertenece a quien tira el
+ * movimiento, así que se escribe directamente sin delegar en el director.
+ */
+async function applySelfDrain(combatActor, amount, speaker, flavor) {
+  if (!combatActor || amount <= 0) return;
+  const hp = combatActor.system.attributes?.hp;
+  if (!hp) return;
+  const healed = Math.min(Number(hp.max) - Number(hp.value), amount);
+  if (healed <= 0) return;
+  await combatActor.update({ "system.attributes.hp.value": Number(hp.value) + healed });
+  await ChatMessage.create({ speaker, content: `<div class="dnd5e chat-card poke5e-status-card"><p>${escapeHtml(flavor)} — drena: <strong>${healed}</strong> PG.</p></div>` });
 }
 
 /** Añade el modificador a la expresión de dados con su signo. Auxiliar de damageFormula(). */

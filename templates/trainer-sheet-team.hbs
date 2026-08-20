@@ -5,6 +5,11 @@
       <p class="eyebrow">{{localize "POKE5E.Team.TrainerSheet"}}</p>
       <h2>{{localize "POKE5E.Team.Title"}}</h2>
       <p>{{localize "POKE5E.Team.Summary" active=pokemon.teamCount limit=pokemon.maxTeamSize total=pokemon.allCount}}</p>
+      {{#if pokemon.overControlSr}}
+        <p class="warning"><i class="fa-solid fa-triangle-exclamation"></i> {{localize "POKE5E.Team.ControlSrOver" max=pokemon.maxControlSr count=pokemon.overControlSr}}</p>
+      {{else}}
+        <p>{{localize "POKE5E.Team.ControlSr" max=pokemon.maxControlSr}}</p>
+      {{/if}}
     </div>
     <div class="poke5e-sheet-team-actions">
       {{#if pokemon.canEdit}}

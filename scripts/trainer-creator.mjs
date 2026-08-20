@@ -19,6 +19,8 @@ import {
 } from "./model.mjs";
 import { ABILITIES, CLASS_SKILLS, NATURES, ORIGINS, POINT_BUY_COSTS, SKILLS, SPECIALIZATIONS, STANDARD_ARRAY, resolveBaseAbilities, resolveTrainerCreation } from "./trainer-creation-data.mjs";
 import { pokedollarCurrency } from "./economy.mjs";
+import { withEggMoveChance } from "./encounter-generator.mjs";
+import { trainerFeatOptions } from "./feat-catalog.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 /**
@@ -148,6 +150,9 @@ export class Poke5eTrainerCreator extends HandlebarsApplicationMixin(Application
         effect: entry.ability ? `+1 ${ABILITIES[entry.ability]}` : game.i18n.format("POKE5E.Creator.ProficiencyOrExpertise", { skill: SKILLS[entry.skill] })
       })),
       isHoenn: origin?.id === "hoennian", isKanto: origin?.id === "kantoan", isUnova: origin?.id === "unovan",
+      chosenFeatOptions: origin?.id === "kantoan"
+        ? (await trainerFeatOptions()).map(entry => option(entry.name, entry.name, this.selection.chosenFeat))
+        : [],
       environmentOptions: [
         ["coast", game.i18n.localize("POKE5E.Creator.EnvironmentCoast")], ["desert", game.i18n.localize("POKE5E.Creator.EnvironmentDesert")],
         ["forest", game.i18n.localize("POKE5E.Creator.EnvironmentForest")], ["mountain", game.i18n.localize("POKE5E.Creator.EnvironmentMountain")]
@@ -271,7 +276,8 @@ export class Poke5eTrainerCreator extends HandlebarsApplicationMixin(Application
  * Items que creó una ejecución anterior —reconocidos por CREATION_KIND_PREFIX o
  * por el flag `creationManaged`—, borra cualquier especie que no sea Humano y
  * añade especie, origen, dote, especialización, clase con sus rasgos de nivel 1,
- * equipo inicial y el Pokémon inicial con su naturaleza y habilidad.
+ * equipo inicial y el Pokémon inicial con su naturaleza, habilidad y una
+ * pequeña probabilidad de movimiento huevo (withEggMoveChance()).
  * La llama #finish().
  */
 export async function applyTrainerCreation(actor, selection, rules) {
@@ -313,6 +319,10 @@ export async function applyTrainerCreation(actor, selection, rules) {
   const pokemon = pokemonItemSourceFromSpecies(sourceSpecies);
   pokemon.flags[MODULE_ID].instance.nature = selection.nature;
   pokemon.flags[MODULE_ID].instance.abilities = [selection.ability];
+  // Igual que los Pokémon salvajes y los de un equipo NPC (buildWildInstance()),
+  // el inicial tiene una pequeña probabilidad de salir con un movimiento huevo:
+  // es su única vía posible, ya que no se puede elegir al subir de nivel.
+  pokemon.flags[MODULE_ID].instance.moves = withEggMoveChance(pokemon.flags[MODULE_ID].instance.moves, species, data.movesById);
   pokemon.flags[MODULE_ID].kind = "pokemon";
   pokemon.flags[MODULE_ID].creationManaged = true;
   const gear = startingGearSources(data);

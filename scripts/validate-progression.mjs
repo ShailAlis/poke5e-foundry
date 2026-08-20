@@ -55,6 +55,9 @@ const allocated = applyPokemonAbilityAdvancement({ str: 10, con: 18 }, { str: 2,
 assert.deepEqual(allocated.attributes, { str: 12, con: 20, dex: 10, int: 10, wis: 10, cha: 10 });
 assert.equal(applyPokemonAbilityAdvancement({ str: 20 }, { str: 4 }, advancements), null);
 assert.equal(applyPokemonAbilityAdvancement({ str: 10 }, { str: 3 }, advancements, 1), null);
+// Los descuentos de Camino de Entrenador (Poké Mentor 5, Guru 9) rebajan una
+// dote a 1 punto; allowOddFeatCost es la única forma legítima de superar la paridad.
+assert.equal(applyPokemonAbilityAdvancement({ str: 10 }, { str: 3 }, advancements, 1, { allowOddFeatCost: true }).featPoints, 1);
 assert.equal(applyPokemonAbilityAdvancement({ str: 24, dex: 10 }, { dex: 4 }, advancements).attributes.str, 24);
 const peak = pokemonAdvancementsBetween(19, 20, { stageCount: 1, speciesRating: 15 });
 assert.equal(peak.asi[0].cap, 30);

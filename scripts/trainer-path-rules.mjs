@@ -1,17 +1,13 @@
 /** Reglas compartidas de los Caminos de Entrenador. */
-import { MODULE_ID } from "./model.mjs";
+import { MODULE_ID, trainerLevel } from "./model.mjs";
+
+export { trainerLevel };
 
 export function trainerPathId(actor) {
   if (!actor) return null;
   const subclasses = actor.itemTypes?.subclass ?? [...(actor.items ?? [])].filter(item => item.type === "subclass");
   const path = subclasses.find(item => item.system?.classIdentifier === "trainer" || item.getFlag?.(MODULE_ID, "kind") === "trainer-path");
   return path?.getFlag?.(MODULE_ID, "pathId") ?? path?.system?.identifier ?? null;
-}
-
-export function trainerLevel(actor) {
-  const classes = actor?.itemTypes?.class ?? [...(actor?.items ?? [])].filter(item => item.type === "class");
-  const trainer = classes.find(item => item.system?.identifier === "trainer" || String(item.getFlag?.(MODULE_ID, "kind") ?? "").includes("trainer-class"));
-  return Math.max(0, Number(trainer?.system?.levels) || 0);
 }
 
 export function hasTrainerPath(actor, pathId, minimumLevel = 2) {
@@ -67,9 +63,16 @@ export function nurseHealingBonus(actor) {
   return Math.max(1, Number(actor.system?.abilities?.wis?.mod) || 0);
 }
 
-export function trainerPathFeatCost(actor, featName, defaultCost = 2) {
+/** Indica si featName se beneficia del descuento a 1 punto (Poké Mentor 5 / Guru 9). */
+export function trainerPathFeatDiscount(actor, featName) {
   const normalized = String(featName ?? "").trim().toLocaleLowerCase();
-  if (hasTrainerPath(actor, "poke-mentor", 5) && ["extra move", "movimiento adicional"].includes(normalized)) return 1;
-  if (hasTrainerPath(actor, "guru", 9) && ["tireless", "incansable"].includes(normalized)) return 1;
-  return Math.max(0, Number(defaultCost) || 0);
+  if (hasTrainerPath(actor, "poke-mentor", 5) && ["extra move", "movimiento adicional"].includes(normalized)) return true;
+  if (hasTrainerPath(actor, "guru", 9) && ["tireless", "incansable"].includes(normalized)) return true;
+  return false;
+}
+
+export function trainerPathFeatCost(actor, featName, defaultCost = 2) {
+  const cost = Math.max(0, Number(defaultCost) || 0);
+  if (cost && trainerPathFeatDiscount(actor, featName)) return Math.min(1, cost);
+  return cost;
 }

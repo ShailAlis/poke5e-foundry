@@ -71,4 +71,19 @@ if (filterMoveCatalog([machineAndEggCase.move], machineAndEggCase.species, 20, n
   throw new Error(`${machineAndEggCase.move.id}: una MT poseída debe aparecer en la lista de disponibles.`);
 }
 
+// Un movimiento exclusivo de huevo (ni por nivel ni por MT/MO) solo puede
+// asignarse al generar el Pokémon al azar; nunca debe ofrecerse al subir de
+// nivel, aunque siga listado como compatible con la especie.
+const eggOnlyCase = pokemon.flatMap(species => (species.moves?.egg ?? []).map(moveId => ({ species, moveId })))
+  .map(entry => ({ ...entry, move: movesById.get(entry.moveId) }))
+  .find(({ species, move }) => move
+    && !Object.entries(species.moves ?? {}).some(([key, ids]) => key !== "egg" && (ids ?? []).includes(move.id)));
+if (!eggOnlyCase) throw new Error("No se encontró un caso de movimiento exclusivo de huevo para validar.");
+const eggOnlyEligibility = moveEligibility(eggOnlyCase.species, eggOnlyCase.move, 20);
+if (eggOnlyEligibility.availableNow) throw new Error(`${eggOnlyCase.move.id}: un movimiento de huevo no debe estar disponible al subir de nivel.`);
+if (!eggOnlyEligibility.compatible) throw new Error(`${eggOnlyCase.move.id}: sigue siendo compatible con la especie, solo no aprendible al subir de nivel.`);
+if (filterMoveCatalog([eggOnlyCase.move], eggOnlyCase.species, 20, new Set(), { category: "available" }).length) {
+  throw new Error(`${eggOnlyCase.move.id}: no debe aparecer en la lista de disponibles del gestor de movimientos.`);
+}
+
 console.log(`Validated move learning for ${pokemon.length} Pokémon and ${moves.length} moves.`);

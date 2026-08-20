@@ -2,47 +2,108 @@
 
 El nombre del PNG debe coincidir exactamente. Cada descripción resume el efecto persistente que aparece sobre el token, no el daño ni el resto del movimiento.
 
+- `acid-armor.png` — **Acid Armor.** Se aplica automáticamente. +2 a la CA durante el combate. Además, cualquier criatura que la golpee cuerpo a cuerpo debe superar una salvación de CON o sufrir 1d6 (2d6 a partir de nivel 10) de daño de veneno: ese contraataque no se automatiza porque no hay disparador de 'daño al atacante al ser golpeado' en este catálogo.
 - `agility.png` — **Agility.** Se aplica automáticamente. +20 pies a todos los modos de movimiento durante 1 minuto.
+- `amnesia.png` — **Amnesia.** Se aplica automáticamente. +2 a todas las salvaciones durante el combate. El coste (olvidar un movimiento propio distinto de Amnesia mientras dure) exige elegirlo manualmente entre los movimientos conocidos; no se automatiza.
 - `ancient-power.png` — **Ancient Power.** Se activa con un resultado natural de 19 o más al impactar. +1 a todas las características durante el combate; se acumula hasta +5.
 - `aqua-ring.png` — **Aqua Ring.** Recupera PG iguales a su competencia al final de cada turno durante 1 minuto, mientras mantenga la concentración.
+- `aqua-step.png` — **Aqua Step.** Se aplica automáticamente. +10 pies de velocidad hasta el final de su siguiente turno, impacte o no.
 - `aromatic-mist.png` — **Aromatic Mist.** Se aplica automáticamente. +1d4 a todas las salvaciones durante 1 minuto.
 - `aura-wheel.png` — **Aura Wheel.** Se aplica al impactar. +5 pies de desplazamiento al siguiente uso de Rueda Aural; se acumula hasta +20.
+- `autotomize.png` — **Autotomize.** Se aplica automáticamente. +10 pies de velocidad durante el combate; se acumula hasta 3 veces (+30 pies).
+- `belly-drum.png` — **Belly Drum.** Se aplica automáticamente. +10 a Fuerza mientras siga en combate (el coste de la mitad de sus PG actuales lo aplica el daño base del movimiento). El efecto debería retirarse a mano si sus PG suben por encima de la mitad del máximo: el motor no rastrea ese umbral.
 - `bleakwind-storm.png` — **Bleakwind Storm.** Se aplica automáticamente. Mantiene un área de terreno difícil y viento gélido mientras conserve la concentración.
 - `bounce.png` — **Bounce.** Se aplica automáticamente. Invulnerable mientras permanece fuera del campo preparando el impacto del siguiente turno.
+- `charge.png` — **Charge.** Se aplica automáticamente. +2 a la CA hasta su siguiente turno; en su siguiente ataque de su tipo, duplica el modificador MOVE del daño (bono STAB).
 - `charge-beam.png` — **Charge Beam.** Se activa con un resultado natural de 10 o más al impactar. Duplica el modificador MOVE del daño hasta el final de su siguiente turno.
+- `clangorous-soul.png` — **Clangorous Soul.** Se aplica automáticamente. +1 a los ataques, la CA y el daño durante el resto del combate o hasta cambiar de Pokémon; se acumula hasta cinco veces (+5 cada uno). Los 3d6 de daño típeless que cuesta se resuelven con el daño base del movimiento.
 - `coaching.png` — **Coaching.** Se aplica automáticamente. +1 a los ataques y a la CA durante 10 minutos mientras se mantenga la concentración.
+- `coil.png` — **Coil.** Se aplica automáticamente. +1 a los ataques, al daño y a la CA durante 1 minuto mientras mantenga la concentración.
+- `cotton-guard.png` — **Cotton Guard.** Se aplica automáticamente. +2 a la CA durante 1 minuto mientras mantenga la concentración.
 - `concentration.png` — **Concentration.** Marcador genérico para un movimiento que puede terminar si el Pokémon pierde la concentración.
+- `cosmic-power.png` — **Cosmic Power.** Se aplica automáticamente. Ventaja en todas las salvaciones durante el combate.
 - `crush-claw.png` — **Crush Claw.** Se activa con un resultado natural de 15 o más al impactar. Ventaja en el siguiente ataque, que debe dirigirse al mismo objetivo.
 - `curse-buff.png` — **Curse Buff.** Variante no Fantasma de Curse: +2 FUE, +2 CON y −4 DES para el usuario mientras mantenga la concentración.
 - `decorate.png` — **Decorate.** Se aplica automáticamente. Ventaja en los ataques hasta fallar la concentración al recibir daño.
+- `defend-order.png` — **Defend Order.** Se aplica automáticamente. +1 a la CA durante 1 minuto mientras mantenga la concentración.
+- `defense-curl.png` — **Defense Curl.** Se aplica automáticamente. +4 a la CA y resistencia a los ataques de tipo Normal hasta su siguiente turno.
 - `dig.png` — **Dig.** Se aplica automáticamente. Invulnerable bajo tierra mientras prepara el ataque del siguiente turno.
 - `dive.png` — **Dive.** Se aplica automáticamente. Invulnerable bajo el agua o en el espacio mágico mientras prepara el ataque del siguiente turno.
 - `double-team.png` — **Double Team.** Se aplica automáticamente. Una imagen duplicada puede absorber movimientos de área estrecha con 3–4 en 1d4.
 - `electro-shot.png` — **Electro Shot.** Se aplica automáticamente. Cargando electricidad para liberar el rayo en el siguiente turno mientras mantenga la concentración.
+- `esper-wing.png` — **Esper Wing.** Se aplica al impactar. +5 pies de velocidad por impacto hasta ser incapacitado, cambiado o terminar el combate; se acumula hasta +30.
+- `fillet-away.png` — **Fillet Away.** Se aplica automáticamente. Ventaja en su siguiente ataque y +15 pies de velocidad hasta el principio de su siguiente turno.
 - `flame-charge.png` — **Flame Charge.** Se aplica al impactar. +5 pies de velocidad por impacto hasta terminar el combate; se acumula hasta +30.
 - `flatter.png` — **Flatter.** Se activa al fallar la salvación. +2 a los ataques mientras permanezca Confuso.
 - `flower-shield.png` — **Flower Shield.** Se aplica automáticamente. +2 a la CA de los aliados de tipo Planta durante 1 minuto mientras se mantenga la concentración.
 - `fly.png` — **Fly.** Se aplica automáticamente. Invulnerable en las alturas mientras prepara el ataque del siguiente turno.
+- `focus-energy.png` — **Focus Energy.** Se aplica automáticamente. Reduce en 2 el umbral de golpe crítico mientras mantenga la concentración; no se acumula.
+- `focus-punch.png` — **Focus Punch.** Se aplica automáticamente. Concentrado en el golpe que liberará en su siguiente turno mientras mantenga la concentración.
+- `foresight.png` — **Foresight.** Se aplica automáticamente. Su siguiente movimiento de tipo Fantasma, Normal o Lucha ignora las inmunidades de tipo del objetivo; el tipo secundario se aplica para resistencia o vulnerabilidad.
+- `freeze-shock.png` — **Freeze Shock.** Se aplica automáticamente. Cargando una bola de hielo electrificado para dispararla en el siguiente turno mientras mantenga la concentración.
 - `gear-up.png` — **Gear Up.** Se aplica automáticamente. Ventaja en los ataques mientras se mantenga la concentración.
+- `geomancy.png` — **Geomancy.** Se aplica automáticamente. +10 pies de velocidad y ventaja en todos los ataques y salvaciones durante tres rondas.
 - `growth.png` — **Growth.** Se aplica automáticamente. +1d4 a ataques y salvaciones durante 1 minuto.
+- `harden.png` — **Harden.** Se aplica automáticamente. Reduce el daño recibido en 1d4 + MOVE (según nivel) hasta el principio de su siguiente turno.
 - `helping-hand.png` — **Helping Hand.** Se aplica automáticamente. +1d6 a un ataque, prueba o salvación durante los próximos 10 minutos.
+- `hone-claws.png` — **Hone Claws.** Se aplica automáticamente. +1 a los ataques y al daño; se acumula hasta +3.
 - `howl.png` — **Howl.** Se aplica automáticamente. Ventaja en ataques cuerpo a cuerpo contra criaturas próximas al usuario hasta el final de su siguiente turno.
+- `ice-ball.png` — **Ice Ball.** Se aplica al impactar. Duplica los dados de daño en cada golpe consecutivo, hasta 8 veces el original; se reinicia al fallar o quedar incapacitado.
+- `ice-burn.png` — **Ice Burn.** Se aplica automáticamente. Cargando una potencia ultrafría para liberarla en el siguiente turno mientras mantenga la concentración.
 - `ingrain.png` — **Ingrain.** Recupera PG al final de sus próximos tres turnos; su velocidad pasa a 0 y no puede retirarse voluntariamente.
+- `iron-defense.png` — **Iron Defense.** Se aplica automáticamente. +6 a la CA hasta el final de su siguiente turno. La mecánica de 'si eras vulnerable ahora normal, si eras resistente ahora inmune' a todos los tipos de daño no tiene campo genérico de resistencia en este catálogo y debe gestionarse manualmente.
+- `kinesis.png` — **Kinesis.** Se aplica automáticamente. +20 pies a caminar, volar o nadar (si ya era mayor que 0) durante 1 minuto; no se acumula. El +2 a la CA solo frente a ataques a distancia no tiene campo equivalente y queda sin automatizar.
+- `laser-focus.png` — **Laser Focus.** Se aplica automáticamente. Su primer ataque del siguiente turno es un crítico automático si mantiene la concentración.
+- `lock-on.png` — **Lock-On.** Se aplica automáticamente. Su siguiente ataque no puede fallar (salvo movimientos de un solo golpe como Fisura); la tirada solo decide crítico o efectos por resultado alto.
+- `magma-storm.png` — **Magma Storm.** Se aplica automáticamente. Mantiene un maelstrom de fuego en un radio de 40 pies mientras conserve la concentración.
+- `magnet-rise.png` — **Magnet Rise.** Se aplica automáticamente. Inmune a movimientos de tipo Tierra mientras mantenga la concentración.
 - `magnetic-flux.png` — **Magnetic Flux.** Se aplica automáticamente. Los Pokémon con Más o Menos suman la competencia del usuario a la CA y tienen ventaja en salvaciones hasta su siguiente turno.
 - `metal-claw.png` — **Metal Claw.** Se activa con un resultado natural de 19 o más al impactar. +1 al siguiente ataque.
+- `meditate.png` — **Meditate.** Se aplica automáticamente. +1 a los ataques y a todas las salvaciones durante 1 minuto mientras mantenga la concentración.
+- `meteor-beam.png` — **Meteor Beam.** Se aplica automáticamente. Absorbiendo energía cósmica para liberar el rayo en el siguiente turno mientras mantenga la concentración.
 - `meteor-mash.png` — **Meteor Mash.** Se activa con un resultado natural de 18 o más al impactar. Ventaja en el siguiente ataque.
+- `mind-reader.png` — **Mind Reader.** Se aplica automáticamente. Su siguiente ataque no puede fallar (salvo movimientos de un solo golpe como Fisura); la tirada solo decide crítico o efectos por resultado alto.
+- `minimize.png` — **Minimize.** Se aplica automáticamente. +2 a la CA durante 1 minuto mientras mantenga la concentración.
+- `mist.png` — **Mist.** Se aplica automáticamente. Inmune a nuevas penalizaciones de característica, ataque o CA mientras se mantenga la concentración; los efectos que ya tuviera antes siguen activos.
+- `mud-sport.png` — **Mud Sport.** Se aplica automáticamente. Resistencia a Eléctrico durante 1 minuto para el usuario y sus aliados en el momento de activarlo; quien ya fuera resistente se vuelve inmune y quien fuera vulnerable pasa a recibir daño normal.
 - `nasty-plot.png` — **Nasty Plot.** Se aplica automáticamente. Ventaja en ataques de INT, SAB o CAR y desventaja en las salvaciones que exijan durante 1 minuto.
+- `no-retreat.png` — **No Retreat.** Se aplica automáticamente. Ventaja en ataques y salvaciones mientras dure el combate. 'No puede cambiar de Pokémon ni huir' es un bloqueo de flujo de retirada sin campo equivalente y queda sin automatizar.
 - `ominous-wind.png` — **Ominous Wind.** Se activa con un resultado natural de 19 o más al impactar. +1 a todas las características durante el combate; se acumula hasta +5.
+- `outrage.png` — **Outrage.** Se aplica automáticamente. Duplica los dados de daño cada ronda durante tres rondas de arrebato automático; termina en Confuso, que se resuelve manualmente.
+- `phantom-force.png` — **Phantom Force.** Se aplica automáticamente. Invisible mientras prepara el golpe fantasmal del siguiente turno; no puede ser objetivo de ataques mientras dura. La ventaja del ataque de reaparición y el bloqueo de Protección/Detectar no se codifican aparte, igual que en el resto de la familia Volar/Cavar/Bucear.
+- `power-trick.png` — **Power Trick.** Se aplica automáticamente. Intercambia su CA con una característica de su elección (excepto Constitución) hasta el final de su siguiente turno; la característica se resuelve manualmente.
+- `psyshield-bash.png` — **Psyshield Bash.** Se aplica automáticamente. +1 a la CA hasta el final de su siguiente turno.
 - `rage.png` — **Rage.** Se aplica automáticamente. +1 al daño, resistencia a Normal y ventaja en pruebas de FUE mientras mantenga la concentración.
 - `razor-wind.png` — **Razor Wind.** Se aplica automáticamente. +2 a la CA mientras carga el movimiento.
+- `reflect.png` — **Reflect.** Se aplica automáticamente. Reduce a la mitad el daño de cualquier ataque cuerpo a cuerpo que reciba, incluido el que activó la reacción, hasta el principio de su siguiente turno.
+- `rock-polish.png` — **Rock Polish.** Se aplica automáticamente. +2 a la CA y +20 pies de velocidad durante tres rondas.
+- `rollout.png` — **Rollout.** Se aplica al impactar. Duplica los dados de daño en cada golpe consecutivo, hasta 16 veces el original; se reinicia al fallar, quedar incapacitado o si su velocidad llega a 0.
+- `quiver-dance.png` — **Quiver Dance.** Se aplica automáticamente. +1 a la CA, a los ataques y al daño durante 1 minuto mientras mantenga la concentración.
+- `safeguard.png` — **Safeguard.** Se aplica automáticamente. Inmunidad a estados nuevos durante 3 rondas para el usuario y los aliados seleccionados.
 - `sandsear-storm.png` — **Sandsear Storm.** Se aplica automáticamente. Mantiene la tormenta abrasadora mientras conserve la concentración; Quemado se gestiona como estado independiente.
+- `sharpen.png` — **Sharpen.** Se aplica automáticamente. +1d4 a los ataques durante 1 minuto mientras mantenga la concentración.
+- `shift-gear.png` — **Shift Gear.** Se aplica automáticamente. +1 a los ataques y al daño, y +10 pies de velocidad, durante 1 minuto mientras mantenga la concentración.
+- `shadow-force.png` — **Shadow Force.** Se aplica automáticamente. Invisible e inalcanzable mientras prepara el golpe; en su siguiente turno ataca con ventaja y las reacciones Protección/Detectar no pueden usarse contra ese ataque.
+- `shell-smash.png` — **Shell Smash.** Se aplica automáticamente. −1 a la CA, pero suma su competencia a todas las tiradas de daño (una vez por movimiento); no se acumula.
+- `shelter.png` — **Shelter.** Se aplica automáticamente. +5 a la CA hasta el principio de su siguiente turno, incluso contra el ataque que activó la reacción.
 - `silver-wind.png` — **Silver Wind.** Se activa con un resultado natural de 19 o más al impactar. +1 a todas las características durante el combate; se acumula hasta +5.
 - `skull-bash.png` — **Skull Bash.** Se aplica automáticamente. Preparando el cabezazo del siguiente turno mientras mantenga la concentración.
+- `sky-attack.png` — **Sky Attack.** Se aplica automáticamente. Prepara el picado del siguiente turno mientras mantenga la concentración, ignorando su velocidad de vuelo y los ataques de oportunidad.
+- `sky-drop.png` — **Sky Drop.** Se aplica automáticamente. Manteniendo agarrado al objetivo en el aire mientras se prepara para soltarlo en el siguiente turno; el agarre y la salvación de FUE del objetivo para escapar no se automatizan.
 - `solar-beam.png` — **Solar Beam.** Se aplica automáticamente. Absorbiendo luz para liberar el rayo en el siguiente turno mientras mantenga la concentración.
+- `solar-blade.png` — **Solar Blade.** Se aplica automáticamente. Reúne energía solar para golpear con hojas en el siguiente turno mientras mantenga la concentración; con luz solar intensa actúa sin carga ni concentración y dobla su modificador MOVE.
+- `steel-wing.png` — **Steel Wing.** Se activa con un resultado natural de 19 o más al impactar. +1 a la CA hasta el final de su siguiente turno tras una tirada natural de 19 o 20.
+- `stockpile.png` — **Stockpile.** Se aplica automáticamente. +1 a la CA por cada carga acumulada, hasta 3 veces, mientras no se use Trago o Tragar (esa consumición concreta la resuelve Trago/Tragar, no esta entrada).
+- `stuff-cheeks.png` — **Stuff Cheeks.** Se aplica automáticamente. +2 a la CA durante 10 minutos al consumir un objeto de comida equipado; se acumula hasta +4.
 - `swagger.png` — **Swagger.** Se activa al fallar la salvación. +2 a los ataques mientras permanezca Confuso.
+- `sweet-scent.png` — **Sweet Scent.** Se activa al fallar la salvación. Ventaja en sus próximos dos ataques contra el objetivo si este falla la salvación de CAR.
 - `swords-dance.png` — **Swords Dance.** Se aplica automáticamente. +1 a la CA mientras mantenga la concentración.
+- `victory-dance.png` — **Victory Dance.** Se aplica automáticamente. +1 a la CA, a los ataques y a todas las salvaciones durante 1 minuto mientras mantenga la concentración.
+- `tailwind.png` — **Tailwind.** Se aplica automáticamente. Mantiene una ráfaga en un radio de 30 pies mientras conserve la concentración; duplica la velocidad de quien comience su turno dentro del área.
+- `take-heart.png` — **Take Heart.** Se aplica automáticamente. Cura el estado negativo o Asustado que lo activó e inmuniza contra nuevos estados hasta el final de su siguiente turno; ventaja en ataques de SAB/CAR y en esas salvaciones durante el mismo tiempo.
 - `tidy-up.png` — **Tidy Up.** Se aplica automáticamente. Ventaja en el siguiente ataque hasta el final de su siguiente turno.
+- `trailblaze.png` — **Trailblaze.** Se aplica al impactar. +5 pies de velocidad por impacto hasta quedar incapacitado, ser retirado o acabar el combate; se acumula hasta +30.
+- `water-sport.png` — **Water Sport.** Se aplica automáticamente. Resistencia a Fuego durante 1 minuto para el usuario y sus aliados en el momento de activarlo; quien ya fuera resistente se vuelve inmune y quien fuera vulnerable pasa a recibir daño normal.
 - `whirlwind.png` — **Whirlwind.** Se aplica automáticamente. +2 a la CA hasta el principio de su siguiente turno.
 - `wildbolt-storm.png` — **Wildbolt Storm.** Se aplica automáticamente. Mantiene la tormenta eléctrica mientras conserve la concentración; Paralizado se gestiona como estado independiente.
 - `work-up.png` — **Work Up.** Se aplica automáticamente. +2 a todos los ataques mientras continúe combatiendo activamente.
-

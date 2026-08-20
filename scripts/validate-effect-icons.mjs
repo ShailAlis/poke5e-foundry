@@ -4,8 +4,8 @@ import { EFFECT_ICON_SLOTS, customEffectIconPath, pokemonEffectIcon } from "./ef
 
 assert.deepEqual(Object.keys(EFFECT_ICON_SLOTS), ["statuses", "buffs", "debuffs"]);
 assert.equal(EFFECT_ICON_SLOTS.statuses.length, 8);
-assert.equal(EFFECT_ICON_SLOTS.buffs.length, 43);
-assert.equal(EFFECT_ICON_SLOTS.debuffs.length, 95);
+assert.equal(EFFECT_ICON_SLOTS.buffs.length, 105);
+assert.equal(EFFECT_ICON_SLOTS.debuffs.length, 149);
 
 for (const [category, ids] of Object.entries(EFFECT_ICON_SLOTS)) {
   assert.equal(new Set(ids).size, ids.length, `Hay nombres duplicados en ${category}`);
@@ -21,4 +21,4 @@ for (const category of Object.keys(EFFECT_ICON_SLOTS)) {
   const documented = [...readme.matchAll(/`([a-z0-9-]+)\.png`/g)].map(match => match[1]).sort();
   assert.deepEqual(documented, [...EFFECT_ICON_SLOTS[category]].sort(), `El README de ${category} no coincide con los huecos del código`);
 }
-console.log("Validated 146 optional effect icon slots and their fallback behavior.");
+console.log("Validated 262 optional effect icon slots and their fallback behavior.");

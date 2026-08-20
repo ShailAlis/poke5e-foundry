@@ -57,6 +57,7 @@ export async function applyMoveModifierEffects({ move, attack = null, saveDc, sa
   for (const candidate of candidates) {
     const actor = candidate.actor;
     if (!actor?.uuid) continue;
+    if (rule.category === "debuffs" && pokemonCombatModifiers(actor).debuffImmune) continue;
     if (!await actorMatchesModifierRule(actor, rule)) continue;
     const resolvedAttack = attack ? { ...attack, hit: rule.target === "self" ? selectedAttackHit : attackHitsPokemonTarget(attack, actor) } : null;
     let save = saveResults.get(actor.uuid) ?? null;
@@ -94,7 +95,7 @@ export async function applyMoveModifierEffects({ move, attack = null, saveDc, sa
 
 /** Suma los modificadores activos que afectan a las tiradas del actor. */
 export function pokemonCombatModifiers(actor, { targetUuids = [] } = {}) {
-  const total = { attack: 0, damage: 0, moveModifierMultiplier: 1, attackDice: [], saveDice: [], saves: {}, attackAdvantage: false, attackDisadvantage: false, incomingAttackAdvantage: false, saveAdvantage: false, saveTargetsAdvantage: false, suppressAttackProficiency: false, disableHeldItem: false, abilityCheckDisadvantage: false, attackAdvantageAbilities: [], saveDisadvantageAbilities: [], saveTargetsDisadvantageAbilities: [], meleeAttackAdvantage: false };
+  const total = { attack: 0, damage: 0, moveModifierMultiplier: 1, attackDice: [], saveDice: [], saves: {}, attackAdvantage: false, attackDisadvantage: false, incomingAttackAdvantage: false, saveAdvantage: false, saveTargetsAdvantage: false, suppressAttackProficiency: false, disableHeldItem: false, abilityCheckDisadvantage: false, attackAdvantageAbilities: [], saveDisadvantageAbilities: [], saveTargetsDisadvantageAbilities: [], saveAdvantageAbilities: [], meleeAttackAdvantage: false, guaranteedHit: false, guaranteedCritical: false, moveLockAll: false, debuffImmune: false, statusImmune: false, recallLock: false, damageHalved: false };
   for (const effect of actor?.effects ?? []) {
     if (effect.getFlag?.(MODULE_ID, "kind") !== KIND) continue;
     const state = effect.getFlag(MODULE_ID, "modifier") ?? {};
@@ -115,9 +116,17 @@ export function pokemonCombatModifiers(actor, { targetUuids = [] } = {}) {
     total.disableHeldItem ||= Boolean(modifiers.disableHeldItem);
     total.abilityCheckDisadvantage ||= Boolean(modifiers.abilityCheckDisadvantage);
     total.meleeAttackAdvantage ||= Boolean(modifiers.meleeAttackAdvantage);
+    total.guaranteedHit ||= Boolean(modifiers.guaranteedHit);
+    total.guaranteedCritical ||= Boolean(modifiers.guaranteedCritical);
+    total.moveLockAll ||= Boolean(modifiers.moveLockAll);
+    total.debuffImmune ||= Boolean(modifiers.debuffImmune);
+    total.statusImmune ||= Boolean(modifiers.statusImmune);
+    total.recallLock ||= Boolean(modifiers.recallLock);
+    total.damageHalved ||= Boolean(modifiers.damageHalved);
     total.attackAdvantageAbilities.push(...(modifiers.attackAdvantageAbilities ?? []));
     total.saveDisadvantageAbilities.push(...(modifiers.saveDisadvantageAbilities ?? []));
     total.saveTargetsDisadvantageAbilities.push(...(modifiers.saveTargetsDisadvantageAbilities ?? []));
+    total.saveAdvantageAbilities.push(...(modifiers.saveAdvantageAbilities ?? []));
   }
   return total;
 }
@@ -161,6 +170,74 @@ export function moveModifierEntries(actor) {
 /** Permite terminar manualmente un modificador desde la ficha. */
 export async function removeMoveModifier(actor, effectId) {
   if (actor?.effects?.get(effectId)) await actor.deleteEmbeddedDocuments("ActiveEffect", [effectId]);
+}
+
+/** Borra todos los modificadores de movimiento activos de un actor (Clear Smog). */
+export async function removeAllMoveModifiers(actor) {
+  const ids = (actor?.effects ?? []).filter(effect => [KIND, CONCENTRATION_KIND].includes(effect.getFlag(MODULE_ID, "kind"))).map(effect => effect.id);
+  if (ids.length) await actor.deleteEmbeddedDocuments("ActiveEffect", ids);
+  return ids.length;
+}
+
+/**
+ * Pilas ya acumuladas de un movimiento de escalada consecutiva (Bola de
+ * Hielo, Rodada, Enfado) antes del golpe actual: 0 si es el primer uso o si no
+ * queda ningún efecto activo. La usa pokemon-sheet.mjs para calcular el
+ * multiplicador de dados de este golpe con diceMultiplierForStacks() de
+ * multi-hit.mjs, antes de que applyMoveModifierEffects() incremente la pila.
+ */
+export function consecutiveStrikeStacks(actor, moveId) {
+  const effect = actor?.effects?.find(candidate => candidate.getFlag(MODULE_ID, "modifier")?.moveId === moveId);
+  return Number(effect?.getFlag(MODULE_ID, "modifier")?.stacks) || 0;
+}
+
+/**
+ * Borra el rastreo de escalada consecutiva de un movimiento tras un fallo (o
+ * cualquier otra condición de reinicio): el disparador "hit" de la regla no se
+ * ejecuta en un fallo, así que sin este borrado explícito la pila seguiría
+ * acumulada la próxima vez que el movimiento impacte.
+ */
+export async function resetConsecutiveStrike(actor, moveId) {
+  const effect = actor?.effects?.find(candidate => candidate.getFlag(MODULE_ID, "modifier")?.moveId === moveId);
+  if (effect) await actor.deleteEmbeddedDocuments("ActiveEffect", [effect.id]);
+}
+
+/**
+ * Bloquea dinámicamente un movimiento concreto de un actor, con el mismo
+ * mecanismo que lee isMoveRecharging() (rechargeLock), pero sin depender de
+ * una entrada estática de MOVE_MODIFIER_EFFECTS: Anular (disable) necesita
+ * bloquear "el último movimiento que activó el objetivo", que solo se conoce
+ * en el momento de resolverse, no de antemano en el catálogo.
+ */
+export async function applyMoveLock(actor, moveId, { durationRounds = 1, concentration = false, sourceName = "", description = "" } = {}) {
+  if (!actor || !moveId) return;
+  const source = {
+    name: `${sourceName} — bloqueo de movimiento`.trim(),
+    img: pokemonEffectIcon("debuffs", "disable", "icons/svg/hazard.svg"),
+    icon: pokemonEffectIcon("debuffs", "disable", "icons/svg/hazard.svg"),
+    description,
+    statuses: [],
+    changes: [],
+    duration: durationRounds == null ? {} : { rounds: durationRounds, startRound: game.combat?.round ?? 0, startTurn: game.combat?.turn ?? 0 },
+    flags: {
+      [MODULE_ID]: {
+        kind: KIND,
+        modifier: { moveId, moveName: sourceName, category: "debuffs", stacks: 1, stackMax: 1, durationRounds, consume: null, sourceOnly: false, concentration, modifiers: { rechargeLock: true }, description }
+      }
+    }
+  };
+  await actor.createEmbeddedDocuments("ActiveEffect", [source]);
+}
+
+/**
+ * Indica si un movimiento de recarga (Hiperrayo, Envite Ígneo...) sigue
+ * bloqueado por su propio uso anterior: existe un efecto de recarga activo
+ * para ese id concreto. El efecto caduca solo por su `durationRounds`, así
+ * que basta con comprobar si sigue presente. La usa pokemon-sheet.mjs antes
+ * de dejar activar el movimiento, igual que ya hace con los PP agotados.
+ */
+export function isMoveRecharging(actor, moveId) {
+  return (actor?.effects ?? []).some(effect => effect.getFlag(MODULE_ID, "modifier")?.moveId === moveId && effect.getFlag(MODULE_ID, "modifier")?.modifiers?.rechargeLock);
 }
 
 /** Comprueba un ataque contra la CA preparada del objetivo. */
@@ -217,7 +294,13 @@ async function actorMatchesModifierRule(actor, rule) {
   return rule.requiredAbilities.some(ability => abilities.includes(ability));
 }
 
-function modifierEffectSource(rule, payload, stacks) {
+/**
+ * Construye la fuente de un ActiveEffect de modificador a partir de una regla
+ * (con la forma de MOVE_MODIFIER_EFFECTS) y un payload de contexto. La usan
+ * applyMoveModifierEffects() y también condition-catalog.mjs para empaquetar
+ * los modificadores genéricos (sin movimiento) del compendio de estados.
+ */
+export function modifierEffectSource(rule, payload, stacks) {
   const modifiers = scaledMoveModifiers(rule.modifiers, stacks);
   if (modifiers.acProficiency) modifiers.ac = (Number(modifiers.ac) || 0) + (Number(payload.proficiency) || 2);
   const icon = pokemonEffectIcon(rule.category, payload.moveId, rule.category === "buffs" ? "icons/svg/upgrade.svg" : "icons/svg/downgrade.svg");
@@ -287,6 +370,9 @@ function activeEffectChanges(modifiers) {
   if (modifiers.speedFlyOverride != null) changes.push(change("system.attributes.movement.fly", "OVERRIDE", modifiers.speedFlyOverride, 35));
   if (modifiers.fireVulnerability) changes.push(change("system.traits.dv.value", "ADD", "fire", 20));
   if (modifiers.normalResistance) changes.push(change("system.traits.dr.value", "ADD", "normal", 20));
+  if (modifiers.fireResistance) changes.push(change("system.traits.dr.value", "ADD", "fire", 20));
+  if (modifiers.electricResistance) changes.push(change("system.traits.dr.value", "ADD", "electric", 20));
+  if (modifiers.groundImmunity) changes.push(change("system.traits.di.value", "ADD", "ground", 20));
   return changes;
 }
 
@@ -300,7 +386,7 @@ async function rollModifierSave(actor, move, dc, sourceModifiers = {}) {
   const chosen = choices[0];
   const combat = pokemonCombatModifiers(actor);
   const sourceDisadvantage = (sourceModifiers.saveTargetsDisadvantageAbilities ?? []).some(key => abilities.includes(key));
-  const advantage = combat.saveAdvantage || Boolean(sourceModifiers.saveTargetsAdvantage);
+  const advantage = combat.saveAdvantage || combat.saveAdvantageAbilities.includes(chosen.key) || Boolean(sourceModifiers.saveTargetsAdvantage);
   const disadvantage = combat.saveDisadvantageAbilities.includes(chosen.key) || sourceDisadvantage;
   const dice = advantage === disadvantage ? "1d20" : advantage ? "2d20kh" : "2d20kl";
   const bonusDice = combat.saveDice.map(formula => ` + ${formula}`).join("");

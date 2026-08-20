@@ -102,6 +102,10 @@ if (trainerPaths.length !== TRAINER_PATHS.length) throw new Error("Invalid Train
 if (trainerPaths.some(source => source.type !== "subclass" || source.system.classIdentifier !== "trainer")) throw new Error("Trainer paths must be Trainer subclasses.");
 if (trainerPaths.some(source => Object.values(source.system.advancement).filter(entry => entry.type === "ItemGrant").length !== 4)) throw new Error("Every Trainer path must grant four feature advancements.");
 if (!trainerPaths.find(source => source.system.identifier === "pokemon-collector")?.system.advancement || !Object.values(trainerPaths.find(source => source.system.identifier === "pokemon-collector").system.advancement).some(entry => entry.type === "Trait" && entry.configuration.mode === "expertise")) throw new Error("Pokémon Collector must grant Animal Handling expertise.");
+for (const pathId of ["hobbyist", "nurse", "ranger"]) {
+  const path = trainerPaths.find(source => source.system.identifier === pathId);
+  if (!path?.system.advancement || !Object.values(path.system.advancement).some(entry => entry.type === "Trait")) throw new Error(`${pathId} must grant a Trait advancement.`);
+}
 if (!pathFeatures.find(source => source.flags[MODULE_ID].pathId === "grunt" && source.flags[MODULE_ID].level === 2)?.system.uses?.max) throw new Error("Grunt must expose its Shadow Point resource.");
 const trainerClass = trainerClassSource(featureUuids);
 if (trainerClass.type !== "class" || trainerClass.system.identifier !== "trainer") throw new Error("Invalid Trainer class source.");

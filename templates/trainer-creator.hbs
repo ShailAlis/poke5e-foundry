@@ -51,7 +51,16 @@
           {{#if originAbilityOptions}}<label class="poke5e-wide-field"><span>{{localize "POKE5E.Creator.AbilityBonus"}}</span><select name="originAbilityOption">{{#each originAbilityOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>{{/if}}
           {{#if originAnyTwo}}<div class="poke5e-creator-fields two"><label><span>+2 a</span><select name="originAbilityPrimary">{{#each abilityOptionsPrimary}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label><label><span>+1 a</span><select name="originAbilitySecondary">{{#each abilityOptionsSecondary}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label></div>{{/if}}
           {{#if isHoenn}}<label class="poke5e-wide-field"><span>{{localize "POKE5E.Creator.HoennEnvironment"}}</span><select name="environment"><option value="">{{localize "POKE5E.Common.Choose"}}</option>{{#each environmentOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>{{/if}}
-          {{#if isKanto}}<label class="poke5e-wide-field"><span>{{localize "POKE5E.Creator.ChosenFeat"}}</span><input name="chosenFeat" type="text" value="{{selection.chosenFeat}}" placeholder="{{localize "POKE5E.Creator.ChosenFeatPlaceholder"}}"></label>{{/if}}
+          {{#if isKanto}}
+            <label class="poke5e-wide-field">
+              <span>{{localize "POKE5E.Creator.ChosenFeat"}}</span>
+              <select name="chosenFeat">
+                <option value="">{{localize "POKE5E.Common.Choose"}}</option>
+                {{#each chosenFeatOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+              </select>
+              {{#unless chosenFeatOptions.length}}<small>{{localize "POKE5E.Creator.ChosenFeatEmpty"}}</small>{{/unless}}
+            </label>
+          {{/if}}
         {{/if}}
       </section>
     {{/if}}

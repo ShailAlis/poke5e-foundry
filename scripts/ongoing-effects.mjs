@@ -14,13 +14,14 @@ import { typeLabel } from "./combat.mjs";
 import { applyEndTurnStatusDamage, applyPokemonStatus } from "./status-effects.mjs";
 import { pokemonEffectIcon } from "./effect-icons.mjs";
 import { advanceHeldItemTurn, heldItemEndTurnEffect, postHeldItemMessage } from "./held-items.mjs";
+import { pokemonCombatModifiers } from "./move-modifiers.mjs";
 
 const SOCKET_ACTION = "applyOngoingMoveEffects";
 const KIND = "ongoing-move";
 const CONCENTRATION_KIND = "ongoing-concentration";
 
 /** Movimientos cuyo bloque de daño describe solo el pulso posterior. */
-const NO_IMMEDIATE_DAMAGE = new Set(["leech-seed", "curse"]);
+const NO_IMMEDIATE_DAMAGE = new Set(["leech-seed", "curse", "wish"]);
 
 /** Catálogo de reglas mantenidas admitidas por el motor. */
 export const ONGOING_MOVE_EFFECTS = Object.freeze({
@@ -65,6 +66,8 @@ export const ONGOING_MOVE_EFFECTS = Object.freeze({
     description: "Recibe 1d4 de daño de Roca al inicio de cada turno. Agua y Acero son vulnerables. Termina al recibir curación o retirarse."
   },
   "scary-face": maintainedCondition("failed-save", "end", "wis", ["frightened"], "Queda asustado. Repite una salvación de SAB al final de cada turno para terminar el efecto.", { remaining: 10 }),
+  "snap-trap": maintainedCondition("failed-save", "start", "str", ["grappled"], "Queda agarrado en la trampa tras fallar una salvación de DES. Repite una salvación de FUE al inicio de cada turno para escapar."),
+  "spider-web": maintainedCondition("hit", "start", "str", ["restrained"], "Queda restringido por la telaraña. Puede usar una acción en su turno para intentar escapar con una salvación de FUE contra la CD del movimiento."),
   submission: maintainedCondition("hit", "start", "str", ["grappled"], "Queda agarrado. Repite una salvación de FUE al inicio de cada turno para escapar."),
   telekinesis: {
     target: "selected", trigger: "failed-save", timing: "end", formula: null,
@@ -78,6 +81,16 @@ export const ONGOING_MOVE_EFFECTS = Object.freeze({
     target: "conditional", trigger: "failed-save", timing: "end", damageType: "ghost",
     formula: "scaled", remaining: 10, concentration: true, icon: "icons/svg/skull.svg",
     description: "La variante Fantasma causa daño al final de cada turno; la variante de otros tipos modifica FUE, CON y DES mientras se mantenga la concentración."
+  },
+  wish: {
+    target: "selected", trigger: "automatic", timing: "end", healing: true,
+    formula: "scaled", remaining: 1, icon: "icons/svg/regen.svg",
+    description: "Cura al objetivo elegido al final de su siguiente turno con la dosis de curación correspondiente al nivel."
+  },
+  "perish-song": {
+    target: "selected", trigger: "failed-save", timing: "start", formula: null,
+    remaining: 3, includeSelf: true, faintOnExpire: true, icon: "icons/svg/skull.svg",
+    description: "Falla una salvación de CON contra la canción: se debilita en 3 rondas, al inicio de su turno, salvo que huya o sea retirado antes."
   }
 });
 
@@ -185,13 +198,14 @@ export async function applyMoveOngoingEffects({ move, attack = null, saveDc, sou
     return;
   }
   const tokens = rule.target === "self" ? [] : [...(game.user.targets ?? [])];
-  if (rule.target !== "self" && !tokens.length) {
+  if (rule.target !== "self" && !tokens.length && !rule.includeSelf) {
     ui.notifications.warn(game.i18n.format("POKE5E.MoveEffects.NoTargetOngoing", { move: move.name }));
     return;
   }
   const targets = [];
   if (rule.target === "self") targets.push({ actorUuid: sourceCombatActor.uuid, tokenName: sourceCombatActor.name });
   else {
+    if (rule.includeSelf) tokens.push({ actor: sourceCombatActor, name: sourceCombatActor.name });
     for (const token of tokens) {
       if (!token.actor?.uuid || (rule.trigger === "hit" && attack && !attackHitsTarget(attack, token.actor))) continue;
       if (rule.trigger === "failed-save" && (await rollTargetSave(token.actor, move, saveDc)).success) continue;
@@ -238,12 +252,18 @@ export async function removeOngoingEffect(actor, effectId) {
   if (actor?.effects?.get(effectId)) await actor.deleteEmbeddedDocuments("ActiveEffect", [effectId]);
 }
 
-/** Impide una retirada voluntaria mientras Arraigo siga activo. */
+/**
+ * Impide una retirada voluntaria mientras Arraigo o un bloqueo de huida
+ * (Mirada Fulminante, Cerrojo Feérico...) sigan activos. Estos últimos son
+ * efectos del motor de modificadores (move-modifiers.mjs), no mantenidos, así
+ * que se comprueban con pokemonCombatModifiers() además del recorrido propio.
+ */
 export function actorHasRecallLock(actor) {
-  return actor?.effects?.some(effect => {
+  const ownLock = actor?.effects?.some(effect => {
     const ongoing = effect.getFlag(MODULE_ID, "ongoing");
     return ongoing?.moveId === "ingrain" || ongoing?.recallLock;
   }) ?? false;
+  return ownLock || Boolean(pokemonCombatModifiers(actor).recallLock);
 }
 
 async function completeOngoingApplication(payload) {
@@ -296,7 +316,7 @@ function effectSource(move, rule, payload, linkId) {
     sourcePokemonItemUuid: payload.sourcePokemonItemUuid, sourceTrainerUuid: payload.sourceTrainerUuid,
     sourceName: payload.sourceName, linkId, description: rule.description,
     repeatSave: rule.repeatSave ?? null, saveDc: Number(payload.saveDc) || 10,
-    statuses: rule.statuses ?? [], recallLock: Boolean(rule.recallLock),
+    statuses: rule.statuses ?? [], recallLock: Boolean(rule.recallLock), faintOnExpire: Boolean(rule.faintOnExpire),
     iconCategory: iconSlot.category, iconId: iconSlot.id
   };
   return {
@@ -379,8 +399,13 @@ async function processOngoingEffects(actor, timing) {
     }
     if (Number.isFinite(Number(ongoing.remaining))) {
       const remaining = Math.max(0, Number(ongoing.remaining) - 1);
-      if (!remaining) await actor.deleteEmbeddedDocuments("ActiveEffect", [effect.id]);
-      else await effect.update({ [`flags.${MODULE_ID}.ongoing.remaining`]: remaining });
+      if (!remaining) {
+        if (ongoing.faintOnExpire && Number(actor.system.attributes?.hp?.value) > 0) {
+          await actor.update({ "system.attributes.hp.value": 0 });
+          await postEffectMessage(`<strong>${escapeHtml(actor.name)}</strong> se debilita por ${escapeHtml(ongoing.moveName)}.`, true);
+        }
+        if (actor.effects.has(effect.id)) await actor.deleteEmbeddedDocuments("ActiveEffect", [effect.id]);
+      } else await effect.update({ [`flags.${MODULE_ID}.ongoing.remaining`]: remaining });
     }
   }
 }

@@ -9,6 +9,8 @@ El nombre del PNG debe coincidir exactamente. Cada descripción resume el efecto
 - `aurora-beam.png` — **Aurora Beam.** Se activa con un resultado natural de 15 o más al impactar. Desventaja en su siguiente ataque; los objetivos tienen ventaja si exige salvación.
 - `bind.png` — **Bind.** Queda agarrado y repite una salvación de FUE al inicio de cada turno para escapar.
 - `bitter-malice.png` — **Bitter Malice.** Se activa al impactar y fallar la salvación. Desventaja en su siguiente ataque o ventaja para los objetivos de su siguiente salvación.
+- `blast-burn.png` — **Blast Burn.** Se aplica automáticamente. No puede volver a activarse hasta el final de su siguiente turno.
+- `body-slam.png` — **Body Slam.** Se activa al fallar la salvación. Derribado (Prono) tras fallar la salvación de FUE, hasta levantarse.
 - `breaking-swipe.png` — **Breaking Swipe.** Se activa al fallar la salvación. Desventaja en todos los ataques hasta el final de su siguiente turno.
 - `bubble-beam.png` — **Bubble Beam.** Se activa con un resultado natural de 19 o más al impactar. Velocidad reducida a la mitad hasta el final de su siguiente turno.
 - `bug-buzz.png` — **Bug Buzz.** Se activa si falla la salvación por 5 o más. Desventaja en su siguiente ataque si falla la salvación por 5 o más.
@@ -16,37 +18,70 @@ El nombre del PNG debe coincidir exactamente. Cada descripción resume el efecto
 - `chilling-water.png` — **Chilling Water.** Se activa al impactar y fallar la salvación. Desventaja en su siguiente ataque o ventaja para los objetivos de su siguiente salvación.
 - `clamp.png` — **Clamp.** Queda agarrado hasta 1 minuto y repite una salvación de FUE al inicio de cada turno.
 - `clanging-scales.png` — **Clanging Scales.** Se activa si falla la salvación por 5 o más. −1 a la CA durante el combate al fallar por 5 o más; se acumula hasta −5.
+- `close-combat.png` — **Close Combat.** Se aplica automáticamente. Los ataques del objetivo contra el usuario tienen ventaja hasta el principio de su siguiente turno.
+- `collision-course.png` — **Collision Course.** Se activa al fallar la salvación. Derribado (Prono) tras fallar la salvación de FUE, hasta levantarse. El daño doble a enterrados/en fase invulnerable de Excavar, el terreno difícil resultante y la inmunidad de los Alzados son detalles del daño base/terreno, no modificadores de este catálogo.
 - `constrict.png` — **Constrict.** Queda agarrado y repite una salvación de FUE al inicio de cada turno para escapar.
+- `core-enforcer.png` — **Core Enforcer.** Se activa al impactar y fallar la salvación. No puede beneficiarse del efecto de su Habilidad hasta que sea cambiado.
 - `corrosive-gas.png` — **Corrosive Gas.** Se activa al fallar la salvación. Desventaja en ataques y pruebas hasta el final del turno; los Pokémon de SR inferior a 15 no se benefician de objetos equipados.
 - `cotton-spore.png` — **Cotton Spore.** Se activa al fallar la salvación. −10 pies de velocidad durante 1 minuto; puede acumularse hasta dejarla en 0.
 - `crunch.png` — **Crunch.** Se activa con un resultado natural de 18 o más al impactar. −1 a la CA durante el combate; se acumula hasta −5.
 - `curse.png` — **Curse.** Variante Fantasma de Curse: recibe daño de Fantasma al final de cada turno mientras se mantenga la concentración.
 - `draco-meteor.png` — **Draco Meteor.** Se aplica automáticamente. Desventaja en el siguiente ataque o ventaja para sus objetivos si exige salvación.
 - `dragon-ascent.png` — **Dragon Ascent.** Se aplica automáticamente. Los ataques contra el usuario tienen ventaja hasta el principio de su siguiente turno.
+- `drum-beating.png` — **Drum Beating.** Se aplica automáticamente. Mientras mantenga la concentración, su velocidad es 0. El área reduce a la mitad la velocidad de las criaturas afectadas y les inflige daño de Planta al entrar o empezar su turno ahí; ese daño por zona se resuelve manualmente porque no hay un objetivo fijo que registrar como en las trampas mantenidas de ongoing-effects.mjs.
 - `earth-power.png` — **Earth Power.** Se activa con un resultado natural de 19 o más al impactar. El siguiente ataque contra el objetivo tiene ventaja.
+- `earthquake.png` — **Earthquake.** Se activa al fallar la salvación. Derribado (Prono) tras fallar la salvación de FUE, hasta levantarse. El daño doble a enterrados/en fase invulnerable de Excavar, el terreno difícil resultante y la inmunidad de los Alzados son detalles del daño base/terreno, no modificadores de este catálogo.
+- `electroweb.png` — **Electroweb.** Se aplica al impactar. −5 pies de velocidad por impacto; el objetivo puede retirar la telaraña como acción. Al llegar a velocidad 0 queda apresado. Se acumula hasta velocidad 0.
+- `embargo.png` — **Embargo.** Se activa al fallar la salvación. No puede beneficiarse de ningún objeto equipado ni de objeto de entrenador mientras el usuario mantenga la concentración.
+- `encore.png` — **Encore.** Se activa al fallar la salvación. No puede activar ningún movimiento hasta el final de su siguiente turno.
 - `energy-ball.png` — **Energy Ball.** Se activa con un resultado natural de 19 o más al impactar. El siguiente ataque contra el objetivo tiene ventaja.
+- `eternabeam.png` — **Eternabeam.** Se aplica automáticamente. Incapacitado hasta el final de su siguiente turno.
+- `fairy-lock.png` — **Fairy Lock.** Se aplica automáticamente. No puede huir ni ser retirado hasta su siguiente turno. Se aproxima con los objetivos que el usuario seleccione manualmente; el radio real de 40 pies no se comprueba automáticamente.
 - `fake-tears.png` — **Fake Tears.** Se activa al fallar la salvación. Los ataques reciben +5 contra el objetivo hasta el final del siguiente turno del usuario.
 - `feather-dance.png` — **Feather Dance.** Se activa al fallar la salvación. No puede añadir competencia a sus ataques durante 1 minuto.
 - `fire-lash.png` — **Fire Lash.** Se activa al impactar y fallar la salvación. Los aliados obtienen +1 al atacarlo durante 1 minuto; se acumula hasta +5.
 - `fire-spin.png` — **Fire Spin.** Recibe daño de Fuego al final de sus próximos tres turnos mientras se mantenga la concentración.
+- `flash.png` — **Flash.** Se activa al fallar la salvación. Cegado hasta el final de su siguiente turno.
 - `flash-cannon.png` — **Flash Cannon.** Se activa con un resultado natural de 19 o más al impactar. El siguiente ataque contra el objetivo tiene ventaja.
 - `fleur-cannon.png` — **Fleur Cannon.** Se aplica automáticamente. Desventaja en el siguiente ataque o ventaja para sus objetivos si exige salvación.
 - `focus-blast.png` — **Focus Blast.** Se activa con un resultado natural de 19 o más al impactar. El siguiente ataque contra el objetivo tiene ventaja.
+- `frenzy-plant.png` — **Frenzy Plant.** Se aplica automáticamente. No puede volver a activarse hasta el final de su siguiente turno.
+- `gastro-acid.png` — **Gastro Acid.** Se aplica al impactar. No puede beneficiarse del efecto de su habilidad mientras el usuario mantenga la concentración.
+- `giga-impact.png` — **Giga Impact.** Se aplica automáticamente. No puede volver a activarse hasta el final de su siguiente turno.
+- `gigaton-hammer.png` — **Gigaton Hammer.** Se aplica automáticamente. No puede volver a activarse hasta el final de su siguiente turno.
 - `glaciate.png` — **Glaciate.** Se aplica al impactar. −5 pies de velocidad hasta retirarse; se acumula y congela al llegar a 0.
+- `glaive-rush.png` — **Glaive Rush.** Se aplica automáticamente. Los ataques contra el usuario tienen ventaja hasta el principio de su siguiente turno.
 - `glare.png` — **Glare.** Queda asustado y repite una salvación de SAB al final de cada turno.
+- `grass-knot.png` — **Grass Knot.** Se activa con un resultado natural de 19 o más al impactar. Con un resultado natural de 19 o más, el objetivo cae derribado hasta levantarse.
 - `grav-apple.png` — **Grav Apple.** Se activa al impactar y fallar la salvación. −1 a la CA hasta retirarse; se acumula hasta −3.
 - `growl.png` — **Growl.** Se activa al fallar la salvación. −1 a todas las tiradas de ataque durante 1 minuto; se acumula hasta −5.
+- `guard-split.png` — **Guard Split.** Se activa al fallar la salvación. Su CA pasa a ser el promedio (redondeado hacia abajo) entre la suya y la del objetivo hasta retirarse; el valor se resuelve manualmente.
+- `guard-swap.png` — **Guard Swap.** Se activa al fallar la salvación. Intercambia su CA con el usuario hasta el final de su siguiente turno; el intercambio se resuelve manualmente.
+- `hammer-arm.png` — **Hammer Arm.** Se aplica automáticamente. Desventaja en salvaciones de DES y velocidad reducida a la mitad hasta el principio de su siguiente turno.
+- `headbutt.png` — **Headbutt.** Se activa con un resultado natural de 18 o más al impactar. Con un resultado natural de 18 o más, el objetivo cae derribado hasta levantarse.
+- `headlong-rush.png` — **Headlong Rush.** Se aplica automáticamente. El objetivo atacado tiene ventaja en sus ataques contra el usuario hasta el principio de su siguiente turno.
+- `horn-attack.png` — **Horn Attack.** Se activa al fallar la salvación. Si el usuario se desplazó 20 pies o más en línea recta hacia el objetivo antes de atacar, este cae derribado al fallar una salvación de FUE.
+- `hydro-cannon.png` — **Hydro Cannon.** Se aplica automáticamente. No puede volver a activarse hasta el final de su siguiente turno.
+- `hyper-beam.png` — **Hyper Beam.** Se aplica automáticamente. No puede volver a activarse hasta el final de su siguiente turno.
+- `hyperspace-fury.png` — **Hyperspace Fury.** Se aplica automáticamente. Los ataques contra el usuario tienen ventaja hasta el principio de su siguiente turno. El bloqueo de reacciones tipo Protección/Detectar no tiene campo equivalente y queda sin automatizar.
+- `ice-hammer.png` — **Ice Hammer.** Se aplica automáticamente. Desventaja en salvaciones de DES y velocidad reducida a la mitad hasta el final de su siguiente turno.
+- `icy-wind.png` — **Icy Wind.** Se activa con un resultado natural de 18 o más al impactar. Con una tirada natural de 18 o más, el objetivo cae derribado.
 - `infestation.png` — **Infestation.** Recibe daño de Bicho al final de sus próximos tres turnos mientras se mantenga la concentración.
 - `iron-tail.png` — **Iron Tail.** Se activa con un resultado natural de 19 o más al impactar. −1 a la CA durante el combate.
+- `leaf-storm.png` — **Leaf Storm.** Se aplica automáticamente. Desventaja en el siguiente ataque o ventaja para sus objetivos si exige salvación, tras quedar sin energía.
 - `leaf-tornado.png` — **Leaf Tornado.** Se activa con un resultado natural de 15 o más al impactar. Desventaja en su siguiente ataque o ventaja para los objetivos de su siguiente salvación.
 - `leech-seed.png` — **Leech Seed.** Recibe daño de Planta al final de cada turno y cura a un Pokémon activo del atacante por la mitad del daño.
 - `leer.png` — **Leer.** Se activa al fallar la salvación. Los aliados obtienen +1 al atacarlo durante 1 minuto; se acumula hasta +5.
 - `liquidation.png` — **Liquidation.** Se activa con un resultado natural de 18 o más al impactar. −1 a la CA durante el combate; se acumula hasta −5.
+- `low-sweep.png` — **Low Sweep.** Se activa al impactar y fallar la salvación. Con un impacto, si falla la salvación de FUE queda derribado.
 - `lumina-crash.png` — **Lumina Crash.** Se activa al fallar la salvación. −2 a las salvaciones de SAB hasta el final del siguiente turno del usuario.
 - `lunge.png` — **Lunge.** Se activa con un resultado natural de 15 o más al impactar. Desventaja en su siguiente ataque.
 - `luster-purge.png` — **Luster Purge.** Se activa si falla la salvación por 5 o más. Los ataques contra el objetivo tienen ventaja hasta el final del siguiente turno del usuario.
+- `mean-look.png` — **Mean Look.** Se activa al fallar la salvación. No puede huir ni ser retirado durante tres rondas.
 - `memento.png` — **Memento.** Se aplica automáticamente. Incapacitado durante 2 rondas: velocidad 0, no puede atacar y falla automáticamente salvaciones de FUE y DES.
 - `metal-sound.png` — **Metal Sound.** Se activa al fallar la salvación. Los ataques reciben +5 contra el objetivo hasta el final del siguiente turno del usuario.
+- `meteor-assault.png` — **Meteor Assault.** Se aplica automáticamente. No puede volver a activarse hasta el final de su siguiente turno.
+- `miracle-eye.png` — **Miracle Eye.** Se activa al fallar la salvación. Si el objetivo es de tipo Siniestro o Fantasma, pierde sus inmunidades hasta retirarse (sigue las resistencias/vulnerabilidades de su tipo secundario si corresponde).
 - `mirror-shot.png` — **Mirror Shot.** Se activa al impactar y fallar la salvación. Desventaja en su siguiente ataque.
 - `mist-ball.png` — **Mist Ball.** Se activa con un resultado natural de 11 o más al impactar. Desventaja en los ataques hasta el final de su siguiente turno.
 - `moonblast.png` — **Moonblast.** Se activa con un resultado natural de 15 o más al impactar. Desventaja en su siguiente ataque.
@@ -60,15 +95,21 @@ El nombre del PNG debe coincidir exactamente. Cada descripción resume el efecto
 - `octolock.png` — **Octolock.** Se aplica automáticamente. Agarrado y −1 a la CA; puede reducirse cada turno hasta −5 y termina al romper el agarre.
 - `odor-sleuth.png` — **Odor Sleuth.** Se aplica automáticamente. No puede aumentar su CA y pierde inmunidades frente a Fantasma, Normal y Lucha durante 1 minuto.
 - `overheat.png` — **Overheat.** Se aplica automáticamente. Desventaja en el siguiente ataque o ventaja para sus objetivos si exige salvación.
+- `parting-shot.png` — **Parting Shot.** Se activa al fallar la salvación. Su siguiente movimiento de daño hace la mitad; el usuario se retira del combate de inmediato.
 - `play-nice.png` — **Play Nice.** Se activa al fallar la salvación. Desventaja en su siguiente ataque o ventaja para los objetivos de su siguiente salvación.
 - `play-rough.png` — **Play Rough.** Se activa con un resultado natural de 19 o más al impactar. −1 a los ataques durante el combate; se acumula hasta −5.
 - `poltergeist.png` — **Poltergeist.** Se activa al fallar la salvación. No puede beneficiarse de su objeto equipado mientras permanezca bajo el control de Poltergeist.
 - `power-swap.png` — **Power Swap.** Se activa al fallar la salvación. Intercambia una puntuación de característica con el usuario hasta el final de su siguiente turno; la característica se resuelve manualmente.
+- `prismatic-laser.png` — **Prismatic Laser.** Se aplica automáticamente. No puede volver a activarse hasta el final de su siguiente turno.
+- `psychic-noise.png` — **Psychic Noise.** Se activa al fallar la salvación. No puede recuperar Puntos de Golpe hasta el final del siguiente turno del usuario.
 - `psycho-boost.png` — **Psycho Boost.** Se aplica automáticamente. Desventaja en el siguiente ataque o ventaja para sus objetivos si exige salvación.
 - `razor-shell.png` — **Razor Shell.** Se activa con un resultado natural de 18 o más al impactar. −1 a la CA durante el combate; se acumula hasta −5.
 - `roar.png` — **Roar.** Huye y queda asustado; repite una salvación de SAB al final de cada turno.
+- `roar-of-time.png` — **Roar of Time.** Se aplica automáticamente. No puede volver a activarse hasta el final de su siguiente turno. El bloqueo total de ataque que sufre el usuario mientras recarga no tiene campo equivalente y queda sin automatizar.
+- `rock-slide.png` — **Rock Slide.** Se activa al fallar la salvación. Cae derribado en una salvación de FUE fallida, hasta que pueda levantarse.
 - `rock-smash.png` — **Rock Smash.** Se activa con un resultado natural de 19 o más al impactar. −1 a la CA durante el combate.
 - `rock-tomb.png` — **Rock Tomb.** Queda apresado por rocas y repite una salvación de FUE al inicio de cada turno.
+- `rock-wrecker.png` — **Rock Wrecker.** Se aplica automáticamente. No puede volver a activarse hasta el final de su siguiente turno.
 - `salt-cure.png` — **Salt Cure.** Recibe 1d4 de daño de Roca al inicio de cada turno; Agua y Acero son vulnerables. Termina al recibir curación o retirarse.
 - `sand-attack.png` — **Sand Attack.** Se activa al fallar la salvación. −1 a todos los ataques durante el combate; se acumula hasta −5.
 - `sand-tomb.png` — **Sand Tomb.** Queda apresado por arena y repite una salvación de FUE al inicio de cada turno.
@@ -78,23 +119,35 @@ El nombre del PNG debe coincidir exactamente. Cada descripción resume el efecto
 - `seed-flare.png` — **Seed Flare.** Se activa al fallar la salvación. Los ataques contra el objetivo tienen ventaja hasta el final del siguiente turno del usuario.
 - `shadow-ball.png` — **Shadow Ball.** Se aplica al impactar. −2 a su siguiente ataque.
 - `shadow-bone.png` — **Shadow Bone.** Se activa con un resultado natural de 18 o más al impactar. −1 a la CA durante el combate; se acumula hasta −5.
+- `smack-down.png` — **Smack Down.** Se aplica al impactar. Un objetivo 'Alzado' cae derribado, pierde su velocidad de vuelo y su inmunidad a movimientos de Tierra hasta que pueda moverse de nuevo.
 - `smokescreen.png` — **Smokescreen.** Se activa al fallar la salvación. Cegado dentro del humo durante 1 minuto; repite la salvación de CON al inicio de sus turnos.
 - `snarl.png` — **Snarl.** Se activa al fallar la salvación. Desventaja en el siguiente ataque si se dirige contra quien usó Alarido.
+- `spacial-rend.png` — **Spacial Rend.** Se activa si falla la salvación por 5 o más. Si falla la salvación por 5 o más, es arrastrado al Plano Etéreo: incapacitado e inalcanzable hasta el principio del siguiente turno del usuario.
+- `speed-swap.png` — **Speed Swap.** Se activa al fallar la salvación. Intercambia su velocidad con la del usuario hasta el final de su siguiente turno; el valor se resuelve manualmente.
 - `spicy-extract.png` — **Spicy Extract.** Se activa al fallar la salvación. Sus ataques tienen ventaja, pero los ataques contra él también tienen ventaja.
+- `spin-out.png` — **Spin Out.** Se aplica automáticamente. Desventaja en las salvaciones de DES y velocidad reducida a la mitad hasta el final de su siguiente turno.
 - `spirit-break.png` — **Spirit Break.** Se aplica al impactar. Desventaja en su siguiente ataque.
+- `spirit-shackle.png` — **Spirit Shackle.** Se aplica al impactar. El objetivo queda agarrado por su propia sombra: no puede huir ni ser retirado mientras el usuario permanezca en combate.
 - `spotlight.png` — **Spotlight.** Se activa al fallar la salvación. Los ataques contra el objetivo tienen ventaja durante 1 minuto.
 - `springtide-storm.png` — **Springtide Storm.** Se activa al fallar la salvación. Desventaja en todos los ataques hasta el final de su siguiente turno.
+- `steel-beam.png` — **Steel Beam.** Se aplica automáticamente. El retroceso lo empuja 10 pies en la dirección opuesta al objetivo (desplazamiento manual) y cae derribado. Si estaba en tierra sufre 2d6 de daño típeless; si volaba, se calcula el daño de caída correspondiente; ninguno de los dos se automatiza.
 - `string-shot.png` — **String Shot.** Se aplica al impactar. −10 pies de velocidad durante 1 minuto; se acumula y puede retirarse con una salvación de FUE.
 - `submission.png` — **Submission.** Queda agarrado y repite una salvación de FUE al inicio de cada turno.
+- `superpower.png` — **Superpower.** Se aplica automáticamente. FUE y DES se reducen en 10 hasta el final de su siguiente turno por el esfuerzo del movimiento.
+- `surf.png` — **Surf.** Se activa al fallar la salvación. Cae derribado por la ola además de recibir el daño.
+- `syrup-bomb.png` — **Syrup Bomb.** Se activa al fallar la salvación. Cae derribado por el impacto inicial del jarabe. El jarabe persistente en el suelo, que derriba a quien entre en la zona o termine su turno ahí, no tiene objetivo fijo que registrar y debe resolverlo el director a mano.
 - `tail-whip.png` — **Tail Whip.** Se activa al fallar la salvación. Los aliados obtienen +1 al atacarlo durante 1 minuto; se acumula hasta +5.
 - `tar-shot.png` — **Tar Shot.** Se aplica al impactar. −10 pies de velocidad y vulnerabilidad al Fuego hasta limpiarse; se acumula hasta velocidad 0.
 - `tearful-look.png` — **Tearful Look.** Se activa al fallar la salvación. −1 a los ataques durante 1 minuto; se acumula hasta −5.
 - `telekinesis.png` — **Telekinesis.** Queda agarrado, apresado y elevado durante tres rondas mientras se mantenga la concentración.
 - `thousand-arrows.png` — **Thousand Arrows.** Se activa al fallar la salvación. Derribado y conectado a tierra: pierde el vuelo y vuelve a ser susceptible al daño de Tierra hasta levantarse.
+- `thousand-waves.png` — **Thousand Waves.** Se activa al fallar la salvación. El objetivo queda agarrado por la onda: no puede huir ni ser retirado mientras el usuario permanezca en combate.
 - `thunder-cage.png` — **Thunder Cage.** Queda apresado y repite una salvación de DES al inicio de cada turno.
+- `thunderous-kick.png` — **Thunderous Kick.** Se activa al fallar la salvación. Cae derribado por la patada; el director debe desplazarlo manualmente hasta 15 pies como parte del impacto.
 - `toxic-thread.png` — **Toxic Thread.** Se aplica al impactar. −10 pies de velocidad mientras permanezcan los hilos; se acumula hasta velocidad 0.
 - `triple-arrows.png` — **Triple Arrows.** Se aplica al impactar. −1 a la CA durante el combate por el segundo impacto; se acumula hasta −5.
 - `trop-kick.png` — **Trop Kick.** Se activa con un resultado natural de 16 o más al impactar. −1 a los ataques durante el combate; se acumula hasta −3.
+- `v-create.png` — **V-Create.** Se aplica automáticamente. −2 a la CA hasta el principio de su siguiente turno.
+- `waterfall.png` — **Waterfall.** Se activa al fallar la salvación. Cae derribado por la cascada además de recibir el daño.
 - `whirlpool.png` — **Whirlpool.** Queda apresado en el remolino y repite una salvación de FUE al inicio de cada turno.
 - `wrap.png` — **Wrap.** Queda agarrado y repite una salvación de FUE al inicio de cada turno.
-

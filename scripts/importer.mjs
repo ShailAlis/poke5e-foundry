@@ -1,7 +1,8 @@
 /**
  * Importador de contenido: crea o actualiza los compendios de mundo con
- * especies, movimientos, habilidades, objetos y la clase de Entrenador, además
- * de un diario de referencia.
+ * especies, movimientos, habilidades, objetos, la clase de Entrenador y un
+ * compendio de estados/modificadores (tipo ActiveEffect, para arrastrar
+ * directamente sobre cualquier Pokémon), además de un diario de referencia.
  *
  * Convierte lo que devuelve data-service.mjs con las funciones *ItemSource() de
  * model.mjs. Es idempotente: identifica lo ya importado por su `sourceId` y lo
@@ -26,6 +27,8 @@ import {
   trainerClassSource
 } from "./model.mjs";
 import { migrateTrainerClassAdvancements } from "./trainer-actor-sheet.mjs";
+import { statModifierSources, statusConditionSources } from "./condition-catalog.mjs";
+import { pokemonFeatSources } from "./feat-catalog.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 const CompendiumCollection = foundry.documents.collections.CompendiumCollection;
@@ -68,11 +71,12 @@ export class Poke5eImporter extends HandlebarsApplicationMixin(ApplicationV2) {
 
   /**
    * Ejecuta la importación de los compendios marcados, en este orden: especies
-   * (según lo que seleccione selectPokemon()), movimientos, habilidades, objetos
-   * y progresión. Esta última va en dos pasos, porque la clase necesita los UUID
-   * de sus rasgos, ya creados, que recoge progressionFeatureUuids(). Cada tramo
-   * tiene asignado un porcentaje de la barra que actualiza setStatus(), y el
-   * botón queda deshabilitado hasta terminar.
+   * (según lo que seleccione selectPokemon()), movimientos, habilidades, objetos,
+   * progresión y estados/modificadores. La de progresión va en dos pasos, porque
+   * la clase necesita los UUID de sus rasgos, ya creados, que recoge
+   * progressionFeatureUuids(). Cada tramo tiene asignado un porcentaje de la
+   * barra que actualiza setStatus(), y el botón queda deshabilitado hasta
+   * terminar.
    */
   async #import(event) {
     event.preventDefault();
@@ -88,6 +92,8 @@ export class Poke5eImporter extends HandlebarsApplicationMixin(ApplicationV2) {
         abilities: form.querySelector("[name='abilities']").checked,
         gear: form.querySelector("[name='gear']").checked,
         progression: form.querySelector("[name='progression']").checked,
+        feats: form.querySelector("[name='feats']").checked,
+        conditions: form.querySelector("[name='conditions']").checked,
         reference: form.querySelector("[name='reference']").checked,
         pokemonIds: form.querySelector("[name='pokemonIds']").value
       };
@@ -133,6 +139,16 @@ export class Poke5eImporter extends HandlebarsApplicationMixin(ApplicationV2) {
         itemCount += await upsertPackItems(pack, [trainerClassSource(featureUuids)], status, 97, 98);
         await migrateTrainerClassAdvancements();
       }
+      if (options.feats) {
+        setStatus(status, "Actualizando compendio de dotes…", 98);
+        itemCount += await upsertPackItems(await ensurePack("feats"), pokemonFeatSources(), status, 98, 99);
+      }
+      if (options.conditions) {
+        setStatus(status, "Actualizando compendio de estados y modificadores…", 99);
+        const pack = await ensurePack("conditions");
+        const sources = [...statusConditionSources(), ...statModifierSources()];
+        itemCount += await upsertPackItems(pack, sources, status, 99, 100, ActiveEffect.implementation);
+      }
       if (options.reference) await upsertReferenceJournal();
 
       setStatus(status, "Compendios preparados.", 100);
@@ -158,7 +174,7 @@ async function ensurePack(key) {
   let pack = game.packs.get(collection);
   if (!pack) {
     pack = await CompendiumCollection.createCompendium({
-      type: "Item",
+      type: config.type ?? "Item",
       label: config.label,
       name: config.name,
       package: "world",
@@ -196,7 +212,7 @@ async function removeLegacyTrainerPathMarkers(pack) {
  * en tandas de 100 con inBatches() para no bloquear la interfaz. Es lo que hace
  * idempotente al importador. La usan todos los tramos de #import().
  */
-async function upsertPackItems(pack, sources, status, startProgress, endProgress) {
+async function upsertPackItems(pack, sources, status, startProgress, endProgress, docClass = Item.implementation) {
   const index = await pack.getIndex({ fields: [`flags.${MODULE_ID}.sourceId`, `flags.${MODULE_ID}.kind`] });
   const existing = new Map();
   for (const entry of index.values()) {
@@ -216,12 +232,12 @@ async function upsertPackItems(pack, sources, status, startProgress, endProgress
   const total = Math.max(sources.length, 1);
   const progress = () => setStatus(status, `${pack.title}: ${completed}/${sources.length}`, startProgress + Math.round((completed / total) * (endProgress - startProgress)));
   await inBatches(updates, async batch => {
-    await Item.implementation.updateDocuments(batch, { pack: pack.collection });
+    await docClass.updateDocuments(batch, { pack: pack.collection });
     completed += batch.length;
     progress();
   });
   await inBatches(creates, async batch => {
-    await Item.implementation.createDocuments(batch, { pack: pack.collection });
+    await docClass.createDocuments(batch, { pack: pack.collection });
     completed += batch.length;
     progress();
   });

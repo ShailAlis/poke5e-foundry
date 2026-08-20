@@ -41,13 +41,16 @@ const EXPLICIT_MOVE_STATUSES = Object.freeze({
   chatter: [explicitStatus("confused", "hit")],
   confide: [explicitStatus("confused", "failed-save")],
   "confuse-ray": [explicitStatus("confused", "hit")],
+  "dark-void": [explicitStatus("asleep", "failed-save")],
   "dynamic-punch": [explicitStatus("confused", "hit")],
+  "fake-out": [explicitStatus("flinched", "hit")],
   "grass-whistle": [explicitStatus("asleep", "failed-save")],
   hurricane: [explicitStatus("confused", "failed-save", { margin: 5 })],
   hypnosis: [explicitStatus("asleep", "failed-save")],
   "ice-beam": [explicitStatus("frozen", "failed-save", { margin: 5 })],
   "lava-plume": [explicitStatus("burned", "failed-save")],
   "mortal-spin": [explicitStatus("poisoned", "failed-save")],
+  "mountain-gale": [explicitStatus("flinched", "failed-save", { requiresHit: true })],
   nuzzle: [explicitStatus("paralyzed", "failed-save", { requiresHit: true })],
   outrage: [explicitStatus("confused", "manual", { target: "self" })],
   "petal-dance": [explicitStatus("confused", "manual", { target: "self" })],
@@ -119,7 +122,25 @@ export function registerPokemonStatusSocket() {
     if (payload?.action !== STATUS_SOCKET_ACTION || !isResponsibleGm()) return;
     completeStatusApplication(payload).catch(error => console.error(`${MODULE_ID} | Status application failed`, error));
   });
+  // Foundry puede borrar el ActiveEffect de un estado por sí solo al agotarse su
+  // duración (o el director lo quita a mano del token) sin pasar por
+  // removePokemonStatus(); sin este enganche, `instance.conditions` queda con un
+  // estado fantasma que la ficha del Pokémon sigue mostrando y que el aviso de
+  // "ya tiene {status}" en applyPokemonStatus() bloquea reaplicar sin motivo.
+  Hooks.on("deleteActiveEffect", effect => {
+    if (effect.getFlag(MODULE_ID, "kind") !== "pokemon-status" || !isResponsibleGm()) return;
+    const id = effect.getFlag(MODULE_ID, "status");
+    const actor = effect.parent;
+    if (!id || actor?.documentName !== "Actor") return;
+    clearStalePokemonStatus(actor, id).catch(error => console.error(`${MODULE_ID} | Status expiry sync failed`, error));
+  });
   synchronizePokemonStatusEffects().catch(error => console.error(`${MODULE_ID} | Status icon synchronization failed`, error));
+}
+
+/** Auxiliar del hook `deleteActiveEffect`: reutiliza removePokemonStatus() ya con el Item resuelto. */
+async function clearStalePokemonStatus(actor, id) {
+  const pokemonItem = await pokemonItemForActor(actor);
+  if (pokemonItem) await removePokemonStatus(pokemonItem, id);
 }
 
 /**
@@ -360,7 +381,13 @@ export async function applyPokemonStatus(actor, id, source) {
   }
   const effectId = statusId(id);
   const activePokemonStatuses = new Set(actor.effects.map(effect => effect.getFlag(MODULE_ID, "status")).filter(Boolean));
-  if (activePokemonStatuses.has(id) || actor.statuses.has(effectId)) return;
+  if (activePokemonStatuses.has(id) || actor.statuses.has(effectId)) {
+    // Sin este aviso, una salvación fallada contra un estado que el objetivo ya
+    // tiene (p. ej. probar Hipnosis dos veces seguidas sobre el mismo Dormido) no
+    // hacía nada visible: la tirada se publicaba en el chat y ahí quedaba todo.
+    ui.notifications.info(game.i18n.format("POKE5E.StatusEffects.AlreadyActive", { actor: actor.name, status: definition.name.toLocaleLowerCase() }));
+    return;
+  }
   if (definition.nonVolatile && Object.entries(POKEMON_STATUS_EFFECTS).some(([status, entry]) => entry.nonVolatile && activePokemonStatuses.has(status))) {
     ui.notifications.info(game.i18n.format("POKE5E.StatusEffects.NonVolatile", { actor: actor.name, status: definition.name.toLocaleLowerCase() }));
     return;
@@ -465,7 +492,7 @@ async function rollTargetSave(actor, move, dc, sourceModifiers = {}) {
   const bonusDice = combat.saveDice.map(formula => ` + ${formula}`).join("");
   const modifier = chosen.modifier + (combat.saves[chosen.key] ?? 0);
   const sourceDisadvantage = (sourceModifiers.saveTargetsDisadvantageAbilities ?? []).some(key => attributes.includes(key));
-  const advantage = combat.saveAdvantage || Boolean(sourceModifiers.saveTargetsAdvantage);
+  const advantage = combat.saveAdvantage || combat.saveAdvantageAbilities.includes(chosen.key) || Boolean(sourceModifiers.saveTargetsAdvantage);
   const disadvantage = combat.saveDisadvantageAbilities.includes(chosen.key) || sourceDisadvantage;
   const dice = advantage === disadvantage ? "1d20" : advantage ? "2d20kh" : "2d20kl";
   const roll = await new Roll(`${dice} + @modifier${bonusDice}`, { modifier }).evaluate();

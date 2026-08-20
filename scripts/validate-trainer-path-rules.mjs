@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 globalThis.game = { settings: { get: () => "" }, packs: new Map() };
 globalThis.foundry = { utils: { escapeHTML: String } };
 
-const { hasTrainerPath, machineConsumption, machineUsesPerCopy, nurseHealingBonus, pokemonPathMoveBonuses, trainerControlBonus, trainerPathFeatCost } = await import("./trainer-path-rules.mjs");
+const { hasTrainerPath, machineConsumption, machineUsesPerCopy, nurseHealingBonus, pokemonPathMoveBonuses, trainerControlBonus, trainerPathFeatCost, trainerPathFeatDiscount } = await import("./trainer-path-rules.mjs");
 
 assert.equal(machineUsesPerCopy("tm", false), 1);
 assert.equal(machineUsesPerCopy("tm", true), 2);
@@ -28,5 +28,9 @@ assert.equal(nurseHealingBonus(trainer("nurse")), 3);
 assert.equal(trainerControlBonus(trainer("guru")), 1);
 assert.equal(trainerPathFeatCost(trainer("poke-mentor"), "Movimiento adicional", 2), 1);
 assert.equal(trainerPathFeatCost(trainer("guru"), "Incansable", 2), 1);
+assert.equal(trainerPathFeatDiscount(trainer("poke-mentor"), "Movimiento adicional"), true);
+assert.equal(trainerPathFeatDiscount(trainer("poke-mentor"), "Incansable"), false);
+// Sin puntos reservados el descuento no debe forzar un gasto que nadie pidió.
+assert.equal(trainerPathFeatCost(trainer("poke-mentor"), "Movimiento adicional", 0), 0);
 
 console.log("Trainer Path rules validation passed.");

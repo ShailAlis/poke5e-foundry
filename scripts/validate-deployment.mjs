@@ -21,7 +21,15 @@ const scene = {
   }
 };
 
-globalThis.game = { actors, scenes: [scene] };
+const settings = new Map([["core.permissions", { ACTOR_CREATE: [3, 4], TOKEN_CREATE: [3, 4] }], ["poke5e-foundry.grantedDeploymentPermissions", false]]);
+globalThis.game = {
+  actors, scenes: [scene],
+  settings: {
+    get: (scope, key) => settings.get(`${scope}.${key}`),
+    set: async (scope, key, value) => { settings.set(`${scope}.${key}`, value); }
+  }
+};
+globalThis.CONST = { USER_ROLES: { NONE: 0, PLAYER: 1, TRUSTED: 2, ASSISTANT: 3, GAMEMASTER: 4 } };
 globalThis.foundry = {
   utils: {
     deepClone: value => structuredClone(value),
@@ -43,7 +51,20 @@ globalThis.canvas = {
   },
   tokens: { placeables: [] }
 };
-const { actorReturnsUpright, cleanDeploymentActor, deployPokemon, deploymentActorName, deploymentPosition, isAllowedDeployment, removeDeployment, syncDeploymentHp } = await import("./deployment.mjs");
+const { actorReturnsUpright, cleanDeploymentActor, deployPokemon, deploymentActorName, deploymentPosition, ensureDeploymentPermissions, isAllowedDeployment, removeDeployment, syncDeploymentHp } = await import("./deployment.mjs");
+
+await ensureDeploymentPermissions();
+const grantedPermissions = settings.get("core.permissions");
+for (const key of ["ACTOR_CREATE", "TOKEN_CREATE", "TOKEN_DELETE"]) {
+  for (const role of [CONST.USER_ROLES.PLAYER, CONST.USER_ROLES.TRUSTED]) {
+    if (!grantedPermissions[key]?.includes(role)) throw new Error(`${key} should include role ${role} after ensureDeploymentPermissions().`);
+  }
+}
+if (!grantedPermissions.ACTOR_CREATE.includes(CONST.USER_ROLES.ASSISTANT)) throw new Error("ensureDeploymentPermissions() should not remove pre-existing roles.");
+if (!settings.get("poke5e-foundry.grantedDeploymentPermissions")) throw new Error("ensureDeploymentPermissions() should mark itself as already run.");
+notifications.length = 0;
+await ensureDeploymentPermissions();
+if (notifications.length) throw new Error("ensureDeploymentPermissions() should not re-notify once already granted.");
 
 const actorKind = (type, kind = null) => ({ type, getFlag: () => kind });
 if (!actorReturnsUpright(actorKind("character"))) throw new Error("Player Trainers should return upright after movement.");
@@ -131,4 +152,4 @@ scene.tokens = [];
 await cleanDeploymentActor({ actorId: wildActor.id });
 if (wildDeletionCalls !== 1 || actors.has(wildActor.id)) throw new Error("The wild actor was not removed after deleting its final token.");
 
-console.log("Validated idempotent Pokémon deployment cleanup.");
+console.log("Validated idempotent Pokémon deployment cleanup and one-time permission grant.");

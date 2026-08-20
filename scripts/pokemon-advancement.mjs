@@ -11,7 +11,8 @@ import {
   evolutionStageCount,
   pokemonAdvancementsBetween
 } from "./progression.mjs";
-import { trainerPathFeatCost } from "./trainer-path-rules.mjs";
+import { trainerPathFeatDiscount } from "./trainer-path-rules.mjs";
+import { pokemonFeatOptions } from "./feat-catalog.mjs";
 
 const ABILITIES = { str: "FUE", dex: "DES", con: "CON", int: "INT", wis: "SAB", cha: "CAR" };
 
@@ -44,10 +45,16 @@ export async function applyPendingPokemonAdvancements(pokemonItem, data = null) 
   const advancement = pokemonAdvancementsBetween(from, to, { stageCount, speciesRating: species.sr });
   const decision = await promptPokemonAdvancement(pokemonItem, instance, species, advancement, stageCount);
   if (!decision) return false;
-  if (decision.feat) decision.featPoints = trainerPathFeatCost(pokemonItem.parent, decision.feat, decision.featPoints);
+  // Recalculado en el servidor con featCostForAdvancement() en vez de fiarse del
+  // featPoints que mandó el diálogo: la fuente de verdad es advancement, no lo
+  // que haya podido manipularse en el formulario.
+  const { discounted: discountApplies, cost: featPoints } = decision.feat
+    ? featCostForAdvancement(pokemonItem.parent, decision.feat, advancement)
+    : { discounted: false, cost: 0 };
+  decision.featPoints = featPoints;
 
   const currentAttributes = foundry.utils.deepClone(instance.attributes ?? species.attributes ?? {});
-  const abilityResult = applyPokemonAbilityAdvancement(currentAttributes, decision.allocation, advancement, decision.featPoints);
+  const abilityResult = applyPokemonAbilityAdvancement(currentAttributes, decision.allocation, advancement, decision.featPoints, { allowOddFeatCost: discountApplies });
   if (!abilityResult) {
     ui.notifications.warn(game.i18n.format("POKE5E.Advancement.DistributePoints", { points: advancement.abilityPoints }));
     return false;
@@ -111,16 +118,15 @@ export function initializePokemonAdvancement(instance) {
   return instance;
 }
 
+/**
+ * Orquesta el avance en dos pantallas cuando hay puntos de mejora: primero
+ * promptAdvancementChoice() pregunta PG y, si toca elegir, características o
+ * dote; después, según lo elegido, promptAbilityChoice() (solo características)
+ * o promptFeatChoice() (dote, con un resto de puntos si hay descuento de
+ * Camino de Entrenador). Cualquier "cancelar" en cualquier pantalla aborta
+ * todo el avance, igual que antes.
+ */
 async function promptPokemonAdvancement(item, instance, species, advancement, stageCount) {
-  const attributes = instance.attributes ?? species.attributes ?? {};
-  const asi = advancement.abilityPoints ? `<fieldset class="poke5e-asi-allocation">
-    <legend>Mejoras de característica · ${advancement.abilityPoints} puntos</legend>
-    <p>Esta línea tiene ${stageCount} etapa${stageCount === 1 ? "" : "s"}. Puedes reservar hasta ${advancement.featPointLimit} puntos para una dote.${advancement.peakPower ? ` Poder Máximo permite superar 20 hasta ${Math.max(...advancement.asi.map(entry => entry.cap))}.` : ""}</p>
-    <div>${Object.entries(ABILITIES).map(([key, label]) => `<label><span>${label} (${Number(attributes[key]) || 10})</span><input type="number" name="asi-${key}" min="0" max="${advancement.abilityPoints}" step="1" value="0"></label>`).join("")}</div>
-    <label><span>Puntos para dote</span><input type="number" name="featPoints" min="0" max="${advancement.featPointLimit}" step="1" value="0"></label>
-    <label><span>Dote o nota (opcional)</span><input type="text" name="feat" maxlength="120" placeholder="Nombre de la dote"></label>
-    <p>Poké Mentor reduce Movimiento adicional a 1 punto; Guru reduce Incansable a 1 punto cuando se cumplen sus niveles.</p>
-  </fieldset>` : "";
   const features = [
     `${advancement.hitPointLevels} tirada${advancement.hitPointLevels === 1 ? "" : "s"} de ${species.hitDice ?? "d8"} + CON para PG`,
     `${advancement.moveReplacements} sustitución${advancement.moveReplacements === 1 ? "" : "es"} de movimiento disponible${advancement.moveReplacements === 1 ? "" : "s"}`,
@@ -128,6 +134,22 @@ async function promptPokemonAdvancement(item, instance, species, advancement, st
     advancement.damageLevels.length ? `Aumento de daño: niveles ${advancement.damageLevels.join(", ")}` : "",
     advancement.peakPower ? "Poder Máximo" : ""
   ].filter(Boolean);
+  const choice = await promptAdvancementChoice(item, advancement, features);
+  if (!choice) return null;
+  if (!advancement.abilityPoints) return { hitPointMethod: choice.hitPointMethod, allocation: {}, featPoints: 0, feat: "" };
+  const rest = choice.path === "feat"
+    ? await promptFeatChoice(item, instance, species, advancement)
+    : await promptAbilityChoice(item, instance, species, advancement, stageCount);
+  return rest ? { hitPointMethod: choice.hitPointMethod, ...rest } : null;
+}
+
+/** Primera pantalla: método de PG y, si hay puntos de mejora, entre características o dote. */
+async function promptAdvancementChoice(item, advancement, features) {
+  const choiceFieldset = advancement.abilityPoints ? `<fieldset class="poke5e-asi-choice">
+    <legend>Mejora de nivel · ${advancement.abilityPoints} puntos</legend>
+    <label class="poke5e-radio"><input type="radio" name="path" value="asi" checked> <span>Aumentar características</span></label>
+    <label class="poke5e-radio"><input type="radio" name="path" value="feat"> <span>Elegir una dote</span></label>
+  </fieldset>` : "";
   try {
     return await foundry.applications.api.DialogV2.prompt({
       window: { title: game.i18n.format("POKE5E.Advancement.WindowTitle", { pokemon: displayPokemonName(item), level: advancement.to }) },
@@ -135,24 +157,217 @@ async function promptPokemonAdvancement(item, instance, species, advancement, st
         <p>Aplica los beneficios pendientes de los niveles ${advancement.from + 1}–${advancement.to}.</p>
         <ul>${features.map(feature => `<li>${escapeHtml(feature)}</li>`).join("")}</ul>
         <label><span>Puntos de golpe</span><select name="hitPointMethod"><option value="average">Usar la media</option><option value="roll">Tirar los dados</option></select></label>
-        ${asi}
+        ${choiceFieldset}
       </div>`,
       modal: true,
       rejectClose: false,
       ok: {
-        label: game.i18n.localize("POKE5E.Advancement.Apply"),
-        icon: "fa-solid fa-arrow-up",
+        label: game.i18n.localize(advancement.abilityPoints ? "POKE5E.Advancement.Continue" : "POKE5E.Advancement.Apply"),
+        icon: `fa-solid fa-arrow-${advancement.abilityPoints ? "right" : "up"}`,
         callback: (event, button) => ({
           hitPointMethod: button.form.elements.hitPointMethod.value === "roll" ? "roll" : "average",
-          allocation: Object.fromEntries(Object.keys(ABILITIES).map(key => [key, Number(button.form.elements[`asi-${key}`]?.value) || 0])),
-          featPoints: Number(button.form.elements.featPoints?.value) || 0,
-          feat: String(button.form.elements.feat?.value ?? "").trim()
+          path: button.form.elements.path?.value === "feat" ? "feat" : "asi"
         })
       }
     });
   } catch {
     return null;
   }
+}
+
+/** Segunda pantalla (características): un contador de +/- por característica que reparte exactamente advancement.abilityPoints. */
+async function promptAbilityChoice(item, instance, species, advancement, stageCount) {
+  const attributes = instance.attributes ?? species.attributes ?? {};
+  const cap = advancement.peakPower ? Math.max(...advancement.asi.map(entry => entry.cap)) : 20;
+  const content = `<div class="poke5e-advancement-dialog">
+    <fieldset class="poke5e-asi-allocation">
+      <legend>Mejoras de característica · ${advancement.abilityPoints} puntos</legend>
+      <p>Esta línea tiene ${stageCount} etapa${stageCount === 1 ? "" : "s"}.${advancement.peakPower ? ` Poder Máximo permite superar 20 hasta ${cap}.` : ""}</p>
+      <p>Puntos restantes: <strong data-remaining>${advancement.abilityPoints}</strong></p>
+      ${stepperGrid(ABILITIES, attributes)}
+    </fieldset>
+  </div>`;
+  try {
+    return await foundry.applications.api.DialogV2.prompt({
+      window: { title: game.i18n.format("POKE5E.Advancement.WindowTitle", { pokemon: displayPokemonName(item), level: advancement.to }) },
+      content,
+      modal: true,
+      rejectClose: false,
+      render: (event, dialog) => attachStepperGroup(dialog.element, Object.keys(ABILITIES), advancement.abilityPoints, {
+        maxFor: key => Math.max(0, cap - (Number(attributes[key]) || 10))
+      }),
+      ok: {
+        label: game.i18n.localize("POKE5E.Advancement.Apply"),
+        icon: "fa-solid fa-arrow-up",
+        callback: (event, button) => ({
+          allocation: Object.fromEntries(Object.keys(ABILITIES).map(key => [key, Number(button.form.elements[`asi-${key}`]?.value) || 0])),
+          featPoints: 0,
+          feat: ""
+        })
+      }
+    });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Segunda pantalla (dote): desplegable con las dotes detectadas
+ * (pokemonFeatOptions()) y, solo si la dote elegida tiene descuento de Camino
+ * de Entrenador (Poké Mentor 5 / Guru 9, ver trainerPathFeatDiscount()), un
+ * resto de puntos con el mismo contador de +/- que promptAbilityChoice().
+ */
+async function promptFeatChoice(item, instance, species, advancement) {
+  const attributes = instance.attributes ?? species.attributes ?? {};
+  const options = await pokemonFeatOptions();
+  const groups = new Map();
+  for (const entry of options) groups.set(entry.group, [...(groups.get(entry.group) ?? []), entry]);
+  const optionsHtml = options.length
+    ? [...groups.entries()].map(([group, entries]) => `<optgroup label="${escapeHtml(group)}">${entries.map(entry => `<option value="${escapeHtml(entry.name)}">${escapeHtml(entry.name)}</option>`).join("")}</optgroup>`).join("")
+    : "";
+  const content = `<div class="poke5e-advancement-dialog">
+    <fieldset>
+      <legend>Dote</legend>
+      <label><span>Elige una dote</span>
+        <select name="feat">
+          <option value="">${game.i18n.localize("POKE5E.Common.Choose")}</option>
+          ${optionsHtml}
+        </select>
+      </label>
+      ${options.length ? "" : `<p>${game.i18n.localize("POKE5E.Creator.ChosenFeatEmpty")}</p>`}
+      <input type="hidden" name="featPoints" value="0">
+      <p data-feat-cost></p>
+    </fieldset>
+    <fieldset class="poke5e-asi-allocation" data-feat-leftover hidden>
+      <legend>Puntos restantes</legend>
+      <p>Puntos restantes: <strong data-remaining>0</strong></p>
+      ${stepperGrid(ABILITIES, attributes)}
+    </fieldset>
+  </div>`;
+  try {
+    return await foundry.applications.api.DialogV2.prompt({
+      window: { title: game.i18n.format("POKE5E.Advancement.WindowTitle", { pokemon: displayPokemonName(item), level: advancement.to }) },
+      content,
+      modal: true,
+      rejectClose: false,
+      render: (event, dialog) => attachFeatDialog(dialog.element, item.parent, advancement),
+      ok: {
+        label: game.i18n.localize("POKE5E.Advancement.Apply"),
+        icon: "fa-solid fa-arrow-up",
+        callback: (event, button) => ({
+          feat: String(button.form.elements.feat?.value ?? "").trim(),
+          featPoints: Number(button.form.elements.featPoints?.value) || 0,
+          allocation: Object.fromEntries(Object.keys(ABILITIES).map(key => [key, Number(button.form.elements[`asi-${key}`]?.value) || 0]))
+        })
+      }
+    });
+  } catch {
+    return null;
+  }
+}
+
+/** HTML de una fila de característica con contador +/-; lo consumen ambas pantallas de asignación. */
+function stepperGrid(abilities, attributes) {
+  return `<div class="poke5e-stepper-grid">${Object.entries(abilities).map(([key, label]) => `
+    <div class="poke5e-stepper-row">
+      <span>${label}${attributes[key] != null ? ` (${Number(attributes[key]) || 10})` : ""}</span>
+      <div class="poke5e-stepper">
+        <button type="button" data-stepper-dec="${key}" aria-label="Restar">−</button>
+        <output data-stepper-value="${key}">0</output>
+        <button type="button" data-stepper-inc="${key}" aria-label="Sumar">+</button>
+      </div>
+      <input type="hidden" name="asi-${key}" value="0">
+    </div>`).join("")}</div>`;
+}
+
+/**
+ * Engancha los botones +/- de un grupo de características a un contador que no
+ * deja repartir más de `budget` puntos en total ni superar maxFor(key) en una
+ * característica concreta; ambos límites deshabilitan el botón «+»
+ * correspondiente, y «−» se deshabilita en 0. Un único listener delegado en la
+ * raíz evita duplicarlos si se vuelve a llamar (promptFeatChoice() reconfigura
+ * el mismo contenedor cada vez que cambia la dote elegida).
+ */
+function attachStepperGroup(root, keys, budget, { maxFor = () => Infinity } = {}) {
+  const state = Object.fromEntries(keys.map(key => [key, 0]));
+  const update = () => {
+    const spent = Object.values(state).reduce((total, value) => total + value, 0);
+    const remaining = root.querySelector("[data-remaining]");
+    if (remaining) remaining.textContent = Math.max(0, budget - spent);
+    for (const key of keys) {
+      const output = root.querySelector(`[data-stepper-value="${key}"]`);
+      const input = root.querySelector(`input[name="asi-${key}"]`);
+      const dec = root.querySelector(`[data-stepper-dec="${key}"]`);
+      const inc = root.querySelector(`[data-stepper-inc="${key}"]`);
+      if (output) output.textContent = state[key];
+      if (input) input.value = state[key];
+      if (dec) dec.disabled = state[key] <= 0;
+      if (inc) inc.disabled = spent >= budget || state[key] >= maxFor(key);
+    }
+  };
+  if (!root.dataset.stepperBound) {
+    root.dataset.stepperBound = "true";
+    root.addEventListener("click", event => {
+      const dec = event.target.closest("[data-stepper-dec]");
+      const inc = event.target.closest("[data-stepper-inc]");
+      if (dec && !dec.disabled) { const key = dec.dataset.stepperDec; if (root.__stepper.state[key] > 0) { root.__stepper.state[key]--; root.__stepper.update(); } }
+      else if (inc && !inc.disabled) {
+        const key = inc.dataset.stepperInc;
+        const spent = Object.values(root.__stepper.state).reduce((total, value) => total + value, 0);
+        if (spent < root.__stepper.budget && root.__stepper.state[key] < root.__stepper.maxFor(key)) { root.__stepper.state[key]++; root.__stepper.update(); }
+      }
+    });
+  }
+  root.__stepper = { state, budget, maxFor, update };
+  update();
+  return state;
+}
+
+/**
+ * Coste en puntos de mejora de una dote y el resto que queda por repartir
+ * entre características. Sin descuento de Camino de Entrenador, la dote
+ * consume como mucho advancement.featPointLimit —que puede ser menor que
+ * advancement.abilityPoints en líneas de una sola etapa evolutiva, con 4
+ * puntos por subida en vez de 2 (pokemonAsiPoints() en progression.mjs)—, así
+ * que el resto siempre debe repartirse entre características, con o sin
+ * descuento. Función pura: la usan attachFeatDialog() (en vivo, con el actor
+ * real) y validate-pokemon-advancement.mjs (con un actor simulado).
+ */
+export function featCostForAdvancement(trainer, featName, advancement) {
+  const discounted = Boolean(featName) && trainerPathFeatDiscount(trainer, featName);
+  const cost = discounted ? Math.min(1, advancement.featPointLimit) : Math.min(advancement.abilityPoints, advancement.featPointLimit);
+  return { discounted, cost, leftover: advancement.abilityPoints - cost };
+}
+
+/**
+ * Auxiliar de promptFeatChoice(): recalcula el coste al cambiar de dote con
+ * featCostForAdvancement() y muestra/oculta el resto de puntos con
+ * attachStepperGroup().
+ */
+function attachFeatDialog(root, trainer, advancement) {
+  const select = root.querySelector("select[name='feat']");
+  const costLabel = root.querySelector("[data-feat-cost]");
+  const leftoverFieldset = root.querySelector("[data-feat-leftover]");
+  const featPointsInput = root.querySelector("input[name='featPoints']");
+  if (!select) return;
+  const recompute = () => {
+    const name = select.value;
+    if (!name) {
+      costLabel.textContent = "";
+      leftoverFieldset.hidden = true;
+      featPointsInput.value = "0";
+      return;
+    }
+    const { discounted, cost, leftover } = featCostForAdvancement(trainer, name, advancement);
+    featPointsInput.value = String(cost);
+    costLabel.textContent = discounted
+      ? `Coste: ${cost} punto (descuento de Camino de Entrenador).`
+      : `Coste: ${cost} punto${cost === 1 ? "" : "s"} de mejora.`;
+    leftoverFieldset.hidden = leftover <= 0;
+    if (leftover > 0) attachStepperGroup(leftoverFieldset, Object.keys(ABILITIES), leftover);
+  };
+  select.addEventListener("change", recompute);
+  recompute();
 }
 
 async function resolveHitPointGain({ method, levels, hitDice, constitutionModifier, name }) {

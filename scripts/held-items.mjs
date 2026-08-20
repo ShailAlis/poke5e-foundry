@@ -190,7 +190,7 @@ export function heldItemEffectiveMove(move, { sourceId, speciesId }) {
 export function moveCriticalRangeExtension(move) {
   const text = Array.isArray(move?.description) ? move.description.join(" ") : String(move?.description ?? "");
   const criticalSentences = text.split(/(?<=[.!?])\s+/).filter(sentence => /crit(?:ical|ico|ica)/i.test(sentence));
-  const thresholds = criticalSentences.flatMap(sentence => [...sentence.matchAll(/\b(1[6-9]|20)\b/g)].map(match => Number(match[1])));
+  const thresholds = criticalSentences.flatMap(sentence => [...sentence.matchAll(/\b(1[6-9]|20)s?\b/g)].map(match => Number(match[1])));
   return thresholds.length ? Math.max(0, 20 - Math.min(...thresholds)) : 0;
 }
 

@@ -55,6 +55,36 @@ export function registerPokemonTokenMovement() {
   });
 }
 
+/**
+ * Concede a Jugador y Jugador de confianza el permiso de mundo para crear actores
+ * y crear/destruir tokens: deployPokemon()/recallPokemon() los crean y borran
+ * directamente desde el cliente del jugador (sin pasar por el director), así que
+ * sin este permiso el despliegue falla en un mundo con los permisos por defecto de
+ * Foundry (Auxiliar de director en adelante). Solo actúa una vez por mundo —guardado
+ * en el ajuste `grantedDeploymentPermissions`— para no deshacer un cambio manual
+ * posterior del director. La llama el hook `ready` de main.mjs, solo para el director.
+ */
+export async function ensureDeploymentPermissions() {
+  if (game.settings.get(MODULE_ID, "grantedDeploymentPermissions")) return;
+  const permissions = foundry.utils.deepClone(game.settings.get("core", "permissions") ?? {});
+  const requiredRoles = [CONST.USER_ROLES.PLAYER, CONST.USER_ROLES.TRUSTED];
+  let changed = false;
+  for (const key of ["ACTOR_CREATE", "TOKEN_CREATE", "TOKEN_DELETE"]) {
+    const roles = new Set(permissions[key] ?? []);
+    for (const role of requiredRoles) {
+      if (roles.has(role)) continue;
+      roles.add(role);
+      changed = true;
+    }
+    permissions[key] = [...roles].sort((a, b) => a - b);
+  }
+  if (changed) {
+    await game.settings.set("core", "permissions", permissions);
+    ui.notifications.info(localize("POKE5E.Deployment.PermissionsGranted", "Poke5e: se han concedido a Jugador y Jugador de confianza los permisos para sacar y regresar Pokémon (crear actores, crear y destruir tokens). Puedes ajustarlos en Configuración > Configurar permisos."));
+  }
+  await game.settings.set(MODULE_ID, "grantedDeploymentPermissions", true);
+}
+
 /** Incluye Pokémon desplegados/salvajes y Entrenadores jugadores o NPC del módulo. */
 export function actorReturnsUpright(actor) {
   if (!actor) return false;

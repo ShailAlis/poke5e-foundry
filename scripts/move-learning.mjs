@@ -58,15 +58,14 @@ export function moveEligibility(species, move, level = 1, { machineIds = new Set
   const methods = [];
   if (requiredLevel != null) methods.push({ id: "level", label: requiredLevel <= 1 ? "Inicial" : `Nivel ${requiredLevel}` });
   if (viaMachine) methods.push({ id: machine.kind, label: `${machine.label} ${machine.id}${machineOwned ? "" : " · no disponible"}`, available: machineOwned });
-  if (viaEgg) methods.push({ id: "egg", label: "Huevo" });
+  // Un movimiento huevo solo se asigna al generar el Pokémon al azar (ver
+  // deployment.mjs/npc-trainer-actor.mjs); se muestra aquí solo a título
+  // informativo y nunca cuenta como vía para aprenderlo al subir de nivel.
+  if (viaEgg) methods.push({ id: "egg", label: "Huevo (solo al generar el Pokémon)" });
   const compatible = methods.length > 0;
   const availableByLevel = requiredLevel != null && Number(level) >= requiredLevel;
-  // Un movimiento listado también como MT/MO no se desbloquea gratuitamente
-  // por aparecer en la lista de huevo de la especie. La vía natural por nivel
-  // sí sigue siendo suficiente cuando ya se ha alcanzado dicho nivel.
-  const availableByEgg = viaEgg && !viaMachine;
-  const availableNow = availableByLevel || machineOwned || availableByEgg;
-  const usesMachine = machineOwned && !availableByLevel && !availableByEgg;
+  const availableNow = availableByLevel || machineOwned;
+  const usesMachine = machineOwned && !availableByLevel;
   return {
     availableNow,
     compatible,

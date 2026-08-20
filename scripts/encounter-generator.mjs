@@ -81,8 +81,11 @@ export function generateEncounter(pool, options = {}, random = Math.random) {
 /**
  * Crea la instancia de un Pokémon salvaje: nivel y experiencia, PG ajustados con
  * adjustedHitPoints(), sexo, una habilidad no oculta al azar y hasta cuatro
- * movimientos de los que conoce a su nivel (naturalMovesAtLevel()) con sus PP.
- * La usan wild-deployment.mjs y npc-trainer-actor.mjs para los equipos de los NPC.
+ * movimientos de los que conoce a su nivel (naturalMovesAtLevel()), con una
+ * probabilidad EGG_MOVE_CHANCE de incluir además un movimiento huevo
+ * (movePoolWithEggChance()) —su única vía de aparición, ya que no se pueden
+ * elegir al subir de nivel—, todos con sus PP. La usan wild-deployment.mjs y
+ * npc-trainer-actor.mjs para los equipos de los NPC.
  */
 export function buildWildInstance(species, movesById, options = {}) {
   const random = options.random ?? Math.random;
@@ -91,7 +94,7 @@ export function buildWildInstance(species, movesById, options = {}) {
   const hp = adjustedHitPoints(species, level);
   const availableAbilities = (species.abilities ?? []).filter(entry => !entry.hidden).map(entry => entry.id);
   const ability = availableAbilities.length ? availableAbilities[Math.floor(random() * availableAbilities.length)] : null;
-  const selectedMoves = shuffled(naturalMovesAtLevel(species, level), random).slice(0, 4);
+  const selectedMoves = shuffled(movePoolWithEggChance(species, level, random), random).slice(0, 4);
   return {
     nickname: "",
     level,
@@ -138,6 +141,49 @@ export function naturalMovesAtLevel(species, level) {
   return [...new Set(LEVEL_MOVE_GROUPS
     .filter(([required]) => required <= Number(level))
     .flatMap(([, key]) => species.moves?.[key] ?? []))];
+}
+
+/**
+ * Probabilidad de que un Pokémon generado al azar salga con un movimiento
+ * huevo entre los suyos. Los movimientos huevo no se pueden elegir al subir de
+ * nivel (moveEligibility() en move-learning.mjs los deja fuera de
+ * `availableNow`); esta es la única vía por la que aparecen, imitando lo
+ * poco frecuentes que son en los Pokémon salvajes o de entrenadores NPC.
+ */
+const EGG_MOVE_CHANCE = 0.2;
+
+/**
+ * Añade como mucho un movimiento huevo al azar al conjunto de movimientos por
+ * nivel, con una probabilidad de EGG_MOVE_CHANCE y solo si la especie tiene
+ * alguno que no conozca ya de forma natural a ese nivel. Auxiliar de
+ * buildWildInstance().
+ */
+function movePoolWithEggChance(species, level, random) {
+  const pool = naturalMovesAtLevel(species, level);
+  const eggMoves = (species.moves?.egg ?? []).filter(id => !pool.includes(id));
+  if (eggMoves.length && random() < EGG_MOVE_CHANCE) pool.push(eggMoves[Math.floor(random() * eggMoves.length)]);
+  return pool;
+}
+
+/**
+ * Misma probabilidad EGG_MOVE_CHANCE, pero para una lista ya cerrada de
+ * entradas de movimiento (con PP) en vez de una bolsa de la que elegir cuatro:
+ * la usa trainer-creator.mjs para el Pokémon inicial del asistente, cuyos
+ * movimientos de partida no salen de naturalMovesAtLevel() sino directamente
+ * de `species.moves.start`. Añade el movimiento huevo si queda hueco (menos de
+ * cuatro conocidos) o sustituye uno al azar si ya está completo.
+ */
+export function withEggMoveChance(moveEntries, species, movesById, { random = Math.random, idFactory = () => Math.random().toString(36).slice(2, 18) } = {}) {
+  const known = new Set(moveEntries.map(entry => entry.moveId));
+  const eggMoves = (species.moves?.egg ?? []).filter(id => !known.has(id));
+  if (!eggMoves.length || random() >= EGG_MOVE_CHANCE) return moveEntries;
+  const moveId = eggMoves[Math.floor(random() * eggMoves.length)];
+  const pp = Math.max(Number(movesById.get(moveId)?.pp) || 0, 0);
+  const eggEntry = { id: idFactory(), moveId, pp: { value: pp, max: pp } };
+  const entries = [...moveEntries];
+  if (entries.length < 4) entries.push(eggEntry);
+  else entries[Math.floor(random() * entries.length)] = eggEntry;
+  return entries;
 }
 
 /**

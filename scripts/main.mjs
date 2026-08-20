@@ -11,7 +11,7 @@ import { Poke5ePokemonSheet } from "./pokemon-sheet.mjs";
 import { Poke5eReference } from "./reference.mjs";
 import { Poke5eTrainerTeam } from "./trainer-team.mjs";
 import { MODULE_ID, displayAssetUrl, getPokemonItems, normalizeDroppedSpecies, randomGenderForRatio, trainerPokeslotLimit } from "./model.mjs";
-import { cleanDeploymentActor, recallPokemon, registerPokemonTokenMovement, syncDeploymentHp, syncPokemonHeldItemToDeployment, syncPokemonHpToDeployment } from "./deployment.mjs";
+import { cleanDeploymentActor, ensureDeploymentPermissions, recallPokemon, registerPokemonTokenMovement, syncDeploymentHp, syncPokemonHeldItemToDeployment, syncPokemonHpToDeployment } from "./deployment.mjs";
 import { migrateTrainerClassAdvancements, migrateTrainerFeatureGroups, registerTrainerActorSheet } from "./trainer-actor-sheet.mjs";
 import { migratePokemonActorSheets, registerPokemonActorSheet } from "./pokemon-actor-sheet.mjs";
 import { damageTraitsForPokemonTypes, registerPokemonDamageTypes } from "./combat.mjs";
@@ -23,6 +23,12 @@ import { registerPokemonStatusEffects, registerPokemonStatusSocket } from "./sta
 import { registerOngoingMoveEffects } from "./ongoing-effects.mjs";
 import { loadPokemonEffectIcons } from "./effect-icons.mjs";
 import { registerMoveModifierEffects } from "./move-modifiers.mjs";
+import { registerHpEffects } from "./hp-effects.mjs";
+import { registerBideTracking } from "./bide.mjs";
+import { registerItemSwap } from "./item-swap.mjs";
+import { registerForcedSwitch } from "./forced-switch.mjs";
+import { registerDamageShields } from "./damage-shields.mjs";
+import { registerFieldEffects } from "./terrain-effects.mjs";
 import { restoreHeldItemChargesAfterRest } from "./held-items.mjs";
 import { clearPoke5eDataCache, loadPoke5eData } from "./data-service.mjs";
 import { configurePokedollarEconomy } from "./economy.mjs";
@@ -63,6 +69,11 @@ Hooks.once("init", () => {
     hint: "POKE5E.Settings.Assets.Hint",
     scope: "world", config: true, type: String,
     default: "https://poke5e.app"
+  });
+  // No aparece en el formulario de ajustes: solo marca si ensureDeploymentPermissions()
+  // ya concedió los permisos de despliegue una vez en este mundo.
+  game.settings.register(MODULE_ID, "grantedDeploymentPermissions", {
+    scope: "world", config: false, type: Boolean, default: false
   });
   game.settings.registerMenu(MODULE_ID, "importer", {
     name: "POKE5E.Menu.Importer.Name", label: "POKE5E.Menu.Importer.Label", hint: "POKE5E.Menu.Importer.Hint",
@@ -113,6 +124,12 @@ Hooks.once("ready", async () => {
   registerPokemonStatusSocket();
   registerOngoingMoveEffects();
   registerMoveModifierEffects();
+  registerHpEffects();
+  registerBideTracking();
+  registerItemSwap();
+  registerForcedSwitch();
+  registerDamageShields();
+  registerFieldEffects();
   game.poke5e = {
     openImporter: () => new Poke5eImporter().render(true),
     openReference: () => new Poke5eReference().render(true),
@@ -124,6 +141,7 @@ Hooks.once("ready", async () => {
     openPokemon: document => openPokemon(document)
   };
   if (game.user.isGM) {
+    ensureDeploymentPermissions().catch(error => console.error(`${MODULE_ID} | Deployment permission grant failed`, error));
     migratePokemonActorSheets().catch(error => console.error(`${MODULE_ID} | Pokémon sheet migration failed`, error));
     migrateEmbeddedAssetUrls().catch(error => console.error(`${MODULE_ID} | Asset migration failed`, error));
     migratePokemonCombatData().catch(error => console.error(`${MODULE_ID} | Combat data migration failed`, error));

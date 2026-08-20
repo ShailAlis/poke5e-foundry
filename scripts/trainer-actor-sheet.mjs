@@ -7,7 +7,7 @@
  * registerTrainerActorSheet()) y ofrece las mismas acciones que la ventana de
  * trainer-team.mjs. Su plantilla es `templates/trainer-sheet-team.hbs`.
  */
-import { MODULE_ID, MODULE_PATH, displayAssetUrl, displayPokemonName, getPack, getPokemonItems, trainerClassSource, trainerPathFeatureSources, trainerPathSources, trainerPokeslotLimit } from "./model.mjs";
+import { MODULE_ID, MODULE_PATH, displayAssetUrl, displayPokemonName, getPack, getPokemonItems, trainerClassSource, trainerLevel, trainerPathFeatureSources, trainerPathSources, trainerPokeslotLimit } from "./model.mjs";
 import { Poke5ePokemonSheet } from "./pokemon-sheet.mjs";
 import { Poke5eSpeciesBrowser } from "./species-browser.mjs";
 import { deployPokemon, deployedActorFor, recallPokemon } from "./deployment.mjs";
@@ -15,6 +15,8 @@ import { attemptCapture } from "./capture.mjs";
 import { experienceProgress } from "./progression.mjs";
 import { adaptTrainerCurrencyFields, pokedollars, updatePokedollars } from "./economy.mjs";
 import { advanceTrainerClassFromExperience, trainerProgressionForActor } from "./trainer-progression.mjs";
+import { trainerControlBonus } from "./trainer-path-rules.mjs";
+import { trainerControlSr } from "./npc-trainer-rules.mjs";
 
 const CharacterActorSheet = dnd5e.applications.actor.CharacterActorSheet;
 
@@ -74,6 +76,10 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
       const spent = Math.max(0, Number(item.system.uses.spent) || 0);
       return { itemId: item.id, name: item.name, maximum, value: Math.max(0, maximum - spent) };
     });
+    // SR máximo controlable (tabla oficial por nivel + bonus de camino como Guru 2).
+    // Solo es informativo: el módulo no bloquea capturas ni despliegues por superarlo.
+    const maxControlSr = trainerControlSr(trainerLevel(this.actor)) + trainerControlBonus(this.actor);
+    const overControlSr = active.filter(entry => Number(entry.speciesSr) > maxControlSr).length;
     return {
       ...context,
       pokemon: {
@@ -83,6 +89,8 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
         trainerProgression: trainerProgressionForActor(this.actor),
         pathResources,
         hasPathResources: pathResources.length > 0,
+        maxControlSr,
+        overControlSr,
         maxTeamSize,
         reserve: [...all.filter(entry => !entry.instance.inTeam), ...active.slice(maxTeamSize).map(entry => ({ ...entry, overflow: true }))],
         slots: Array.from({ length: maxTeamSize }, (_, index) => team[index]
@@ -376,15 +384,12 @@ async function updateTrainerClassAdvancements(item, expected, icon, { updateHitD
   const expectedEntries = Array.isArray(expected) ? expected : Object.values(expected ?? {});
   const byId = new Map(current.filter(entry => entry?._id).map(entry => [entry._id, entry]));
   const expectedIds = new Set(expectedEntries.map(entry => entry._id));
-  const mergedEntries = expectedEntries.map(entry => {
-    const existing = byId.get(entry._id);
-    if (!existing) return foundry.utils.deepClone(entry);
-    const canonical = foundry.utils.deepClone(entry);
-    canonical.value = foundry.utils.deepClone(existing.value ?? entry.value ?? {});
-    return canonical;
-  });
+  // Si ya existe una entrada con ese id se deja completamente intacta (configuración
+  // incluida): prioriza no perder ediciones manuales del GM sobre re-sincronizar con
+  // la plantilla canónica. Solo se crean entradas nuevas para ids que faltan.
+  const mergedEntries = expectedEntries.map(entry => foundry.utils.deepClone(byId.get(entry._id) ?? entry));
   mergedEntries.push(...current
-    .filter(entry => entry?._id && !expectedIds.has(entry._id) && !String(entry._id).startsWith("P5e"))
+    .filter(entry => entry?._id && !expectedIds.has(entry._id))
     .map(entry => foundry.utils.deepClone(entry)));
   const merged = Object.fromEntries(mergedEntries.map(entry => [entry._id, entry]));
   const currentMapping = Object.fromEntries(current.filter(entry => entry?._id).map(entry => [entry._id, entry]));
@@ -426,7 +431,8 @@ function preparePokemon(item) {
     hpValue,
     hpMax,
     hpPercent: Math.max(0, Math.min(100, Math.round((hpValue / hpMax) * 100))),
-    experience
+    experience,
+    speciesSr: Number(item.getFlag(MODULE_ID, "species")?.sr) || 0
   };
 }
 

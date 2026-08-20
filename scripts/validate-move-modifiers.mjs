@@ -26,6 +26,14 @@ const crunch = MOVE_MODIFIER_EFFECTS.crunch;
 assert.equal(modifierTriggerMatches(crunch, { attack: { hit: true, natural: 18 } }), true);
 assert.equal(modifierTriggerMatches(crunch, { attack: { hit: false, natural: 20 } }), false);
 
+// Auditoría de agosto 2026: muestra representativa de las 75 entradas nuevas.
+assert.deepEqual(MOVE_MODIFIER_EFFECTS["body-slam"].modifiers.statuses, ["prone"]);
+assert.equal(MOVE_MODIFIER_EFFECTS["body-slam"].trigger, "failed-save");
+assert.equal(MOVE_MODIFIER_EFFECTS.stockpile.stackMax, 3);
+assert.equal(modifierTriggerMatches(MOVE_MODIFIER_EFFECTS["steel-wing"], { attack: { hit: true, natural: 19 } }), true);
+assert.equal(modifierTriggerMatches(MOVE_MODIFIER_EFFECTS["steel-wing"], { attack: { hit: true, natural: 18 } }), false);
+assert.equal(MOVE_MODIFIER_EFFECTS.reflect.modifiers.meleeDamageResistance, true);
+
 const { pokemonCombatModifiers } = await import("./move-modifiers.mjs");
 const flaggedEffect = state => ({ getFlag: (moduleId, key) => moduleId === "poke5e-foundry" ? (key === "kind" ? "move-modifier" : state) : null });
 const mockActor = { effects: [flaggedEffect({ modifiers: { attack: -5, saves: { wis: -2 }, attackDisadvantage: true } })] };

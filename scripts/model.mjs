@@ -47,7 +47,15 @@ export const PACKS = {
   moves: { name: "poke5e-moves", label: "Pokémon 5e — Movimientos" },
   abilities: { name: "poke5e-abilities", label: "Pokémon 5e — Habilidades" },
   gear: { name: "poke5e-gear", label: "Pokémon 5e — Objetos" },
-  progression: { name: "poke5e-progression", label: "Pokémon 5e — Clases y progresión" }
+  progression: { name: "poke5e-progression", label: "Pokémon 5e — Clases y progresión" },
+  // Único compendio de tipo ActiveEffect: sus entradas se arrastran directamente
+  // sobre un token o ficha Pokémon y el estado o modificador queda aplicado al
+  // instante, sin pasar por el inventario como los demás compendios (tipo Item).
+  conditions: { name: "poke5e-conditions", label: "Pokémon 5e — Estados y modificadores", type: "ActiveEffect" },
+  // Solo las 14 dotes propias de Pokémon 5e (feat-catalog.mjs); las dotes
+  // estándar de D&D tienen copyright de Wizards of the Coast y no se
+  // reproducen aquí, se detectan en tiempo real desde otros compendios.
+  feats: { name: "poke5e-feats", label: "Pokémon 5e — Dotes" }
 };
 
 /**
@@ -747,8 +755,10 @@ function pathFeatureUses(pathId, level) {
 
 function pathFeatureAutomation(pathId, level) {
   if (["commander", "pokemon-breeder"].includes(pathId)) return "supplement";
-  const automatic = new Set(["ace-trainer:2", "poke-mentor:2", "pokemon-collector:2", "pokemon-collector:5", "nurse:2", "nurse:5", "type-master:2", "type-master:5", "ranger:2", "guru:2", "guru:5"]);
-  const resource = new Set(["ace-trainer:5", "hobbyist:5", "poke-mentor:9", "researcher:2", "grunt:2", "tactician:2", "guru:15"]);
+  // "nurse:5" (Pokéchef) tiene usos limitados pero ningún código automatiza
+  // preparar/curar con la golosina; se resuelve en la ficha como recurso manual.
+  const automatic = new Set(["ace-trainer:2", "poke-mentor:2", "pokemon-collector:2", "pokemon-collector:5", "nurse:2", "type-master:2", "type-master:5", "ranger:2", "guru:5"]);
+  const resource = new Set(["ace-trainer:5", "hobbyist:5", "poke-mentor:9", "researcher:2", "nurse:5", "grunt:2", "tactician:2", "guru:15"]);
   const key = `${pathId}:${level}`;
   if (automatic.has(key)) return "automatic";
   if (resource.has(key)) return "resource";

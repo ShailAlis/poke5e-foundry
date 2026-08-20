@@ -144,9 +144,9 @@ export async function attemptCapture(trainer) {
 async function useCollectorCaptureAdvantage(trainer, pokemonName) {
   const feature = [...(trainer.items ?? [])].find(item => item.getFlag?.(MODULE_ID, "pathId") === "pokemon-collector" && Number(item.getFlag?.(MODULE_ID, "level")) === 5);
   if (!feature) return false;
-  const maximum = Number(feature.system?.uses?.max) || 1;
+  const maximum = feature.system?.uses?.max != null ? Math.max(0, Number(feature.system.uses.max) || 0) : 1;
   const spent = Number(feature.system?.uses?.spent) || 0;
-  if (spent >= maximum) return false;
+  if (maximum <= 0 || spent >= maximum) return false;
   const confirmed = await foundry.applications.api.DialogV2.confirm({
     window: { title: game.i18n.localize("POKE5E.TrainerPaths.CollectorCaptureTitle") },
     content: `<p>${game.i18n.format("POKE5E.TrainerPaths.CollectorCapturePrompt", { pokemon: foundry.utils.escapeHTML(pokemonName) })}</p>`,

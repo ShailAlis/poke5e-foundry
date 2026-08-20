@@ -168,12 +168,15 @@ export function pokemonAdvancementsBetween(previousLevel, currentLevel, { stageC
  * una copia del bloque recibido. Los puntos reservados para dotes cuentan como
  * gastados y no pueden superar dos por mejora obtenida.
  */
-export function applyPokemonAbilityAdvancement(attributes, allocation, advancement, featPoints = 0) {
+export function applyPokemonAbilityAdvancement(attributes, allocation, advancement, featPoints = 0, { allowOddFeatCost = false } = {}) {
   const result = { ...(attributes ?? {}) };
   const awards = advancement?.asi ?? [];
   const expected = awards.reduce((total, entry) => total + Number(entry.points || 0), 0);
   const feat = Math.max(0, Math.trunc(Number(featPoints) || 0));
-  if (feat % 2 !== 0 || feat > Number(advancement?.featPointLimit ?? awards.length * 2)) return null;
+  // Las dotes cuestan normalmente un número par de puntos (equivalen a una mejora
+  // de característica completa). allowOddFeatCost solo lo permite cuando el coste
+  // impar viene de un descuento de Camino de Entrenador legítimo (ver trainerPathFeatDiscount()).
+  if ((feat % 2 !== 0 && !allowOddFeatCost) || feat > Number(advancement?.featPointLimit ?? awards.length * 2)) return null;
   const increases = {};
   let allocated = 0;
   for (const key of ["str", "dex", "con", "int", "wis", "cha"]) {
