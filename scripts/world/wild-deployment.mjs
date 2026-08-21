@@ -136,7 +136,11 @@ export function wildActorSource(species, instance, movesById, encounterId = "") 
         capturable: true,
         encounterId,
         speciesId: species.id,
-        pokemonTypes: species.type ?? []
+        pokemonTypes: species.type ?? [],
+        // Copia de instance.abilities para que el hook síncrono de damage-shields.mjs
+        // (Multiescama/Escudo Sombra/Robustez, lote 9) pueda leerlas sin await, igual
+        // que el mismo flag en deployedActorSource() (deployment.mjs).
+        pokemonAbilities: instance.abilities ?? []
       }
     }
   };

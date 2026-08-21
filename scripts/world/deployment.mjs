@@ -311,7 +311,14 @@ export async function syncPokemonHeldItemToDeployment(item) {
     "system.traits.dv": traits.dv,
     "system.traits.di": traits.di,
     "system.details.type.custom": `Pokémon (${types.join(" / ")})`,
-    [`flags.${MODULE_ID}.pokemonTypes`]: types
+    [`flags.${MODULE_ID}.pokemonTypes`]: types,
+    // Copia de instance.abilities para que el hook síncrono de damage-shields.mjs
+    // (Multiescama/Escudo Sombra/Robustez, lote 9) pueda leerlas sin await; se
+    // refresca aquí porque #removeAbility()/#onDrop() (pokemon-sheet.mjs) sí
+    // pueden cambiar las habilidades conocidas después del despliegue, y
+    // syncPokemonHeldItemToDeployment() ya se dispara en cualquier cambio de
+    // `instance`, no solo en el objeto equipado.
+    [`flags.${MODULE_ID}.pokemonAbilities`]: instance.abilities ?? []
   });
   const embedded = actor.items.filter(entry => entry.getFlag(MODULE_ID, "kind") === "held-item");
   if (embedded.length) await actor.deleteEmbeddedDocuments("Item", embedded.map(entry => entry.id));
@@ -641,7 +648,9 @@ async function deployedActorSource(pokemonItem) {
         pokemonItemUuid: pokemonItem.uuid,
         trainerUuid: trainer.uuid,
         speciesId: species.id,
-        pokemonTypes: effectiveTypes
+        pokemonTypes: effectiveTypes,
+        // Ver el comentario junto a `pokemonAbilities` en syncPokemonHeldItemToDeployment().
+        pokemonAbilities: instance.abilities ?? []
       }
     }
   };

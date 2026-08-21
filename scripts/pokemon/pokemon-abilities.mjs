@@ -60,6 +60,25 @@
  * el turno de otro actor, la misma limitación estructural que ya excluye
  * varias familias de movimientos (ver CONTEXTUAL_MODIFIER_COVERAGE en
  * move-modifier-rules.mjs).
+ *
+ * Lote 9 (agosto de 2026): reducción de daño automática que depende de una
+ * habilidad conocida (y, en Robustez, del propio golpe) en vez de un
+ * movimiento armado a mano. Multiescama/Escudo Sombra ("si este Pokémon está
+ * a PG máximos, el primer golpe que reciba se reduce a la mitad") y Robustez
+ * ("al recibir daño igual o superior a la mitad de tus PG actuales, tira 1d4
+ * y en 3 o 4 se reduce a la mitad") solo exponen aquí su catálogo
+ * (FULL_HP_HALF_DAMAGE_ABILITIES, STURDY_HALF_DAMAGE_ABILITIES): la decisión
+ * de cuándo se activan y el recorte del golpe se resuelven extendiendo el
+ * mismo hook `preUpdateActor` que ya usa damage-shields.mjs para los escudos
+ * de reacción, en vez de registrar un segundo hook independiente. Dos hooks
+ * de `preUpdateActor` recortando por separado el mismo campo
+ * `system.attributes.hp.value` competirían entre sí — el segundo en
+ * ejecutar solo vería el resultado ya recortado por el primero (o al revés,
+ * según el orden de registro de Foundry, que este proyecto no controla), lo
+ * que puede sobre-recortar un golpe o enmascarar uno de los dos efectos sin
+ * previsibilidad — así que toda la lógica de recorte de PG vive en un único
+ * hook en damage-shields.mjs, y este archivo solo aporta el catálogo de
+ * habilidades y la función pura que decide si aplican.
  */
 import { MODULE_ID } from "../core/model.mjs";
 import { typeLabel } from "../combat/combat.mjs";
@@ -324,3 +343,21 @@ async function pokemonItemForActor(actor) {
 
 /** Escapa texto para los mensajes de chat que genera este archivo. */
 function escapeHtml(value) { return foundry.utils.escapeHTML(String(value ?? "")); }
+
+/**
+ * Habilidades cuyo texto es "si este Pokémon está a PG máximos, el primer
+ * golpe que reciba se reduce a la mitad" (Multiescama, Escudo Sombra: mismo
+ * texto exacto). No hace falta rastrear "ya se usó una vez": en cuanto el
+ * golpe conecta el Pokémon deja de estar a PG máximos, así que la propia
+ * condición de PG máximos impide que se repita hasta que vuelva a curarse
+ * del todo, sin estado adicional que guardar.
+ */
+export const FULL_HP_HALF_DAMAGE_ABILITIES = new Set(["multiscale", "shadow-shield"]);
+
+/**
+ * Habilidades cuyo texto es "al recibir daño igual o superior a la mitad de
+ * tus PG actuales, tira 1d4 y en 3 o 4 se reduce a la mitad" (Robustez). Solo
+ * tiene un miembro hoy, pero sigue el mismo patrón de conjunto que
+ * FULL_HP_HALF_DAMAGE_ABILITIES por si el catálogo suma alguna más adelante.
+ */
+export const STURDY_HALF_DAMAGE_ABILITIES = new Set(["sturdy"]);
