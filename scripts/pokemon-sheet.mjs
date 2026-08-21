@@ -104,6 +104,82 @@ import { applyPendingPokemonAdvancements, hasPendingPokemonAdvancements, initial
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
+const MOVE_ACCORDION_DURATION = 180;
+
+/**
+ * Anima la apertura/cierre de un <details> y, si se abre, cierra los demás
+ * <details> del mismo grupo (acordeón de un solo elemento abierto). Se
+ * reengancha en cada _onRender porque el HTML se redibuja entero. La técnica
+ * de animar `height` con details.animate() evita el salto brusco por defecto
+ * de <details>, y se apoya en el <summary> como "altura cerrada" en vez de un
+ * valor fijo, para no romperse si cambia el tamaño de fuente o el ancho.
+ */
+function initAccordionGroup(container) {
+  if (!container) return;
+  const items = container.querySelectorAll(":scope > details");
+  items.forEach(details => {
+    const summary = details.querySelector(":scope > summary");
+    if (!summary || details.dataset.accordionBound) return;
+    details.dataset.accordionBound = "true";
+    details._accordionState = { animation: null, closing: false, expanding: false };
+    summary.addEventListener("click", event => {
+      event.preventDefault();
+      const state = details._accordionState;
+      if (state.closing || !details.open) {
+        items.forEach(other => { if (other !== details && other.open) collapseAccordionItem(other); });
+        expandAccordionItem(details, summary);
+      } else if (state.expanding || details.open) {
+        collapseAccordionItem(details, summary);
+      }
+    });
+  });
+}
+
+function expandAccordionItem(details, summary = details.querySelector(":scope > summary")) {
+  const state = details._accordionState;
+  details.style.overflow = "hidden";
+  details.style.height = `${details.offsetHeight}px`;
+  details.open = true;
+  requestAnimationFrame(() => {
+    state.expanding = true;
+    const startHeight = details.offsetHeight;
+    const endHeight = summary.offsetHeight + Array.from(details.children).filter(child => child !== summary)
+      .reduce((sum, child) => sum + child.offsetHeight, 0);
+    state.animation?.cancel();
+    state.animation = details.animate(
+      { height: [`${startHeight}px`, `${endHeight}px`] },
+      { duration: MOVE_ACCORDION_DURATION, easing: "ease-out" }
+    );
+    state.animation.onfinish = () => finishAccordionAnimation(details, true);
+    state.animation.oncancel = () => { state.expanding = false; };
+  });
+}
+
+function collapseAccordionItem(details, summary = details.querySelector(":scope > summary")) {
+  const state = details._accordionState;
+  state.closing = true;
+  details.style.overflow = "hidden";
+  const startHeight = details.offsetHeight;
+  const endHeight = summary.offsetHeight;
+  state.animation?.cancel();
+  state.animation = details.animate(
+    { height: [`${startHeight}px`, `${endHeight}px`] },
+    { duration: MOVE_ACCORDION_DURATION, easing: "ease-out" }
+  );
+  state.animation.onfinish = () => finishAccordionAnimation(details, false);
+  state.animation.oncancel = () => { state.closing = false; };
+}
+
+function finishAccordionAnimation(details, open) {
+  const state = details._accordionState;
+  details.open = open;
+  state.animation = null;
+  state.closing = false;
+  state.expanding = false;
+  details.style.height = "";
+  details.style.overflow = "";
+}
+
 /**
  * Ficha de un Pokémon individual. Trabaja siempre sobre el Item embebido en el
  * entrenador (o en el actor salvaje), nunca sobre el actor temporal del mapa,
@@ -321,6 +397,8 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     this.element.querySelector("[data-action='open-trainer-sheet']")?.addEventListener("click", () => this.pokemonItem.parent?.sheet.render(true));
     this.element.addEventListener("dragover", event => event.preventDefault());
     this.element.addEventListener("drop", event => this.#onDrop(event));
+    initAccordionGroup(this.element.querySelector(".poke5e-move-list"));
+    initAccordionGroup(this.element.querySelector(".poke5e-move-catalog"));
   }
 
   /**
