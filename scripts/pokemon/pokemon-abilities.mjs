@@ -68,6 +68,17 @@
  *   (`flare-boost`) suman la competencia al daño mientras el propio Pokémon
  *   sufre ciertos estados, vía abilitySelfStatusDamageBonus(), en el mismo
  *   hueco de damageFormula() que ya usa abilityProfile.damage del lote 4.
+ * - Lote 7: Escama Prodigio y Pies Rápidos, CA/velocidad extra mientras el
+ *   Pokémon sufre CUALQUIER estado alterado negativo. A diferencia de los
+ *   lotes anteriores esto no se calcula una vez al desplegar el actor, porque
+ *   el bono depende de un hecho que cambia durante el combate (entrar y salir
+ *   de sufrir un estado), y un Pokémon puede tener varios estados compatibles
+ *   a la vez (un no-volátil más Confuso/Amedrentado, ver status-effects.mjs).
+ *   abilityStatusBonusEffectSource() solo construye el ActiveEffect; es
+ *   status-effects.mjs quien decide cuándo crearlo y borrarlo, atado al
+ *   PRIMER estado que sufre el Pokémon y al momento en que se queda sin
+ *   NINGUNO — no al ciclo de vida de un estado concreto — para no duplicar el
+ *   bono ni perderlo al quitar solo uno de los estados activos.
  *
  * El resto del catálogo queda para lotes posteriores porque exige más que un
  * ajuste al desplegar o una comprobación puntual: absorber un tipo de daño
@@ -491,4 +502,63 @@ export const GUTS_IGNORED_STATUSES = new Set(["poisoned", "badly-poisoned", "bur
  */
 export function abilityIgnoresStatusPenalty(abilities = []) {
   return (abilities ?? []).includes("guts");
+}
+
+/** Habilidad → bono de CA mientras el Pokémon sufre cualquier estado alterado negativo. */
+export const AC_STATUS_BONUS_ABILITIES = Object.freeze({
+  "marvel-scale": 2
+});
+
+/**
+ * Habilidad → pies de más de velocidad mientras el Pokémon sufre cualquier
+ * estado alterado negativo. Se aplica a las cinco formas de movimiento, igual
+ * que la reducción de velocidad de Parálisis en pokemonStatusEffectSource()
+ * (status-effects.mjs): un Pokémon con desplazamiento de vuelo o natación
+ * también gana los mismos 15 pies ahí, no solo caminando.
+ */
+export const SPEED_STATUS_BONUS_ABILITIES = Object.freeze({
+  "quick-feet": 15
+});
+
+/**
+ * ActiveEffect con el bono de CA y/o velocidad de las habilidades de estado
+ * alterado (Escama Prodigio, Pies Rápidos), o null si el Pokémon no conoce
+ * ninguna de las dos. Mismo formato que devuelve pokemonStatusEffectSource()
+ * en status-effects.mjs, para que ese archivo pueda crearlo y borrarlo con
+ * las mismas llamadas createEmbeddedDocuments/deleteEmbeddedDocuments que ya
+ * usa con los estados. No se llama desde este archivo: lo consume
+ * status-effects.mjs en applyPokemonStatus()/removePokemonStatus(), ver
+ * cabecera del archivo (Lote 7) para el porqué del diseño.
+ */
+export function abilityStatusBonusEffectSource(abilities = []) {
+  const changes = [];
+  for (const id of abilities ?? []) {
+    if (AC_STATUS_BONUS_ABILITIES[id] != null) {
+      changes.push({
+        key: "system.attributes.ac.bonus",
+        mode: CONST.ACTIVE_EFFECT_MODES.ADD,
+        value: AC_STATUS_BONUS_ABILITIES[id]
+      });
+    }
+    if (SPEED_STATUS_BONUS_ABILITIES[id] != null) {
+      for (const type of ["walk", "fly", "swim", "burrow", "climb"]) {
+        changes.push({
+          key: `system.attributes.movement.${type}`,
+          mode: CONST.ACTIVE_EFFECT_MODES.ADD,
+          value: SPEED_STATUS_BONUS_ABILITIES[id]
+        });
+      }
+    }
+  }
+  if (!changes.length) return null;
+  return {
+    name: "Bono de estado alterado",
+    icon: "icons/svg/upgrade.svg",
+    img: "icons/svg/upgrade.svg",
+    description: "Bono de CA y/o velocidad mientras el Pokémon sufre algún estado alterado.",
+    statuses: [],
+    changes,
+    duration: {},
+    flags: { [MODULE_ID]: { kind: "ability-status-bonus" } }
+  };
 }

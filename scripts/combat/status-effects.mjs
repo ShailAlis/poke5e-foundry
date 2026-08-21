@@ -13,7 +13,7 @@
  */
 import { MODULE_ID } from "../core/model.mjs";
 import { pokemonEffectIcon } from "../core/effect-icons.mjs";
-import { abilityBlocksStatus } from "../pokemon/pokemon-abilities.mjs";
+import { abilityBlocksStatus, abilityStatusBonusEffectSource } from "../pokemon/pokemon-abilities.mjs";
 import { attackHitsPokemonTarget, pokemonCombatModifiers } from "./move-modifiers.mjs";
 import { confirmHeldItemReaction, consumeHeldItem, heldItemId, postHeldItemMessage, statusBerryMatches } from "../pokemon/held-items.mjs";
 import { hasTrainerPath } from "../trainer/trainer-path-rules.mjs";
@@ -348,6 +348,15 @@ export async function removePokemonStatus(pokemonItem, id) {
     : game.actors.find(candidate => candidate.getFlag(MODULE_ID, "pokemonItemUuid") === pokemonItem.uuid);
   const effects = actor?.effects?.filter(effect => effect.statuses.has(statusId(id)) || effect.getFlag(MODULE_ID, "status") === id) ?? [];
   if (effects.length) await actor.deleteEmbeddedDocuments("ActiveEffect", effects.map(effect => effect.id));
+  // Con el estado ya borrado, si el Pokémon no conserva NINGÚN otro estado del
+  // catálogo, el bono de Escama Prodigio/Pies Rápidos (si lo tenía) deja de
+  // corresponder: se quita aquí en vez de en el ciclo de vida de este estado
+  // concreto porque puede seguir habiendo otro compatible (Confuso/Amedrentado
+  // junto a un no-volátil) que deba conservar el bono.
+  if (actor && !actorHasAnyPokemonStatus(actor)) {
+    const bonusEffects = actor.effects?.filter(effect => effect.getFlag(MODULE_ID, "kind") === "ability-status-bonus") ?? [];
+    if (bonusEffects.length) await actor.deleteEmbeddedDocuments("ActiveEffect", bonusEffects.map(effect => effect.id));
+  }
 }
 
 /**
@@ -385,6 +394,10 @@ export async function applyPokemonStatus(actor, id, source) {
   }
   const effectId = statusId(id);
   const activePokemonStatuses = new Set(actor.effects.map(effect => effect.getFlag(MODULE_ID, "status")).filter(Boolean));
+  // Capturado ANTES de crear el nuevo estado: hace falta saber si el Pokémon
+  // "entra en sufrir estado por primera vez" para decidir si toca también
+  // levantar el ActiveEffect de Escama Prodigio/Pies Rápidos (ver más abajo).
+  const hadNoActiveStatuses = activePokemonStatuses.size === 0;
   if (activePokemonStatuses.has(id) || actor.statuses.has(effectId)) {
     // Sin este aviso, una salvación fallada contra un estado que el objetivo ya
     // tiene (p. ej. probar Hipnosis dos veces seguidas sobre el mismo Dormido) no
@@ -398,6 +411,15 @@ export async function applyPokemonStatus(actor, id, source) {
   }
   const effectSource = pokemonStatusEffectSource(id, source);
   await actor.createEmbeddedDocuments("ActiveEffect", [effectSource]);
+  // Escama Prodigio/Pies Rápidos no siguen el ciclo de vida de UN estado
+  // concreto (puede haber un no-volátil más Confuso/Amedrentado a la vez, ver
+  // cabecera de pokemon-abilities.mjs), sino el de "el Pokémon sufre algo" en
+  // general: el ActiveEffect del bono se crea una sola vez, al pasar de cero
+  // a un estado, y lo borra removePokemonStatus() cuando vuelve a cero.
+  if (hadNoActiveStatuses) {
+    const bonusSource = abilityStatusBonusEffectSource(abilities);
+    if (bonusSource) await actor.createEmbeddedDocuments("ActiveEffect", [bonusSource]);
+  }
   if (definition.nonVolatile) await persistPokemonStatus(actor, id);
   await ChatMessage.create({
     content: `<div class="dnd5e chat-card poke5e-status-card"><header class="card-header"><h3>${escapeHtml(actor.name)}: ${escapeHtml(definition.name)}</h3></header><p>${escapeHtml(source.moveName)} aplica <strong>${escapeHtml(definition.name)}</strong>.</p><p>${escapeHtml(definition.description)}</p></div>`
@@ -685,6 +707,14 @@ function sameValues(left, right) {
 /** Comprueba el flag persistente y, como respaldo, el Set de estados del actor. */
 function actorHasPokemonStatus(actor, id) {
   return actor.effects.some(effect => effect.getFlag(MODULE_ID, "status") === id) || actor.statuses.has(statusId(id));
+}
+/**
+ * Si el actor conserva algún estado del catálogo (cualquiera, no uno en
+ * concreto). Auxiliar de removePokemonStatus() para decidir si toca borrar el
+ * ActiveEffect de bono de Escama Prodigio/Pies Rápidos (Lote 7).
+ */
+function actorHasAnyPokemonStatus(actor) {
+  return (actor?.effects ?? []).some(effect => POKEMON_STATUS_EFFECTS[effect.getFlag(MODULE_ID, "status")]);
 }
 /** Escapa texto para los mensajes de chat que genera este archivo. */
 function escapeHtml(value) { return foundry.utils.escapeHTML(String(value ?? "")); }
