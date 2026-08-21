@@ -29,6 +29,7 @@ import { acupressureEffect, hiddenPowerType, magnitudeDice } from "../combat/ran
 import { requestForcedSwitch, selfForcedSwitch } from "../combat/forced-switch.mjs";
 import { FULL_NEGATION_MOVES, HALF_NEGATION_MOVES, SURVIVE_MOVES, armDamageShield } from "../combat/damage-shields.mjs";
 import { FIELD_PULSE_MOVES, FIELD_RULE_MOVES, TERRAIN_MOVES, WEATHER_BALL_TYPES, WEATHER_MOVES, clearField, currentField, requestFieldEffect } from "../combat/terrain-effects.mjs";
+import { abilityLowHpStabBonus, abilityMoveProfile, applyContactDamageReaction } from "./pokemon-abilities.mjs";
 import { promptSpendTrainerResource, trainerResourceState } from "../trainer/trainer-resources.mjs";
 import { pokemonFeatOptions } from "../trainer/feat-catalog.mjs";
 import { SKILLS } from "../trainer/trainer-creation-data.mjs";
@@ -863,7 +864,20 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       if (targetPokemonItem?.getFlag(MODULE_ID, "instance")?.damagedThisRound) targetDamagedThisRoundMultiplier = 2;
     }
     const forceStab = trainer ? typeMasteryForcesStab(trainer, species.type) : false;
-    const finalGambitFormula = move.id === "final-gambit" ? appendModifier(String(Math.max(0, Number(combatActor?.system?.attributes?.hp?.value) || 0)), (species.type ?? []).includes(move.type) || forceStab ? 2 + heldProfile.stab : 0) : null;
+    // Blaze/Overgrow/Swarm/Torrent: duplican el bono de STAB al 25% o menos
+    // de PG máximos. abilityLowHpStabBonus() ya solo devuelve algo cuando
+    // corresponde, así que se suma al mismo hueco que el STAB de un objeto
+    // equipado sin condición adicional aquí.
+    const lowHpStabBonus = abilityLowHpStabBonus(instance.abilities, ownHpFraction);
+    // Ojo Compuesto/Alas Danza/Metaltrabajador/Rivalidad/Suertudo: mismo
+    // hueco que heldProfile/pathProfile para ataque, daño y rango de
+    // crítico, sin más estado que el tipo del movimiento y el de los
+    // objetivos ya seleccionados.
+    const targetTypes = selectedTokens.flatMap(token => token.actor?.getFlag?.(MODULE_ID, "pokemonTypes") ?? []);
+    const abilityProfile = abilityMoveProfile(instance.abilities, {
+      moveType: move.type, hasDamage: moveHasImmediateDamage(move), proficiency, sourceTypes: species.type ?? [], targetTypes
+    });
+    const finalGambitFormula = move.id === "final-gambit" ? appendModifier(String(Math.max(0, Number(combatActor?.system?.attributes?.hp?.value) || 0)), (species.type ?? []).includes(move.type) || forceStab ? 2 + heldProfile.stab + lowHpStabBonus : 0) : null;
     const trumpCardBonus = move.id === "trump-card" ? moveModifier * Math.max(0, Number(entry.pp.max) - Number(entry.pp.value)) : 0;
     let magnitudeFormula = null;
     if (move.id === "magnitude") {
@@ -871,7 +885,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       await magnitudeRoll.toMessage({ speaker, flavor: `${flavor} — Magnitud` });
       magnitudeFormula = appendModifier(magnitudeDice(magnitudeRoll.total), damageMoveModifier);
     }
-    const formula = finalGambitFormula ?? magnitudeFormula ?? (moveHasImmediateDamage(move) ? damageFormula(move, level, damageMoveModifier, species, combatModifiers.damage + heldProfile.damage + pathProfile.damage + trumpCardBonus, heldProfile.stab + pathProfile.stab, escalationMultiplier * weatherDiceMultiplier * targetStatusDiceMultiplier * selfHpDiceMultiplier * ownDamagedDiceMultiplier * ownMissedDiceMultiplier * targetDamagedThisRoundMultiplier, ownMissedExtraDie, forceStab) : null);
+    const formula = finalGambitFormula ?? magnitudeFormula ?? (moveHasImmediateDamage(move) ? damageFormula(move, level, damageMoveModifier, species, combatModifiers.damage + heldProfile.damage + pathProfile.damage + trumpCardBonus + abilityProfile.damage, heldProfile.stab + pathProfile.stab + lowHpStabBonus, escalationMultiplier * weatherDiceMultiplier * targetStatusDiceMultiplier * selfHpDiceMultiplier * ownDamagedDiceMultiplier * ownMissedDiceMultiplier * targetDamagedThisRoundMultiplier, ownMissedExtraDie, forceStab) : null);
     let hiddenPowerRoll = null;
     if (formula && move.id === "hidden-power") {
       hiddenPowerRoll = await new Roll("1d20").evaluate();
@@ -905,7 +919,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       const effectProficiency = combatModifiers.suppressAttackProficiency ? 0 : proficiency;
       const targetsAreWild = Boolean(selectedTokens.length) && selectedTokens.every(token => token.actor?.getFlag?.(MODULE_ID, "kind") === "wild");
       const companionBonus = trainer ? rangerCompanionAttackBonus(trainer, this.pokemonItem, targetsAreWild) : 0;
-      const attack = await new Roll(`${die} + @mod + @prof + @effect${effectDice}`, { mod: attackMoveModifier, prof: effectProficiency, effect: combatModifiers.attack + heldProfile.attack + pathProfile.attack + companionBonus }).evaluate();
+      const attack = await new Roll(`${die} + @mod + @prof + @effect${effectDice}`, { mod: attackMoveModifier, prof: effectProficiency, effect: combatModifiers.attack + heldProfile.attack + pathProfile.attack + companionBonus + abilityProfile.attack }).evaluate();
       await attack.toMessage({ speaker, flavor: `${flavor} (${titleCase(move.attack.scope)})` });
       const rolledNatural = Number(attack.dice?.[0]?.results?.find(result => result.active)?.result ?? attack.dice?.[0]?.total) || 0;
       const guaranteed = combatModifiers.guaranteedHit || combatModifiers.guaranteedCritical;
@@ -913,7 +927,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       attackResult = {
         natural,
         total: guaranteed ? Number.MAX_SAFE_INTEGER : Number(attack.total) || 0,
-        critical: combatModifiers.guaranteedCritical || natural >= Math.max(1, 20 - heldProfile.criticalRange - combatModifiers.criticalRangeBonus)
+        critical: combatModifiers.guaranteedCritical || natural >= Math.max(1, 20 - heldProfile.criticalRange - combatModifiers.criticalRangeBonus - abilityProfile.criticalRange)
       };
       // Alza tus defensas (Tactician 9): solo con un único objetivo, porque el
       // truco de restar del total del ataque para simular "sube su CA lo
@@ -1120,6 +1134,16 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
         if (!attackHitsPokemonTarget(attackResult, token.actor)) continue;
         const spare = await confirmHeldItemReaction("Golpes disciplinados (Pokémon Collector 9)", `<p>¿Dejar a ${escapeHtml(token.name)} en 1 PG en vez de debilitarlo?</p>`);
         if (spare) await markFalseSwipeTarget(token.actor);
+      }
+    }
+    if (move.attack?.scope === "melee" && attackResult) {
+      // Reacciones de contacto (Piel Tosca, Punta Acero, Electricidad
+      // Estática, Esporas Efecto, Punto Toxico): el defensor devuelve daño al
+      // atacante si su habilidad lo prevé. Una por objetivo alcanzado, igual
+      // que el resto de efectos "por golpe" de este bloque.
+      for (const token of selectedTokens) {
+        if (!attackHitsPokemonTarget(attackResult, token.actor)) continue;
+        await applyContactDamageReaction(token.actor, combatActor);
       }
     }
     if (move.id === "trick" && attackResult) {

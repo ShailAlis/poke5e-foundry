@@ -13,6 +13,7 @@
  */
 import { MODULE_ID } from "../core/model.mjs";
 import { pokemonEffectIcon } from "../core/effect-icons.mjs";
+import { abilityBlocksStatus } from "../pokemon/pokemon-abilities.mjs";
 import { attackHitsPokemonTarget, pokemonCombatModifiers } from "./move-modifiers.mjs";
 import { confirmHeldItemReaction, consumeHeldItem, heldItemId, postHeldItemMessage, statusBerryMatches } from "../pokemon/held-items.mjs";
 import { hasTrainerPath } from "../trainer/trainer-path-rules.mjs";
@@ -377,7 +378,8 @@ export async function applyPokemonStatus(actor, id, source) {
   const definition = POKEMON_STATUS_EFFECTS[id];
   if (!definition) return;
   const types = pokemonTypes(actor);
-  if (definition.immuneTypes.some(type => types.includes(type))) {
+  const abilities = await pokemonAbilities(actor);
+  if (definition.immuneTypes.some(type => types.includes(type)) || abilityBlocksStatus(abilities, id)) {
     ui.notifications.info(game.i18n.format("POKE5E.StatusEffects.Immune", { actor: actor.name, status: definition.name.toLocaleLowerCase() }));
     return;
   }
@@ -610,6 +612,16 @@ function pokemonTypes(actor) {
   const flagged = actor.getFlag(MODULE_ID, "pokemonTypes");
   if (Array.isArray(flagged)) return flagged;
   return actor.items?.find(item => item.getFlag(MODULE_ID, "kind") === "pokemon")?.getFlag(MODULE_ID, "species")?.type ?? [];
+}
+
+/**
+ * Habilidades Pokémon conocidas por un actor, leídas de la instancia de su
+ * Item (pokemonItemForActor()). Auxiliar de applyPokemonStatus() para las
+ * inmunidades a estado por habilidad (abilityBlocksStatus()).
+ */
+async function pokemonAbilities(actor) {
+  const pokemonItem = await pokemonItemForActor(actor);
+  return pokemonItem?.getFlag(MODULE_ID, "instance")?.abilities ?? [];
 }
 
 /**
