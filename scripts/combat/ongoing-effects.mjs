@@ -11,10 +11,11 @@
 import { loadPoke5eData } from "../core/data-service.mjs";
 import { MODULE_ID } from "../core/model.mjs";
 import { typeLabel } from "./combat.mjs";
-import { applyEndTurnStatusDamage, applyPokemonStatus } from "./status-effects.mjs";
+import { applyEndTurnStatusDamage, applyPokemonStatus, applyStartTurnStatusChecks } from "./status-effects.mjs";
 import { pokemonEffectIcon } from "../core/effect-icons.mjs";
 import { advanceHeldItemTurn, heldItemEndTurnEffect, postHeldItemMessage } from "../pokemon/held-items.mjs";
 import { pokemonCombatModifiers } from "./move-modifiers.mjs";
+import { applyNurseStatusSaveAdvantage } from "../trainer/trainer-resources.mjs";
 
 const SOCKET_ACTION = "applyOngoingMoveEffects";
 const KIND = "ongoing-move";
@@ -140,6 +141,7 @@ export function registerOngoingMoveEffects() {
       await processOngoingEffects(previousActor, "end");
       await advanceHeldItemTurn(previousActor);
       await processOngoingEffects(currentActor, "start");
+      await applyStartTurnStatusChecks(currentActor);
     } catch (error) {
       console.error(`${MODULE_ID} | Ongoing turn processing failed`, error);
     }
@@ -595,17 +597,35 @@ function attackHitsTarget(attack, actor) {
 async function rollTargetSave(actor, move, dc) {
   const choices = (move.save?.attribute?.length ? move.save.attribute : ["con"]).map(key => ({ key, modifier: savingThrowModifier(actor, key) })).sort((a, b) => b.modifier - a.modifier);
   const chosen = choices[0];
-  const roll = await new Roll("1d20 + @modifier", { modifier: chosen.modifier }).evaluate();
+  const roll = await rollSaveWithStatus(actor, chosen.key, chosen.modifier);
   await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${actor.name} · Salvación ${chosen.key.toUpperCase()} contra ${move.name} (CD ${dc})` });
   return { success: Number(roll.total) >= Number(dc) };
 }
 
 async function rollOngoingSave(actor, ongoing) {
   const key = ongoing.repeatSave;
-  const roll = await new Roll("1d20 + @modifier", { modifier: savingThrowModifier(actor, key) }).evaluate();
+  const roll = await rollSaveWithStatus(actor, key, savingThrowModifier(actor, key));
   const success = Number(roll.total) >= Number(ongoing.saveDc);
   await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${actor.name} · ${ongoing.moveName}: salvación ${key.toUpperCase()} CD ${ongoing.saveDc}${success ? " · Escapa" : " · Continúa"}` });
   return success;
+}
+
+/**
+ * Tirada de salvación (contra un movimiento o de escape de un efecto
+ * mantenido) con la ventaja/desventaja y el bono que arrastren los estados
+ * alterados y modificadores activos del propio actor —Parálisis en FUE/DES,
+ * Amedrentado en las seis, etc.—, vía pokemonCombatModifiers(). Auxiliar de
+ * rollTargetSave() y rollOngoingSave().
+ */
+async function rollSaveWithStatus(actor, key, modifier) {
+  const combat = pokemonCombatModifiers(actor);
+  const bonusDice = combat.saveDice.map(formula => ` + ${formula}`).join("");
+  const total = modifier + (combat.saves[key] ?? 0);
+  const nurseAdvantage = await applyNurseStatusSaveAdvantage(actor);
+  const advantage = combat.saveAdvantage || combat.saveAdvantageAbilities.includes(key) || nurseAdvantage;
+  const disadvantage = combat.saveDisadvantageAbilities.includes(key);
+  const dice = advantage === disadvantage ? "1d20" : advantage ? "2d20kh" : "2d20kl";
+  return new Roll(`${dice} + @modifier${bonusDice}`, { modifier: total }).evaluate();
 }
 
 function savingThrowModifier(actor, key) {

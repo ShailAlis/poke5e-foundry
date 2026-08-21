@@ -15,6 +15,8 @@ import { MODULE_ID } from "../core/model.mjs";
 import { pokemonEffectIcon } from "../core/effect-icons.mjs";
 import { attackHitsPokemonTarget, pokemonCombatModifiers } from "./move-modifiers.mjs";
 import { confirmHeldItemReaction, consumeHeldItem, heldItemId, postHeldItemMessage, statusBerryMatches } from "../pokemon/held-items.mjs";
+import { hasTrainerPath } from "../trainer/trainer-path-rules.mjs";
+import { applyGruntSaveAdvantage, applyHobbyistSaveBoost, applyNurseStatusSaveAdvantage, applyTacticianDcBoost } from "../trainer/trainer-resources.mjs";
 
 /** Acción del socket con la que un jugador pide al director aplicar estados. */
 const STATUS_SOCKET_ACTION = "applyMoveStatuses";
@@ -209,7 +211,7 @@ export async function applyMoveStatuses({ move, attack = null, saveDc, sourceAct
       if (effect.trigger === "failed-save") {
         let save = saveResults.get(token.actor.uuid);
         if (!save) {
-          save = await rollTargetSave(token.actor, move, saveDc, sourceModifiers);
+          save = await rollTargetSave(token.actor, move, saveDc, sourceModifiers, sourceActor);
           saveResults.set(token.actor.uuid, save);
         }
         if (save.success) continue;
@@ -463,6 +465,86 @@ export async function applyEndTurnStatusDamage(actor) {
 }
 
 /**
+ * Comprueba Parálisis, Confusión y Congelado al empezar el turno del Pokémon.
+ * Parálisis (1d4, falla con un 1, la misma proporción de un cuarto que usan
+ * los videojuegos) solo lo anuncia en el chat: la ficha del Pokémon sigue
+ * dejando pulsar el botón de un movimiento con Parálisis activa porque el
+ * fallo es aleatorio y descrito por texto, no un bloqueo binario como
+ * Congelado/Dormido. Confusión tira en su propia tabla para golpearse a sí
+ * mismo (1d3, un 1 causa daño típeless igual a la competencia de su nivel,
+ * la misma escala que ya usa el veneno/quemadura de applyEndTurnStatusDamage)
+ * y sí se aplica de verdad porque no depende de una decisión del jugador. Un
+ * entrenador con el rasgo Mente (Guru 5) tira la tabla de Confusión de sus
+ * Pokémon dos veces y conserva el mejor resultado (pathFeatureAutomation() en
+ * model.mjs). Congelado tiene una posibilidad de descongelarse por sí solo
+ * (1d5, ocurre con un 1, el 20% clásico de los videojuegos) además del daño
+ * de Fuego, que ya lo quita en pokemon-sheet.mjs al resolver el daño. Congelado
+ * y Dormido sí impiden actuar de verdad: pokemonIncapacitatingStatus() (más
+ * abajo) bloquea el botón de #rollMove() en pokemon-sheet.mjs mientras estén
+ * activos, así que no dependen de que la mesa los respete. La invoca
+ * ongoing-effects.mjs en el cambio de turno, solo en el director.
+ */
+export async function applyStartTurnStatusChecks(actor) {
+  if (!actor || Number(actor.system.attributes?.hp?.value) <= 0) return;
+  if (actorHasPokemonStatus(actor, "paralyzed")) {
+    const roll = await new Roll("1d4").evaluate();
+    const failed = Number(roll.total) === 1;
+    await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${actor.name} — Parálisis: ¿puede actuar? (falla con un 1)` });
+    if (failed) await ChatMessage.create({ content: `<div class="dnd5e chat-card poke5e-status-card"><p><strong>${escapeHtml(actor.name)}</strong> está paralizado y no puede actuar este turno.</p></div>` });
+  }
+  if (actorHasPokemonStatus(actor, "confused")) {
+    const pokemonItem = await pokemonItemForActor(actor);
+    const trainer = pokemonItem?.parent?.type === "character" ? pokemonItem.parent : null;
+    const guruAdvantage = hasTrainerPath(trainer, "guru", 5);
+    const firstRoll = await new Roll("1d3").evaluate();
+    let result = Number(firstRoll.total) || 0;
+    let flavor = `${actor.name} — Confusión: ¿se golpea a sí mismo? (ocurre con un 1)`;
+    if (guruAdvantage) {
+      const secondRoll = await new Roll("1d3").evaluate();
+      result = Math.max(result, Number(secondRoll.total) || 0);
+      flavor += ` · Mente (Guru 5): tira dos veces y se queda con ${result}`;
+      await ChatMessage.create({ rolls: [firstRoll, secondRoll], speaker: ChatMessage.getSpeaker({ actor }), flavor, sound: CONFIG.sounds.dice });
+    } else {
+      await firstRoll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor });
+    }
+    const selfHit = result === 1;
+    if (selfHit) {
+      const level = Number(pokemonItem?.getFlag(MODULE_ID, "instance")?.level) || 1;
+      const damage = 2 + Math.floor((Math.max(1, Math.min(20, level)) - 1) / 4);
+      const hp = actor.system.attributes.hp;
+      await actor.update({ "system.attributes.hp.value": Math.max(0, Number(hp.value) - damage) });
+      await ChatMessage.create({ content: `<div class="dnd5e chat-card poke5e-status-card"><p><strong>${escapeHtml(actor.name)}</strong> se golpea a sí mismo por la confusión: <strong>${damage}</strong> de daño típeless.</p></div>` });
+    }
+  }
+  if (actorHasPokemonStatus(actor, "frozen")) {
+    const roll = await new Roll("1d5").evaluate();
+    const thawed = Number(roll.total) === 1;
+    await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${actor.name} — Congelado: ¿se descongela? (ocurre con un 1)` });
+    if (thawed) {
+      const pokemonItem = await pokemonItemForActor(actor);
+      if (pokemonItem) await removePokemonStatus(pokemonItem, "frozen");
+      await ChatMessage.create({ content: `<div class="dnd5e chat-card poke5e-status-card"><p><strong>${escapeHtml(actor.name)}</strong> se descongela.</p></div>` });
+    }
+  }
+}
+
+/**
+ * Estado que le impide actuar de verdad a un Pokémon en este momento
+ * ("frozen" o "asleep"), o null si puede actuar. #rollMove() en
+ * pokemon-sheet.mjs la consulta antes de tirar cualquier movimiento y
+ * bloquea el botón con un aviso si devuelve algo —a diferencia de Parálisis o
+ * Confusión, que son un fallo aleatorio descrito por texto y no un bloqueo
+ * binario, Congelado y Dormido son "no puedes actuar, punto", así que sí se
+ * puede hacer cumplir de verdad sin depender de que la mesa lo respete.
+ */
+export function pokemonIncapacitatingStatus(actor) {
+  if (!actor) return null;
+  if (actorHasPokemonStatus(actor, "frozen")) return "frozen";
+  if (actorHasPokemonStatus(actor, "asleep")) return "asleep";
+  return null;
+}
+
+/**
  * Localiza el Item Pokémon que respalda a un actor: por el UUID que guarda un
  * desplegado o, si no lo hay, entre los Items embebidos de un salvaje.
  * Puente entre actor y ficha para el resto del archivo.
@@ -484,7 +566,7 @@ async function pokemonItemForActor(actor) {
  * defecto) según savingThrowModifier(), y publica la tirada en el chat.
  * Auxiliar de applyMoveStatuses().
  */
-async function rollTargetSave(actor, move, dc, sourceModifiers = {}) {
+async function rollTargetSave(actor, move, dc, sourceModifiers = {}, sourceActor = null) {
   const attributes = move.save?.attribute?.length ? move.save.attribute : ["con"];
   const choices = attributes.map(key => ({ key, modifier: savingThrowModifier(actor, key) }));
   const chosen = choices.sort((a, b) => b.modifier - a.modifier)[0];
@@ -492,12 +574,16 @@ async function rollTargetSave(actor, move, dc, sourceModifiers = {}) {
   const bonusDice = combat.saveDice.map(formula => ` + ${formula}`).join("");
   const modifier = chosen.modifier + (combat.saves[chosen.key] ?? 0);
   const sourceDisadvantage = (sourceModifiers.saveTargetsDisadvantageAbilities ?? []).some(key => attributes.includes(key));
-  const advantage = combat.saveAdvantage || combat.saveAdvantageAbilities.includes(chosen.key) || Boolean(sourceModifiers.saveTargetsAdvantage);
+  const darkAdvantage = await applyGruntSaveAdvantage(actor);
+  const nurseAdvantage = await applyNurseStatusSaveAdvantage(actor);
+  const advantage = combat.saveAdvantage || combat.saveAdvantageAbilities.includes(chosen.key) || Boolean(sourceModifiers.saveTargetsAdvantage) || darkAdvantage || nurseAdvantage;
   const disadvantage = combat.saveDisadvantageAbilities.includes(chosen.key) || sourceDisadvantage;
   const dice = advantage === disadvantage ? "1d20" : advantage ? "2d20kh" : "2d20kl";
   const roll = await new Roll(`${dice} + @modifier${bonusDice}`, { modifier }).evaluate();
   await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${actor.name} — Salvación ${chosen.key.toUpperCase()} contra ${move.name} (CD ${dc})` });
-  return { total: Number(roll.total) || 0, dc: Number(dc), success: Number(roll.total) >= Number(dc) };
+  const total = await applyHobbyistSaveBoost(actor, Number(roll.total) || 0, chosen.key);
+  const finalDc = await applyTacticianDcBoost(sourceActor, actor.name, total, Number(dc));
+  return { total, dc: finalDc, success: total >= finalDc };
 }
 
 /**

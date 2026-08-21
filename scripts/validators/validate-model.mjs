@@ -95,7 +95,7 @@ if (trainerFeatures.some(source => source.system.type?.value !== "class" || sour
 const featureUuids = new Map(trainerFeatures.map((source, index) => [source.flags[MODULE_ID].sourceId, `Compendium.world.poke5e-progression.Item.feature${index}`]));
 const pathFeatures = trainerPathFeatureSources();
 if (TRAINER_PATHS.length !== 13 || pathFeatures.length !== 52) throw new Error("Expected 13 Trainer paths with four features each.");
-if (pathFeatures.some(source => !["automatic", "resource", "manual", "supplement"].includes(source.flags[MODULE_ID].automation))) throw new Error("Every Trainer path feature must declare its automation mode.");
+if (pathFeatures.some(source => !["automatic", "resource", "partial", "manual", "supplement"].includes(source.flags[MODULE_ID].automation))) throw new Error("Every Trainer path feature must declare its automation mode.");
 for (const [index, source] of pathFeatures.entries()) featureUuids.set(source.flags[MODULE_ID].sourceId, `Compendium.world.poke5e-progression.Item.pathFeature${index}`);
 const trainerPaths = trainerPathSources(featureUuids);
 if (trainerPaths.length !== TRAINER_PATHS.length) throw new Error("Invalid Trainer path source count.");

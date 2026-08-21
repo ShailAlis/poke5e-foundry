@@ -14,7 +14,7 @@ import {
 import { trainerPathFeatDiscount } from "../trainer/trainer-path-rules.mjs";
 import { pokemonFeatOptions } from "../trainer/feat-catalog.mjs";
 
-const ABILITIES = { str: "FUE", dex: "DES", con: "CON", int: "INT", wis: "SAB", cha: "CAR" };
+export const ABILITIES = { str: "FUE", dex: "DES", con: "CON", int: "INT", wis: "SAB", cha: "CAR" };
 
 /** Nivel hasta el que ya se aplicaron avances; las fichas antiguas parten del actual. */
 export function pokemonAppliedAdvancementLevel(instance) {
@@ -266,8 +266,13 @@ async function promptFeatChoice(item, instance, species, advancement) {
   }
 }
 
-/** HTML de una fila de característica con contador +/-; lo consumen ambas pantallas de asignación. */
-function stepperGrid(abilities, attributes) {
+/**
+ * HTML de una fila de característica con contador +/-; lo consumen ambas
+ * pantallas de asignación de este archivo y, desde agosto de 2026, también el
+ * diálogo de evolución de pokemon-sheet.mjs (antes usaba `<input type="number">`
+ * sueltos en vez de este mismo contador).
+ */
+export function stepperGrid(abilities, attributes) {
   return `<div class="poke5e-stepper-grid">${Object.entries(abilities).map(([key, label]) => `
     <div class="poke5e-stepper-row">
       <span>${label}${attributes[key] != null ? ` (${Number(attributes[key]) || 10})` : ""}</span>
@@ -288,7 +293,7 @@ function stepperGrid(abilities, attributes) {
  * raíz evita duplicarlos si se vuelve a llamar (promptFeatChoice() reconfigura
  * el mismo contenedor cada vez que cambia la dote elegida).
  */
-function attachStepperGroup(root, keys, budget, { maxFor = () => Infinity } = {}) {
+export function attachStepperGroup(root, keys, budget, { maxFor = () => Infinity } = {}) {
   const state = Object.fromEntries(keys.map(key => [key, 0]));
   const update = () => {
     const spent = Object.values(state).reduce((total, value) => total + value, 0);

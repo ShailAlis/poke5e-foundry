@@ -94,6 +94,12 @@ export function pokeballAdjustment(ballId, context = {}) {
     case "dream-ball": if (captureHasAdvantage(context.statuses?.filter(status => ["asleep", "sleep", "sleeping"].includes(String(status).toLocaleLowerCase())) ?? [])) add(5, "Objetivo dormido"); break;
   }
   add(context.manualReduction, "Ajuste del director");
+  // Capturador (Ranger 5): +10 si se rodeó al objetivo con el Capture Styler.
+  // Este proyecto no puede verificar el movimiento real en el mapa, así que
+  // se resuelve como una casilla de confianza en el diálogo de captura
+  // (promptCaptureOptions() en capture.mjs), igual que otras simplificaciones
+  // ya documentadas en el proyecto.
+  add(context.rangerCircled ? 10 : 0, "Capturador (Ranger 5)");
   return { reduction, reasons, automaticSuccess: false };
 }
 

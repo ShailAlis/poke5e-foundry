@@ -41,6 +41,17 @@ assert.deepEqual(pokemonCombatModifiers(mockActor).saves, { wis: -2 });
 assert.equal(pokemonCombatModifiers(mockActor).attack, -5);
 assert.equal(pokemonCombatModifiers(mockActor).attackDisadvantage, true);
 
+// Los estados alterados también aportan modificadores mecánicos (agosto de
+// 2026): Paralizado da desventaja en salvaciones de FUE/DES, Envenenado y
+// Amedrentado en ataques.
+const statusEffect = status => ({ getFlag: (moduleId, key) => moduleId === "poke5e-foundry" ? (key === "kind" ? "pokemon-status" : key === "status" ? status : null) : null });
+const paralyzedActor = { effects: [statusEffect("paralyzed")] };
+assert.deepEqual(pokemonCombatModifiers(paralyzedActor).saveDisadvantageAbilities, ["str", "dex"]);
+const poisonedActor = { effects: [statusEffect("poisoned")] };
+assert.equal(pokemonCombatModifiers(poisonedActor).attackDisadvantage, true);
+const healthyActor = { effects: [statusEffect("burned")] };
+assert.equal(pokemonCombatModifiers(healthyActor).attackDisadvantage, false);
+
 const auditCandidates = moves.filter(isTargetModifierCandidate);
 const uncovered = auditCandidates.filter(move => !MOVE_MODIFIER_EFFECTS[move.id] && !CONTEXTUAL_MODIFIER_COVERAGE[move.id]);
 assert.deepEqual(uncovered.map(move => move.id), [], `Movimientos modificadores sin cobertura: ${uncovered.map(move => move.id).join(", ")}`);

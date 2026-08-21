@@ -8,7 +8,7 @@
  * especialización.
  */
 import assert from "node:assert/strict";
-import { resolveTrainerCreation } from "../trainer/trainer-creation-data.mjs";
+import { resolveTrainerCreation, speciesSkillKey } from "../trainer/trainer-creation-data.mjs";
 
 const standardBase = {
   baseAbilityMethod: "standard", baseAbilityStr: 15, baseAbilityDex: 14, baseAbilityCon: 13,
@@ -68,5 +68,12 @@ assert.throws(() => resolveTrainerCreation({
 assert.throws(() => resolveTrainerCreation({
   origin: "alolan", classSkills: ["ath", "prc"], specialization: "fighting"
 }), /especialización/);
+
+assert.equal(speciesSkillKey("athletics"), "ath");
+assert.equal(speciesSkillKey("Animal Handling"), "ani");
+assert.equal(speciesSkillKey("persuaion"), "per", "Errata real de una parte de pokemon.json ('persuaion')");
+assert.equal(speciesSkillKey("persuasion"), "per");
+assert.equal(speciesSkillKey("not-a-skill"), null);
+assert.equal(speciesSkillKey(undefined), null);
 
 console.log("Trainer creation validation passed.");

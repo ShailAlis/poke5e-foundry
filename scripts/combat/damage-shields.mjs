@@ -20,9 +20,23 @@ import { MODULE_ID } from "../core/model.mjs";
  * rastrean, igual que este proyecto ya no comprueba si Escudo Real es
  * exclusivamente contra daño físico. Se resuelve como anulación total cada vez.
  */
-export const FULL_NEGATION_MOVES = new Set(["kings-shield", "obstruct", "spiky-shield", "silk-trap", "mat-block", "protect", "detect", "baneful-bunker", "quick-guard"]);
-/** Movimientos que reducen a la mitad el siguiente golpe recibido. */
-export const HALF_NEGATION_MOVES = new Set(["light-screen", "wide-guard"]);
+// "sabotage" no es un movimiento: es Sabotaje (Grunt 2), la reacción de
+// Camino de Entrenador que arma #armSabotage() en pokemon-sheet.mjs al gastar
+// un Punto de Sombra. El texto original deja elegir cuántos puntos gastar
+// según lo que haga falta reducir; aquí se simplifica a un coste fijo de 1
+// punto por anulación completa, igual que el resto de esta lista ya
+// simplifica su dificultad creciente.
+export const FULL_NEGATION_MOVES = new Set(["kings-shield", "obstruct", "spiky-shield", "silk-trap", "mat-block", "protect", "detect", "baneful-bunker", "quick-guard", "sabotage"]);
+/**
+ * Movimientos que reducen a la mitad el siguiente golpe recibido. "shadow-dodge"
+ * tampoco es un movimiento: es Esquiva siniestra (Grunt 9), armada desde
+ * #armSabotage()-style en pokemon-sheet.mjs al gastar 4 Puntos de Sombra. El
+ * texto original mejora un grado la resistencia al tipo del golpe concreto
+ * (vulnerable→normal, normal→resistente...); sin rastrear qué tipo trae cada
+ * golpe entrante en el momento de aplicar el escudo, se simplifica a reducir
+ * a la mitad cualquier golpe, igual que Pantalla de Luz/Guardia Amplia.
+ */
+export const HALF_NEGATION_MOVES = new Set(["light-screen", "wide-guard", "shadow-dodge"]);
 /** Aguante: nunca reduce a 0 PG el siguiente golpe recibido, lo deja en 1. */
 export const SURVIVE_MOVES = new Set(["endure"]);
 

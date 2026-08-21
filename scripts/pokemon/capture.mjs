@@ -10,7 +10,7 @@
  * trainer-team.mjs y trainer-actor-sheet.mjs.
  */
 import { captureDifficulty, captureHasAdvantage, POKEBALL_IDS } from "./capture-rules.mjs";
-import { hasTrainerPath } from "../trainer/trainer-path-rules.mjs";
+import { hasTrainerPath, rangerCaptureAdvantage } from "../trainer/trainer-path-rules.mjs";
 import { loadPoke5eData } from "../core/data-service.mjs";
 import { removeDeployment } from "../world/deployment.mjs";
 import { MODULE_ID, displayPokemonName, getPokemonItems, trainerLevel, trainerPokeslotLimit } from "../core/model.mjs";
@@ -65,7 +65,7 @@ export async function attemptCapture(trainer) {
   if (distance > 60) return ui.notifications.warn(game.i18n.format("POKE5E.Capture.OutOfRange", { distance: Math.round(distance) }));
   const balls = availablePokeballs(trainer);
   if (!balls.length) return ui.notifications.warn(game.i18n.localize("POKE5E.Capture.NoBalls"));
-  const choices = await promptCaptureOptions({ species, instance, hp, balls, trainerLevel: currentTrainerLevel });
+  const choices = await promptCaptureOptions({ species, instance, hp, balls, trainerLevel: currentTrainerLevel, trainer });
   if (!choices) return;
   const ball = balls.find(entry => entry.item.id === choices.ballItemId);
   if (!ball) return ui.notifications.warn(game.i18n.localize("POKE5E.Capture.BallUnavailable"));
@@ -94,7 +94,8 @@ export async function attemptCapture(trainer) {
     underwater: choices.underwater,
     darkness: choices.darkness,
     timerTurns: choices.timerTurns,
-    manualReduction: choices.manualReduction
+    manualReduction: choices.manualReduction,
+    rangerCircled: choices.rangerCircled
   };
   const difficulty = captureDifficulty({
     speciesRating: species.sr,
@@ -106,9 +107,14 @@ export async function attemptCapture(trainer) {
   });
   let advantage = captureHasAdvantage(statuses);
   let collectorAdvantage = false;
+  let assistAdvantage = false;
   if (!advantage && hasTrainerPath(trainer, "pokemon-collector", 5)) {
     collectorAdvantage = await useCollectorCaptureAdvantage(trainer, species.name);
     advantage = collectorAdvantage;
+  }
+  if (!advantage && rangerCaptureAdvantage(trainer, species.type)) {
+    assistAdvantage = true;
+    advantage = true;
   }
   let total = Infinity;
   if (!difficulty.automaticSuccess) {
@@ -117,7 +123,7 @@ export async function attemptCapture(trainer) {
     total = Number(roll.total) || 0;
     await roll.toMessage({
       speaker: ChatMessage.getSpeaker({ actor: trainer }),
-      flavor: `Captura de ${species.name} con ${ballName}${advantage ? ` · ${collectorAdvantage ? "¡Hazte con todos!" : "Ventaja por estado"}` : ""} · CD ${difficulty.dc}`
+      flavor: `Captura de ${species.name} con ${ballName}${advantage ? ` · ${collectorAdvantage ? "¡Hazte con todos!" : assistAdvantage ? "Poké Assist" : "Ventaja por estado"}` : ""} · CD ${difficulty.dc}`
     });
   }
   const success = difficulty.automaticSuccess || total >= difficulty.dc;
@@ -271,8 +277,13 @@ function availablePokeballs(trainer) {
  * Sus respuestas forman el contexto que attemptCapture() pasa a
  * pokeballAdjustment() (capture-rules.mjs).
  */
-async function promptCaptureOptions({ species, instance, hp, balls, trainerLevel }) {
+async function promptCaptureOptions({ species, instance, hp, balls, trainerLevel, trainer }) {
   const options = balls.map(({ item }) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)} ×${Number(item.system.quantity ?? 1)}</option>`).join("");
+  // Capturador (Ranger 5): casilla de confianza, no verificación real de
+  // movimiento — ver el comentario de pokeballAdjustment() en capture-rules.mjs.
+  const rangerField = hasTrainerPath(trainer, "ranger", 5)
+    ? `<label><input type="checkbox" name="rangerCircled"> Completé la vuelta completa con el Capture Styler (Capturador, Ranger 5: +10)</label>`
+    : "";
   try {
     return await foundry.applications.api.DialogV2.prompt({
       window: { title: game.i18n.format("POKE5E.Capture.WindowTitle", { pokemon: species.name }) },
@@ -284,6 +295,7 @@ async function promptCaptureOptions({ species, instance, hp, balls, trainerLevel
           <label><input type="checkbox" name="fishing"> ${game.i18n.localize("POKE5E.Capture.Fishing")}</label>
           <label><input type="checkbox" name="underwater"> ${game.i18n.localize("POKE5E.Capture.Underwater")}</label>
           <label><input type="checkbox" name="darkness"> ${game.i18n.localize("POKE5E.Capture.Darkness")}</label>
+          ${rangerField}
         </fieldset>
         <div class="poke5e-capture-numbers">
           <label><span>${game.i18n.localize("POKE5E.Capture.TimerTurns")}</span><input type="number" name="timerTurns" min="0" max="10" value="0"></label>
@@ -301,7 +313,8 @@ async function promptCaptureOptions({ species, instance, hp, balls, trainerLevel
           underwater: button.form.elements.underwater.checked,
           darkness: button.form.elements.darkness.checked,
           timerTurns: Math.max(0, Math.min(10, Number(button.form.elements.timerTurns.value) || 0)),
-          manualReduction: Math.max(0, Number(button.form.elements.manualReduction?.value) || 0)
+          manualReduction: Math.max(0, Number(button.form.elements.manualReduction?.value) || 0),
+          rangerCircled: Boolean(button.form.elements.rangerCircled?.checked)
         })
       }
     });

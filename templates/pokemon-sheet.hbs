@@ -66,6 +66,15 @@
     {{/each}}
   </section>
 
+  <section class="poke5e-skill-panel" aria-label="Competencias">
+    <label><span><i class="fa-solid fa-dice-d20"></i> Prueba de competencia</span>
+      <div class="poke5e-skill-roll">
+        <select data-action="pick-skill">{{selectOptions skillOptions}}</select>
+        <button type="button" data-action="roll-skill"><i class="fa-solid fa-dice-d20"></i></button>
+      </div>
+    </label>
+  </section>
+
   <section class="poke5e-speed-panel" aria-label="Velocidades de movimiento">
     <h2><i class="fa-solid fa-shoe-prints"></i> {{localize "POKE5E.PokemonSheet.Speed"}}</h2>
     <div class="poke5e-speed-list">
@@ -132,6 +141,10 @@
 
   <nav class="poke5e-sheet-actions">
     {{#if hasTrainer}}<button type="button" data-action="open-trainer-sheet"><i class="fa-solid fa-user-shield"></i> {{localize "POKE5E.PokemonSheet.OpenTrainer"}}</button>{{/if}}
+    {{#if canEdit}}{{#if sabotageResource}}<button type="button" data-action="arm-sabotage" title="Gasta un Punto de Sombra: el próximo golpe que reciba se recorta a fallo, salvo un 20 natural"><i class="fa-solid fa-shield-halved"></i> Sabotaje ({{sabotageResource.remaining}}/{{sabotageResource.max}})</button>{{/if}}
+    {{#if shadowDodgeResource}}<button type="button" data-action="arm-shadow-dodge" title="Gasta 4 Puntos de Sombra: el próximo golpe que reciba se reduce a la mitad"><i class="fa-solid fa-shield"></i> Esquiva siniestra ({{shadowDodgeResource.remaining}}/{{shadowDodgeResource.max}})</button>{{/if}}
+    {{#if canFieldMedicine}}<button type="button" data-action="field-medicine" title="Prueba de Medicina del entrenador (CD 12): cura el estado no volátil de este Pokémon"><i class="fa-solid fa-kit-medical"></i> Médico de campo</button>{{/if}}
+    {{#if multitalentChoice}}<label class="poke5e-multitalent-field" title="Multitalento (Hobbyist 15)"><span>Competencia adicional</span><select data-action="select-multitalent">{{selectOptions multitalentChoice.options selected=multitalentChoice.selected blank="—"}}</select></label>{{/if}}{{/if}}
   </nav>
 
   <section>

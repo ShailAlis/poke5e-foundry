@@ -8,6 +8,8 @@
  * capture.mjs es quien después convierte al salvaje en Pokémon del entrenador.
  */
 import { damageTraitsForPokemonTypes } from "../combat/combat.mjs";
+import { applyAbilityDefenses } from "../pokemon/pokemon-abilities.mjs";
+import { speciesSkillKey } from "../trainer/trainer-creation-data.mjs";
 import { loadPoke5eData } from "../core/data-service.mjs";
 import { buildWildInstance } from "./encounter-generator.mjs";
 import { MODULE_ID, POKEMON_TOKEN_SCALE, portraitUrl, remoteAssetUrl } from "../core/model.mjs";
@@ -63,9 +65,15 @@ export function wildActorSource(species, instance, movesById, encounterId = "") 
       proficient: species.savingThrows?.includes(key) ? 1 : 0
     };
   }
+  const skills = {};
+  for (const name of species.skills ?? []) {
+    const key = speciesSkillKey(name);
+    if (key) skills[key] = { value: 1 };
+  }
   const movement = prepareMovement(species.speed);
   const senses = prepareSenses(species.senses);
   const damageTraits = damageTraitsForPokemonTypes(species.type);
+  applyAbilityDefenses(damageTraits, instance.abilities);
   const tokenSize = { tiny: 0.5, small: 1, medium: 1, large: 2, huge: 3, gargantuan: 4 }[species.size] ?? 1;
   const size = { tiny: "tiny", small: "sm", medium: "med", large: "lg", huge: "huge", gargantuan: "grg" }[species.size] ?? "med";
   const pokemonItem = {
@@ -105,6 +113,7 @@ export function wildActorSource(species, instance, movesById, encounterId = "") 
     },
     system: {
       abilities,
+      skills,
       attributes: {
         ac: { calc: "flat", flat: Number(instance.ac) || Number(species.ac) || 10 },
         hp: { value: Number(instance.hp?.value) || 1, max: Number(instance.hp?.max) || 1 },

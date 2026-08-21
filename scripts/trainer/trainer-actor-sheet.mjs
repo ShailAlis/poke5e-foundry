@@ -15,7 +15,10 @@ import { attemptCapture } from "../pokemon/capture.mjs";
 import { experienceProgress } from "../pokemon/progression.mjs";
 import { adaptTrainerCurrencyFields, pokedollars, updatePokedollars } from "../world/economy.mjs";
 import { advanceTrainerClassFromExperience, trainerProgressionForActor } from "./trainer-progression.mjs";
-import { trainerControlBonus } from "./trainer-path-rules.mjs";
+import { hasTrainerPath, trainerControlBonus, trainerSpecializationTypes } from "./trainer-path-rules.mjs";
+import { promptSpendTrainerResource, spendTrainerResource, trainerResourceState } from "./trainer-resources.mjs";
+import { applyDynamicModifier } from "../combat/move-modifiers.mjs";
+import { typeLabel } from "../combat/combat.mjs";
 import { trainerControlSr } from "./npc-trainer-rules.mjs";
 
 const CharacterActorSheet = dnd5e.applications.actor.CharacterActorSheet;
@@ -39,7 +42,9 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
       deployPokemon: Poke5eTrainerActorSheet.#deployPokemon,
       openPokemon: Poke5eTrainerActorSheet.#openPokemon,
       recallPokemon: Poke5eTrainerActorSheet.#recallPokemon,
-      togglePokemonTeam: Poke5eTrainerActorSheet.#togglePokemonTeam
+      togglePokemonTeam: Poke5eTrainerActorSheet.#togglePokemonTeam,
+      givePokechef: Poke5eTrainerActorSheet.#givePokechef,
+      guruSpirit: Poke5eTrainerActorSheet.#guruSpirit
     }
   };
 
@@ -80,6 +85,35 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
     // Solo es informativo: el módulo no bloquea capturas ni despliegues por superarlo.
     const maxControlSr = trainerControlSr(trainerLevel(this.actor)) + trainerControlBonus(this.actor);
     const overControlSr = active.filter(entry => Number(entry.speciesSr) > maxControlSr).length;
+    // Almacenar poder (Type Master 9): elige uno de los tipos especializados
+    // del entrenador para que sus Pokémon coincidentes ganen resistencia a
+    // ese tipo. Solo aparece con el rasgo desbloqueado y al menos una
+    // especialización elegida.
+    const specializedTypes = [...trainerSpecializationTypes(this.actor)];
+    const typeMasterySelected = this.actor.getFlag(MODULE_ID, "typeMasteryResistance") ?? "";
+    const typeMasteryChoice = hasTrainerPath(this.actor, "type-master", 9) && specializedTypes.length
+      ? { options: Object.fromEntries(specializedTypes.map(type => [type, typeLabel(type)])), selected: typeMasterySelected, selectedLabel: typeLabel(typeMasterySelected) }
+      : null;
+    // Compañero (Ranger 9): elige cualquier Pokémon propio, activo o de
+    // reserva. El texto dice "tras cada descanso largo"; aquí se simplifica a
+    // "se mantiene hasta que lo cambies", igual que el resto de elecciones de
+    // camino de esta ficha.
+    const rangerCompanionSelected = this.actor.getFlag(MODULE_ID, "rangerCompanion") ?? "";
+    const rangerCompanionChoice = hasTrainerPath(this.actor, "ranger", 9) && all.length
+      ? { options: Object.fromEntries(all.map(entry => [entry.itemId, entry.name])), selected: rangerCompanionSelected, selectedLabel: all.find(entry => entry.itemId === rangerCompanionSelected)?.name ?? "" }
+      : null;
+    // Maestría táctica (Ace Trainer 9): característica elegida, +1 para todo
+    // el equipo actual y futuro (aceTrainerAbilityBonus() en
+    // trainer-path-rules.mjs, aplicado en deployedActorSource()).
+    const aceTrainerAbilitySelected = this.actor.getFlag(MODULE_ID, "aceTrainerAbility") ?? "";
+    const aceTrainerAbilityChoice = hasTrainerPath(this.actor, "ace-trainer", 9)
+      ? { options: { str: "Fuerza", dex: "Destreza", con: "Constitución", int: "Inteligencia", wis: "Sabiduría", cha: "Carisma" }, selected: aceTrainerAbilitySelected }
+      : null;
+    // Pokéchef (Nurse 5/9/15): botón por Pokémon en la rejilla de equipo.
+    const pokechefAvailable = Boolean(trainerResourceState(this.actor, "nurse")?.remaining);
+    // Espíritu (Guru 15): botón único, se aplica a todo el equipo desplegado
+    // a la vez (ver #guruSpirit()).
+    const guruSpiritResource = (state => state?.remaining ? state : null)(trainerResourceState(this.actor, "guru"));
     return {
       ...context,
       pokemon: {
@@ -89,6 +123,11 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
         trainerProgression: trainerProgressionForActor(this.actor),
         pathResources,
         hasPathResources: pathResources.length > 0,
+        typeMasteryChoice,
+        rangerCompanionChoice,
+        aceTrainerAbilityChoice,
+        pokechefAvailable,
+        guruSpiritResource,
         maxControlSr,
         overControlSr,
         maxTeamSize,
@@ -140,6 +179,18 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
     adaptTrainerCurrencyFields(this.element);
     this.element.querySelector("[data-poke5e-pokedollars]")?.addEventListener("change", async event => {
       await updatePokedollars(this.actor, event.currentTarget.value);
+      this.render({ force: true });
+    });
+    this.element.querySelector("[data-action='selectTypeMastery']")?.addEventListener("change", async event => {
+      await this.actor.setFlag(MODULE_ID, "typeMasteryResistance", event.currentTarget.value || null);
+      this.render({ force: true });
+    });
+    this.element.querySelector("[data-action='selectRangerCompanion']")?.addEventListener("change", async event => {
+      await this.actor.setFlag(MODULE_ID, "rangerCompanion", event.currentTarget.value || null);
+      this.render({ force: true });
+    });
+    this.element.querySelector("[data-action='selectAceTrainerAbility']")?.addEventListener("change", async event => {
+      await this.actor.setFlag(MODULE_ID, "aceTrainerAbility", event.currentTarget.value || null);
       this.render({ force: true });
     });
   }
@@ -202,6 +253,78 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
     const item = Poke5eTrainerActorSheet.#item(sheet, target);
     if (!item) return;
     await recallPokemon(item);
+    sheet.render({ force: true });
+  }
+
+  /**
+   * Pokéchef (Nurse 5/9/15): gasta una golosina preparada para curar PG al
+   * Pokémon de la fila pulsada. Fórmula según nivel (2d4+2 / 3d10+6 / 4d12+10,
+   * trainerResourceState()). Se restringe a Pokémon propios del entrenador
+   * —el texto original permite dársela a cualquier criatura adyacente, pero
+   * este proyecto no modela criaturas ajenas de forma utilizable aquí—.
+   */
+  static async #givePokechef(event, target) {
+    const sheet = this;
+    const item = Poke5eTrainerActorSheet.#item(sheet, target);
+    if (!item) return;
+    const state = trainerResourceState(sheet.actor, "nurse");
+    if (!state?.remaining) return;
+    const name = displayPokemonName(item);
+    const spent = await promptSpendTrainerResource(sheet.actor, "nurse", {
+      title: `${state.label} (${state.remaining}/${state.max})`,
+      prompt: `¿Dar una golosina (${state.formula} PG) a ${foundry.utils.escapeHTML(name)}?`
+    });
+    if (!spent) return;
+    const combatActor = item.getFlag(MODULE_ID, "kind") === "wild" ? item.parent : deployedActorFor(item);
+    const instance = foundry.utils.deepClone(item.getFlag(MODULE_ID, "instance") ?? {});
+    const roll = await new Roll(state.formula).evaluate();
+    const hpMax = Number(combatActor?.system.attributes?.hp?.max) || Number(instance.hp?.max) || 1;
+    const hpValue = Number(combatActor?.system.attributes?.hp?.value) ?? Number(instance.hp?.value) ?? 0;
+    const healed = Math.min(hpMax - hpValue, Number(roll.total) || 0);
+    const newValue = hpValue + Math.max(0, healed);
+    if (combatActor) await combatActor.update({ "system.attributes.hp.value": newValue });
+    instance.hp = { value: newValue, max: hpMax };
+    await item.setFlag(MODULE_ID, "instance", instance);
+    await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor: sheet.actor }), flavor: `Pokéchef — ${name}` });
+    await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: sheet.actor }), content: `<div class="dnd5e chat-card poke5e-status-card"><p><strong>Pokéchef</strong>: ${foundry.utils.escapeHTML(name)} recupera ${Math.max(0, healed)} PG.</p></div>` });
+    sheet.render({ force: true });
+  }
+
+  /**
+   * Espíritu (Guru 15): gasta un uso para sumar el modificador de Sabiduría
+   * del entrenador a los ataques o al daño (a elegir) de todo su equipo
+   * desplegado hasta su próximo turno, vía el mismo applyDynamicModifier()
+   * que ya usa Acupresión —un ActiveEffect de move-modifiers.mjs con
+   * duración de 1 ronda—, uno por Pokémon desplegado.
+   */
+  static async #guruSpirit(event, target) {
+    const sheet = this;
+    const state = trainerResourceState(sheet.actor, "guru");
+    if (!state?.remaining) return;
+    let choice = null;
+    try {
+      choice = await foundry.applications.api.DialogV2.prompt({
+        window: { title: `${state.label} (${state.remaining}/${state.max})` },
+        content: `<p>Suma tu modificador de Sabiduría hasta tu próximo turno a...</p><label><span>Aplicar a</span><select name="target"><option value="attack">Ataques</option><option value="damage">Daño</option></select></label>`,
+        modal: true,
+        rejectClose: false,
+        ok: { label: "Aplicar", icon: "fa-solid fa-hand-sparkles", callback: (dialogEvent, button) => button.form.elements.target.value }
+      });
+    } catch { choice = null; }
+    if (!choice) return;
+    if (!await spendTrainerResource(sheet.actor, "guru", 1)) return;
+    const wisMod = Math.max(0, Number(sheet.actor.system?.abilities?.wis?.mod) || 0);
+    const deployed = getPokemonItems(sheet.actor).map(item => deployedActorFor(item)).filter(Boolean);
+    const label = choice === "damage" ? "daño" : "ataques";
+    for (const actor of deployed) {
+      await applyDynamicModifier(actor, "guru-spirit", {
+        modifiers: { [choice]: wisMod },
+        durationRounds: 1,
+        sourceName: "Espíritu (Guru 15)",
+        description: `+${wisMod} a ${label} hasta el próximo turno del entrenador.`
+      });
+    }
+    await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: sheet.actor }), content: `<div class="dnd5e chat-card poke5e-status-card"><p><strong>Espíritu</strong>: +${wisMod} a ${label} de todo tu equipo desplegado hasta tu próximo turno.</p></div>` });
     sheet.render({ force: true });
   }
 

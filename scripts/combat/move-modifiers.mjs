@@ -6,10 +6,30 @@
 import { MODULE_ID } from "../core/model.mjs";
 import { pokemonEffectIcon } from "../core/effect-icons.mjs";
 import { MOVE_MODIFIER_EFFECTS, modifierTriggerMatches, nextModifierStacks, scaledMoveModifiers } from "./move-modifier-rules.mjs";
+import { applyGruntSaveAdvantage, applyHobbyistSaveBoost, applyNurseStatusSaveAdvantage, applyTacticianDcBoost } from "../trainer/trainer-resources.mjs";
 
 const SOCKET_ACTION = "applyMoveModifiers";
 const KIND = "move-modifier";
 const CONCENTRATION_KIND = "move-modifier-concentration";
+const STATUS_KIND = "pokemon-status";
+
+/**
+ * Modificadores mecánicos que arrastra cada estado alterado mientras esté
+ * activo: desventaja en ataques, pruebas y salvaciones concretas, tal como
+ * describe su texto en POKEMON_STATUS_EFFECTS (status-effects.mjs). Se leen
+ * aquí por el id de estado que ya guarda el ActiveEffect (`flags.<módulo>.status`)
+ * en vez de duplicar el catálogo de estados, y pokemonCombatModifiers() los sube
+ * exactamente igual que los modificadores de move-modifier-rules.mjs. Quemado,
+ * Congelado, Dormido dependen de dnd5e (daño con desventaja aparte, o de las
+ * condiciones nativas incapacitated/restrained enlazadas) y no necesitan
+ * entrada aquí.
+ */
+const STATUS_COMBAT_MODIFIERS = Object.freeze({
+  poisoned: { attackDisadvantage: true, abilityCheckDisadvantage: true },
+  "badly-poisoned": { attackDisadvantage: true, abilityCheckDisadvantage: true },
+  paralyzed: { saveDisadvantageAbilities: ["str", "dex"] },
+  flinched: { attackDisadvantage: true, abilityCheckDisadvantage: true, saveDisadvantageAbilities: ["str", "dex", "con", "int", "wis", "cha"] }
+});
 
 /** Registra el socket, la limpieza del combate y la reparación de iconos. */
 export function registerMoveModifierEffects() {
@@ -62,7 +82,7 @@ export async function applyMoveModifierEffects({ move, attack = null, saveDc, sa
     const resolvedAttack = attack ? { ...attack, hit: rule.target === "self" ? selectedAttackHit : attackHitsPokemonTarget(attack, actor) } : null;
     let save = saveResults.get(actor.uuid) ?? null;
     if (["failed-save", "failed-save-margin"].includes(rule.trigger) && (!rule.requiresHit || resolvedAttack?.hit) && !save) {
-      save = await rollModifierSave(actor, move, saveDc, sourceModifiers);
+      save = await rollModifierSave(actor, move, saveDc, sourceModifiers, sourceOwnerActor);
       saveResults.set(actor.uuid, save);
     }
     if (!modifierTriggerMatches(rule, { attack: resolvedAttack, save })) continue;
@@ -97,39 +117,49 @@ export async function applyMoveModifierEffects({ move, attack = null, saveDc, sa
 export function pokemonCombatModifiers(actor, { targetUuids = [] } = {}) {
   const total = { attack: 0, damage: 0, criticalRangeBonus: 0, moveModifierMultiplier: 1, attackDice: [], saveDice: [], saves: {}, attackAdvantage: false, attackDisadvantage: false, incomingAttackAdvantage: false, saveAdvantage: false, saveTargetsAdvantage: false, suppressAttackProficiency: false, disableHeldItem: false, abilityCheckDisadvantage: false, attackAdvantageAbilities: [], saveDisadvantageAbilities: [], saveTargetsDisadvantageAbilities: [], saveAdvantageAbilities: [], meleeAttackAdvantage: false, guaranteedHit: false, guaranteedCritical: false, moveLockAll: false, debuffImmune: false, statusImmune: false, recallLock: false, damageHalved: false };
   for (const effect of actor?.effects ?? []) {
-    if (effect.getFlag?.(MODULE_ID, "kind") !== KIND) continue;
+    const kind = effect.getFlag?.(MODULE_ID, "kind");
+    if (kind === STATUS_KIND) {
+      const modifiers = STATUS_COMBAT_MODIFIERS[effect.getFlag(MODULE_ID, "status")];
+      if (modifiers) mergeCombatModifiers(total, modifiers);
+      continue;
+    }
+    if (kind !== KIND) continue;
     const state = effect.getFlag(MODULE_ID, "modifier") ?? {};
     if (state.sourceOnly && !targetUuids.includes(state.sourceCombatActorUuid)) continue;
-    const modifiers = state.modifiers ?? {};
-    total.attack += Number(modifiers.attack) || 0;
-    total.damage += Number(modifiers.damage) || 0;
-    total.criticalRangeBonus += Number(modifiers.criticalRangeBonus) || 0;
-    total.moveModifierMultiplier = Math.max(total.moveModifierMultiplier, Number(modifiers.moveModifierMultiplier) || 1);
-    if (modifiers.attackDice) total.attackDice.push(modifiers.attackDice);
-    if (modifiers.saveDice) total.saveDice.push(modifiers.saveDice);
-    for (const [ability, amount] of Object.entries(modifiers.saves ?? {})) total.saves[ability] = (total.saves[ability] ?? 0) + (Number(amount) || 0);
-    total.attackAdvantage ||= Boolean(modifiers.attackAdvantage);
-    total.attackDisadvantage ||= Boolean(modifiers.attackDisadvantage);
-    total.incomingAttackAdvantage ||= Boolean(modifiers.incomingAttackAdvantage);
-    total.saveAdvantage ||= Boolean(modifiers.saveAdvantage);
-    total.saveTargetsAdvantage ||= Boolean(modifiers.saveTargetsAdvantage);
-    total.suppressAttackProficiency ||= Boolean(modifiers.suppressAttackProficiency);
-    total.disableHeldItem ||= Boolean(modifiers.disableHeldItem);
-    total.abilityCheckDisadvantage ||= Boolean(modifiers.abilityCheckDisadvantage);
-    total.meleeAttackAdvantage ||= Boolean(modifiers.meleeAttackAdvantage);
-    total.guaranteedHit ||= Boolean(modifiers.guaranteedHit);
-    total.guaranteedCritical ||= Boolean(modifiers.guaranteedCritical);
-    total.moveLockAll ||= Boolean(modifiers.moveLockAll);
-    total.debuffImmune ||= Boolean(modifiers.debuffImmune);
-    total.statusImmune ||= Boolean(modifiers.statusImmune);
-    total.recallLock ||= Boolean(modifiers.recallLock);
-    total.damageHalved ||= Boolean(modifiers.damageHalved);
-    total.attackAdvantageAbilities.push(...(modifiers.attackAdvantageAbilities ?? []));
-    total.saveDisadvantageAbilities.push(...(modifiers.saveDisadvantageAbilities ?? []));
-    total.saveTargetsDisadvantageAbilities.push(...(modifiers.saveTargetsDisadvantageAbilities ?? []));
-    total.saveAdvantageAbilities.push(...(modifiers.saveAdvantageAbilities ?? []));
+    mergeCombatModifiers(total, state.modifiers ?? {});
   }
   return total;
+}
+
+/** Suma un objeto `modifiers` (catálogo de movimientos o de estados) en el total acumulado de pokemonCombatModifiers(). */
+function mergeCombatModifiers(total, modifiers) {
+  total.attack += Number(modifiers.attack) || 0;
+  total.damage += Number(modifiers.damage) || 0;
+  total.criticalRangeBonus += Number(modifiers.criticalRangeBonus) || 0;
+  total.moveModifierMultiplier = Math.max(total.moveModifierMultiplier, Number(modifiers.moveModifierMultiplier) || 1);
+  if (modifiers.attackDice) total.attackDice.push(modifiers.attackDice);
+  if (modifiers.saveDice) total.saveDice.push(modifiers.saveDice);
+  for (const [ability, amount] of Object.entries(modifiers.saves ?? {})) total.saves[ability] = (total.saves[ability] ?? 0) + (Number(amount) || 0);
+  total.attackAdvantage ||= Boolean(modifiers.attackAdvantage);
+  total.attackDisadvantage ||= Boolean(modifiers.attackDisadvantage);
+  total.incomingAttackAdvantage ||= Boolean(modifiers.incomingAttackAdvantage);
+  total.saveAdvantage ||= Boolean(modifiers.saveAdvantage);
+  total.saveTargetsAdvantage ||= Boolean(modifiers.saveTargetsAdvantage);
+  total.suppressAttackProficiency ||= Boolean(modifiers.suppressAttackProficiency);
+  total.disableHeldItem ||= Boolean(modifiers.disableHeldItem);
+  total.abilityCheckDisadvantage ||= Boolean(modifiers.abilityCheckDisadvantage);
+  total.meleeAttackAdvantage ||= Boolean(modifiers.meleeAttackAdvantage);
+  total.guaranteedHit ||= Boolean(modifiers.guaranteedHit);
+  total.guaranteedCritical ||= Boolean(modifiers.guaranteedCritical);
+  total.moveLockAll ||= Boolean(modifiers.moveLockAll);
+  total.debuffImmune ||= Boolean(modifiers.debuffImmune);
+  total.statusImmune ||= Boolean(modifiers.statusImmune);
+  total.recallLock ||= Boolean(modifiers.recallLock);
+  total.damageHalved ||= Boolean(modifiers.damageHalved);
+  total.attackAdvantageAbilities.push(...(modifiers.attackAdvantageAbilities ?? []));
+  total.saveDisadvantageAbilities.push(...(modifiers.saveDisadvantageAbilities ?? []));
+  total.saveTargetsDisadvantageAbilities.push(...(modifiers.saveTargetsDisadvantageAbilities ?? []));
+  total.saveAdvantageAbilities.push(...(modifiers.saveAdvantageAbilities ?? []));
 }
 
 /** Resume las ventajas defensivas que los objetivos seleccionados conceden al atacante. */
@@ -411,20 +441,24 @@ function change(key, modeName, value, priority) {
   return { key, mode: CONST.ACTIVE_EFFECT_MODES[modeName], value, priority };
 }
 
-async function rollModifierSave(actor, move, dc, sourceModifiers = {}) {
+async function rollModifierSave(actor, move, dc, sourceModifiers = {}, sourceOwnerActor = null) {
   const abilities = move.save?.attribute?.length ? move.save.attribute : ["con"];
   const choices = abilities.map(key => ({ key, modifier: savingThrowModifier(actor, key) })).sort((a, b) => b.modifier - a.modifier);
   const chosen = choices[0];
   const combat = pokemonCombatModifiers(actor);
   const sourceDisadvantage = (sourceModifiers.saveTargetsDisadvantageAbilities ?? []).some(key => abilities.includes(key));
-  const advantage = combat.saveAdvantage || combat.saveAdvantageAbilities.includes(chosen.key) || Boolean(sourceModifiers.saveTargetsAdvantage);
+  const darkAdvantage = await applyGruntSaveAdvantage(actor);
+  const nurseAdvantage = await applyNurseStatusSaveAdvantage(actor);
+  const advantage = combat.saveAdvantage || combat.saveAdvantageAbilities.includes(chosen.key) || Boolean(sourceModifiers.saveTargetsAdvantage) || darkAdvantage || nurseAdvantage;
   const disadvantage = combat.saveDisadvantageAbilities.includes(chosen.key) || sourceDisadvantage;
   const dice = advantage === disadvantage ? "1d20" : advantage ? "2d20kh" : "2d20kl";
   const bonusDice = combat.saveDice.map(formula => ` + ${formula}`).join("");
   const modifier = chosen.modifier + (combat.saves[chosen.key] ?? 0);
   const roll = await new Roll(`${dice} + @modifier${bonusDice}`, { modifier }).evaluate();
   await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${actor.name} — Salvación ${chosen.key.toUpperCase()} contra ${move.name} (CD ${dc})` });
-  return { total: Number(roll.total) || 0, dc: Number(dc), success: Number(roll.total) >= Number(dc) };
+  const total = await applyHobbyistSaveBoost(actor, Number(roll.total) || 0, chosen.key);
+  const finalDc = await applyTacticianDcBoost(sourceOwnerActor, actor.name, total, Number(dc));
+  return { total, dc: finalDc, success: total >= finalDc };
 }
 
 function savingThrowModifier(actor, key) {

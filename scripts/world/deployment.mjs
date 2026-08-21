@@ -12,7 +12,9 @@
 import { MODULE_ID, POKEMON_TOKEN_SCALE, displayPokemonName, portraitUrl, remoteAssetUrl } from "../core/model.mjs";
 import { loadPoke5eData } from "../core/data-service.mjs";
 import { damageTraitsForPokemonTypes } from "../combat/combat.mjs";
-import { hasTrainerPath } from "../trainer/trainer-path-rules.mjs";
+import { aceTrainerAbilityBonus, applyTypeMasteryDefense, hasTrainerPath } from "../trainer/trainer-path-rules.mjs";
+import { speciesSkillKey } from "../trainer/trainer-creation-data.mjs";
+import { applyAbilityDefenses, applyAbilityDeployWeather } from "../pokemon/pokemon-abilities.mjs";
 import { pokemonStatusEffectSource } from "../combat/status-effects.mjs";
 import { actorHasRecallLock } from "../combat/ongoing-effects.mjs";
 import {
@@ -147,6 +149,7 @@ export async function deployPokemon(pokemonItem) {
     const [createdToken] = await canvas.scene.createEmbeddedDocuments("Token", [token.toObject()]);
     createdToken?.object?.control({ releaseOthers: true });
     ui.notifications.info(localizeFormat("POKE5E.Deployment.Deployed", { pokemon: displayPokemonName(pokemonItem) }, `${displayPokemonName(pokemonItem)} ha salido al combate.`));
+    await applyAbilityDeployWeather(instance.abilities, { sourceName: displayPokemonName(pokemonItem) });
     return actor;
   } catch (error) {
     if (createdActor && game.actors.has(actor.id)) await actor.delete();
@@ -288,6 +291,8 @@ export async function syncPokemonHeldItemToDeployment(item) {
   const adjustments = heldItemActorAdjustments({ sourceId: held?.sourceId, speciesId: species.id, charges: held?.charges, state: held?.state });
   const traits = damageTraitsForPokemonTypes(types);
   if (adjustments.groundImmunity && !traits.di.value.includes("ground")) traits.di.value.push("ground");
+  applyAbilityDefenses(traits, instance.abilities);
+  if (item.parent?.type === "character") applyTypeMasteryDefense(traits, item.parent, types);
   const movement = { walk: 0, fly: 0, swim: 0, burrow: 0, climb: 0, units: "ft", hover: false };
   for (const speed of species.speed ?? []) {
     const key = { walking: "walk", flying: "fly", swimming: "swim", burrowing: "burrow", climbing: "climb" }[speed.type];
@@ -541,8 +546,22 @@ async function deployedActorSource(pokemonItem) {
   const pokemonAttributes = instance.attributes ?? species.attributes ?? {};
   const abilities = {};
   for (const key of ["str", "dex", "con", "int", "wis", "cha"]) {
-    abilities[key] = { value: Number(pokemonAttributes[key]) || 10, proficient: species.savingThrows?.includes(key) || (key === "wis" && hasTrainerPath(trainer, "guru", 5)) ? 1 : 0 };
+    abilities[key] = {
+      value: (Number(pokemonAttributes[key]) || 10) + aceTrainerAbilityBonus(trainer, key),
+      proficient: species.savingThrows?.includes(key) || (key === "wis" && hasTrainerPath(trainer, "guru", 5)) ? 1 : 0
+    };
   }
+  // Competencias "de fábrica" de la especie (species.skills, en inglés en los
+  // datos de origen) más, si aplica, Multitalento (Hobbyist 15): competencia
+  // adicional elegida para este Pokémon en concreto (instance.multitalentSkill,
+  // un desplegable en su propia ficha) — puede ser distinta para cada uno, tal
+  // como pide el texto, porque se guarda por Pokémon y no por entrenador.
+  const skills = {};
+  for (const name of species.skills ?? []) {
+    const key = speciesSkillKey(name);
+    if (key) skills[key] = { value: 1 };
+  }
+  if (hasTrainerPath(trainer, "hobbyist", 15) && instance.multitalentSkill) skills[instance.multitalentSkill] = { value: 1 };
   const movement = { walk: 0, fly: 0, swim: 0, burrow: 0, climb: 0, units: "ft", hover: false };
   for (const speed of species.speed ?? []) {
     const key = { walking: "walk", flying: "fly", swimming: "swim", burrowing: "burrow", climbing: "climb" }[speed.type];
@@ -561,6 +580,8 @@ async function deployedActorSource(pokemonItem) {
   const size = { tiny: "tiny", small: "sm", medium: "med", large: "lg", huge: "huge", gargantuan: "grg" }[species.size] ?? "med";
   const damageTraits = damageTraitsForPokemonTypes(effectiveTypes);
   if (heldAdjustments.groundImmunity && !damageTraits.di.value.includes("ground")) damageTraits.di.value.push("ground");
+  applyAbilityDefenses(damageTraits, instance.abilities);
+  if (trainer?.type === "character") applyTypeMasteryDefense(damageTraits, trainer, effectiveTypes);
   const trainerSpecialization = trainer.getFlag(MODULE_ID, "trainerCreation")?.specialization;
   const specializationBonus = effectiveTypes.includes(trainerSpecialization) ? 1 : 0;
   const moveItems = (instance.moves ?? []).map(entry => data.movesById.get(entry.moveId)).filter(Boolean).map(move => ({
@@ -595,6 +616,7 @@ async function deployedActorSource(pokemonItem) {
     },
     system: {
       abilities,
+      skills,
       bonuses: { abilities: { check: "", save: "", skill: specializationBonus ? String(specializationBonus) : "" } },
       attributes: {
         ac: { calc: "flat", flat: (Number(instance.ac) || Number(species.ac) || 10) + heldAdjustments.ac },

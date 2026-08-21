@@ -755,19 +755,88 @@ function pathFeatureUses(pathId, level) {
 
 function pathFeatureAutomation(pathId, level) {
   if (["commander", "pokemon-breeder"].includes(pathId)) return "supplement";
-  // "nurse:5" (Pokéchef) tiene usos limitados pero ningún código automatiza
-  // preparar/curar con la golosina; se resuelve en la ficha como recurso manual.
-  const automatic = new Set(["ace-trainer:2", "poke-mentor:2", "pokemon-collector:2", "pokemon-collector:5", "nurse:2", "type-master:2", "type-master:5", "ranger:2", "guru:5"]);
-  const resource = new Set(["ace-trainer:5", "hobbyist:5", "poke-mentor:9", "researcher:2", "nurse:5", "grunt:2", "tactician:2", "guru:15"]);
+  // "guru:2" está aquí (y no en TRAINER_CONTROL_BONUS antes) porque
+  // trainerControlBonus() lo suma de verdad al límite de control en
+  // trainer-actor-sheet.mjs. "ace-trainer:5", "hobbyist:5", "grunt:2/5/9/15" y
+  // "tactician:2/5/9/15" pasaron de "resource" (solo llevaban la cuenta de
+  // usos) a automáticos del todo en agosto de 2026: trainer-resources.mjs y
+  // los métodos #offerTrainerRollBoosts()/#armSabotage()/#armShadowDodge() de
+  // pokemon-sheet.mjs ya gastan el recurso y aplican su efecto real sobre la
+  // tirada, no solo lo cuentan. Esquiva siniestra (grunt:9) y Golpe infame
+  // (grunt:15) simplifican su texto —ver los comentarios de
+  // HALF_NEGATION_MOVES en damage-shields.mjs y del bloque de retroceso en
+  // pokemon-sheet.mjs—; Alza tus defensas (tactician:9) solo se ofrece con un
+  // único objetivo, por la misma razón que documenta su comentario en
+  // pokemon-sheet.mjs. "type-master:9" (Almacenar poder, resistencia al tipo
+  // elegido, ver applyTypeMasteryDefense() en trainer-path-rules.mjs) y
+  // "type-master:15" (Liberar poder, forceStab en damageFormula()) también
+  // pasaron a automáticos en la misma ronda, igual que "pokemon-collector:9"
+  // (Golpes disciplinados, reutiliza markFalseSwipeTarget() de Falso Tortazo
+  // como oferta opcional en cualquier golpe). "guru:5" pasó de "parcial" a
+  // automático del todo: además de la ventaja en la tabla de Confusión, sus
+  // Pokémon ya eran competentes en salvaciones de Sabiduría desde
+  // deployedActorSource() en deployment.mjs —estaba mal etiquetado, no sin
+  // código—.
+  // "researcher:9" gasta 2 de los puntos de característica que ya concede una
+  // evolución para dar una dote en su lugar (promptEvolution()/#evolve() en
+  // pokemon-sheet.mjs) —el propio texto no explica de dónde salen los "puntos
+  // de evolución", así que se resolvió reutilizando los puntos de mejora que
+  // ya reparte la propia evolución, decisión confirmada en vivo—. "ranger:5"
+  // usa una casilla de confianza en el diálogo de captura en vez de verificar
+  // movimiento real en el mapa (pokeballAdjustment() en capture-rules.mjs),
+  // igual que Ranger 5 acordado en la misma conversación. "ace-trainer:9"
+  // (Maestría táctica, +1 a la característica elegida para todo el equipo
+  // actual y futuro) sigue el mismo patrón que la competencia de Guru 5:
+  // aceTrainerAbilityBonus() se aplica en deployedActorSource(), así que no
+  // hace falta reescribir nada guardado ni preocuparse de revertir si cambia
+  // la elección. El resto del texto de ese rasgo (el dado de batalla pasa a
+  // d8) ya era automático desde antes (dieSize() en trainer-resources.mjs).
+  // "hobbyist:15" (Multitalento) también es automático del todo: la
+  // competencia adicional se elige por Pokémon (instance.multitalentSkill,
+  // desplegable en su propia ficha) y se aplica en deployedActorSource() vía
+  // `system.skills`, igual que el resto de rasgos de esta ronda. "nurse:5/9/15"
+  // (Pokéchef) se cerró del todo en la misma ronda: #givePokechef()
+  // (trainer-actor-sheet.mjs) prepara y da la golosina de verdad, con la
+  // fórmula de curación ya escalada por nivel (pokechefFormula() en
+  // trainer-resources.mjs) — se restringe a Pokémon propios del entrenador,
+  // simplificación sobre "cualquier criatura adyacente" del texto original.
+  // "guru:15" (Espíritu) se cerró igual: #guruSpirit() gasta un uso y aplica
+  // el modificador de Sabiduría a todo el equipo desplegado con
+  // applyDynamicModifier() (el mismo mecanismo dinámico que ya usaba
+  // Acupresión), 1 ronda de duración como aproximación de "hasta tu próximo
+  // turno". "hobbyist:9" y "ranger:9/15" se completaron aparte, al aclarar
+  // que "pruebas de habilidad de Pokémon" se refería a tiradas de competencia
+  // (skill checks) y no a las habilidades de combate Pokémon: #rollSkillCheck()
+  // en pokemon-sheet.mjs añade la tirada de competencia que le faltaba a la
+  // ficha del Pokémon (con las competencias "de fábrica" de la especie,
+  // species.skills, que tampoco se aplicaban antes) y ahí ya se suma el medio
+  // bono de Generalista y el modificador de Sabiduría de Compañero.
+  const automatic = new Set([
+    "ace-trainer:2", "ace-trainer:5", "ace-trainer:9", "poke-mentor:2", "pokemon-collector:2", "pokemon-collector:5", "pokemon-collector:9",
+    "nurse:2", "nurse:5", "type-master:2", "type-master:5", "type-master:9", "type-master:15", "ranger:2", "ranger:5", "ranger:9", "ranger:15", "guru:2", "guru:5", "guru:15",
+    "hobbyist:5", "hobbyist:9", "hobbyist:15", "grunt:2", "grunt:5", "grunt:9", "grunt:15", "tactician:2", "tactician:5", "tactician:9", "tactician:15", "researcher:9",
+    "nurse:9", "nurse:15"
+  ]);
+  const resource = new Set(["poke-mentor:9", "researcher:2"]);
+  // "partial": una parte concreta del texto sí tiene código detrás y el resto
+  // se resuelve a mano. Poké Mentor 5 y Guru 9 abaratan una dote vía
+  // trainerPathFeatDiscount() (consumida en pokemon-advancement.mjs), pero
+  // "puede recibir un punto quien ya la tenga" (Poké Mentor 5) y "dos
+  // habilidades activas a la vez" (Guru 9) no tienen automatización —esta
+  // última, además, ya no hay ninguna restricción de una sola habilidad
+  // activa que levantar: actorMatchesModifierRule() (move-modifiers.mjs)
+  // consulta por igual todas las habilidades que conoce un Pokémon, no solo
+  // una "activa"—.
+  const partial = new Set(["poke-mentor:5", "guru:9"]);
   const key = `${pathId}:${level}`;
   if (automatic.has(key)) return "automatic";
   if (resource.has(key)) return "resource";
+  if (partial.has(key)) return "partial";
   return "manual";
 }
 
 function pathFeatureEffects(pathId, level) {
-  if (pathId !== "ranger" || level !== 2) return [];
-  return [{
+  if (pathId === "ranger" && level === 2) return [{
     name: "Explorador — movimiento",
     img: "icons/svg/wing.svg",
     disabled: false,
@@ -778,11 +847,28 @@ function pathFeatureEffects(pathId, level) {
       { key: "system.attributes.movement.swim", mode: 4, value: "floor(@attributes.movement.walk / 2)", priority: 30 }
     ]
   }];
+  // Generalista (hobbyist:9): mitad de la competencia (redondeo hacia abajo)
+  // en pruebas de habilidad sin entrenar, para el propio entrenador. Es el
+  // mismo flag que usa el Bardo oficial de dnd5e para Todólogo, así que se
+  // reutiliza su automatización nativa en vez de reconstruirla; conviene
+  // confirmar en una partida real que sigue llamándose así si una futura
+  // versión del sistema lo renombra. La mitad del texto que menciona a "tus
+  // Pokémon" no tiene equivalente: no existe una tirada de prueba de
+  // habilidad de Pokémon en este módulo (ver pathFeatureAutomation()).
+  if (pathId === "hobbyist" && level === 9) return [{
+    name: "Generalista — Todólogo",
+    img: "icons/svg/upgrade.svg",
+    disabled: false,
+    transfer: true,
+    changes: [{ key: "flags.dnd5e.jackOfAllTrades", mode: 5, value: "true", priority: 20 }]
+  }];
+  return [];
 }
 
 function automationLabel(value) {
   if (value === "automatic") return "Automática por el módulo";
   if (value === "resource") return "Recurso con usos en la ficha; resolución del efecto por el jugador";
+  if (value === "partial") return "Parcialmente automática; una parte se resuelve a mano según la descripción";
   if (value === "supplement") return "Requiere su suplemento opcional";
   return "Resolución manual según la descripción";
 }

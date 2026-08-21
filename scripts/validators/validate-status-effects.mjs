@@ -8,7 +8,7 @@
  */
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { POKEMON_STATUS_EFFECTS, applyPokemonStatus, inferMoveStatusEffects, pokemonStatusEffectSource } from "../combat/status-effects.mjs";
+import { POKEMON_STATUS_EFFECTS, applyPokemonStatus, inferMoveStatusEffects, pokemonIncapacitatingStatus, pokemonStatusEffectSource } from "../combat/status-effects.mjs";
 
 const moves = JSON.parse(fs.readFileSync(new URL("../../data/moves.json", import.meta.url))).moves;
 const translated = JSON.parse(fs.readFileSync(new URL("../../data/es/moves.json", import.meta.url))).moves;
@@ -120,5 +120,16 @@ __deleteActiveEffectHook(expiredEffect);
 // interno (promesas encadenadas, sin temporizadores reales) se asiente.
 await new Promise(resolve => setTimeout(resolve, 10));
 assert.deepEqual(expired.conditionsRef(), [], "Deleting the ActiveEffect (expiry or manual removal) must clear the stale condition from the Item.");
+
+// pokemonIncapacitatingStatus(): Congelado y Dormido bloquean #rollMove() en
+// pokemon-sheet.mjs; Parálisis/Confusión/el resto no, porque son un fallo
+// aleatorio descrito por texto, no un bloqueo binario.
+const frozenActor = { effects: [{ getFlag: (s, k) => k === "status" ? "frozen" : null }], statuses: new Set() };
+assert.equal(pokemonIncapacitatingStatus(frozenActor), "frozen");
+const asleepActor = { effects: [{ getFlag: (s, k) => k === "status" ? "asleep" : null }], statuses: new Set() };
+assert.equal(pokemonIncapacitatingStatus(asleepActor), "asleep");
+const paralyzedActor = { effects: [{ getFlag: (s, k) => k === "status" ? "paralyzed" : null }], statuses: new Set() };
+assert.equal(pokemonIncapacitatingStatus(paralyzedActor), null, "Parálisis es un fallo aleatorio, no un bloqueo");
+assert.equal(pokemonIncapacitatingStatus(null), null);
 
 console.log(`Pokémon status-effect validation passed after auditing ${mentionedStatuses.length} textual candidates.`);

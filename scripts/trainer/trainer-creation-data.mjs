@@ -27,6 +27,29 @@ export const SKILLS = {
 };
 
 /**
+ * Nombre completo en inglés (como aparece en `pokemon.json`/`skills`) → clave
+ * de tres letras de SKILLS. Incluye "persuaion", la errata de escritura que
+ * trae una parte de los datos de origen para "persuasion".
+ */
+const SPECIES_SKILL_NAMES = Object.freeze({
+  acrobatics: "acr", "animal handling": "ani", arcana: "arc", athletics: "ath",
+  deception: "dec", history: "his", insight: "ins", intimidation: "itm",
+  investigation: "inv", medicine: "med", nature: "nat", perception: "prc",
+  performance: "prf", persuasion: "per", persuaion: "per", religion: "rel",
+  "sleight of hand": "slt", stealth: "ste", survival: "sur"
+});
+
+/**
+ * Traduce un nombre de competencia tal como lo escribe `pokemon.json`
+ * (`species.skills`, en inglés y en minúsculas) a su clave de tres letras, o
+ * null si no se reconoce. La usan deployment.mjs y wild-deployment.mjs para
+ * aplicar las competencias "de fábrica" de la especie al actor de combate.
+ */
+export function speciesSkillKey(name) {
+  return SPECIES_SKILL_NAMES[String(name ?? "").trim().toLocaleLowerCase()] ?? null;
+}
+
+/**
  * Habilidades entre las que la clase Entrenador deja elegir dos, además de Trato
  * con Animales, que concede siempre. resolveTrainerCreation() lo comprueba.
  */

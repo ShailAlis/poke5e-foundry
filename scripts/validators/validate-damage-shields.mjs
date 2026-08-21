@@ -4,7 +4,13 @@ import { FULL_NEGATION_MOVES, HALF_NEGATION_MOVES, SURVIVE_MOVES, shieldedDamage
 
 const moves = JSON.parse(fs.readFileSync(new URL("../../data/moves.json", import.meta.url), "utf8")).moves;
 const movesById = new Map(moves.map(move => [move.id, move]));
-for (const id of [...FULL_NEGATION_MOVES, ...HALF_NEGATION_MOVES, ...SURVIVE_MOVES]) assert.ok(movesById.has(id), `${id} no existe en el catálogo de movimientos`);
+// "sabotage" no es un movimiento: es la reacción de Sabotaje (Grunt 2), armada
+// desde pokemon-sheet.mjs al gastar un Punto de Sombra, no desde el catálogo.
+const NON_MOVE_SHIELD_IDS = new Set(["sabotage", "shadow-dodge"]);
+for (const id of [...FULL_NEGATION_MOVES, ...HALF_NEGATION_MOVES, ...SURVIVE_MOVES]) {
+  if (NON_MOVE_SHIELD_IDS.has(id)) continue;
+  assert.ok(movesById.has(id), `${id} no existe en el catálogo de movimientos`);
+}
 
 assert.equal(shieldedDamage(10, 30, "full"), 30, "Anula el golpe entero: los PG no cambian");
 assert.equal(shieldedDamage(10, 30, "half"), 20, "La mitad del golpe (20 de caída) se reduce a 10: 30-10=20");

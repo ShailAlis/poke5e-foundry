@@ -23,6 +23,7 @@
   "POKE5E.Notifications.NoActor": "Selecciona un Pokémon perteneciente a un entrenador.",
   "POKE5E.Notifications.NoPP": "A {name} no le quedan PP para {move}.",
   "POKE5E.Notifications.Recharging": "{name} todavía está recargando: no puede usar {move} este turno.",
+  "POKE5E.Notifications.Incapacitated": "{name} está {status} y no puede actuar.",
   "POKE5E.Notifications.MoveLocked": "{name} no puede activar ningún movimiento ahora mismo (intentaba {move}).",
   "POKE5E.Notifications.SleepTalkAwake": "{name} debe estar dormido para usar Hablar Dormido.",
   "POKE5E.Notifications.SleepTalkNone": "{name} no tiene ningún otro movimiento de 1 acción con PP disponibles.",
