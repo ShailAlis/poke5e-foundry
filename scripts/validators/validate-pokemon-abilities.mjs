@@ -1,18 +1,19 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import {
-  CONTACT_DAMAGE_ABILITIES, FULL_STATUS_IMMUNITY_ABILITIES, IMMUNITY_ABILITIES, LOW_HP_STAB_ABILITIES, RESISTANCE_ABILITIES, STATUS_IMMUNITY_ABILITIES, WEATHER_ABILITIES,
-  abilityBlocksStatus, abilityDeployWeather, abilityLowHpStabBonus, abilityMoveProfile, applyAbilityDefenses, contactDamageReaction, pokemonAbilityDefenses
+  CONTACT_DAMAGE_ABILITIES, FULL_STATUS_IMMUNITY_ABILITIES, GUTS_IGNORED_STATUSES, IMMUNITY_ABILITIES, LOW_HP_STAB_ABILITIES, RESISTANCE_ABILITIES, SELF_STATUS_DAMAGE_BOOST_ABILITIES, STATUS_IMMUNITY_ABILITIES, WEATHER_ABILITIES,
+  abilityBlocksStatus, abilityDeployWeather, abilityIgnoresStatusPenalty, abilityLowHpStabBonus, abilityMoveProfile, abilitySelfStatusDamageBonus, applyAbilityDefenses, contactDamageReaction, pokemonAbilityDefenses
 } from "../pokemon/pokemon-abilities.mjs";
 import { POKEMON_STATUS_EFFECTS } from "../combat/status-effects.mjs";
 
 const abilities = JSON.parse(fs.readFileSync(new URL("../../data/abilities.json", import.meta.url), "utf8")).items;
 const abilityIds = new Set(abilities.map(entry => entry.id));
 const MOVE_PROFILE_ABILITY_IDS = ["compound-eyes", "gale-wings", "steelworker", "rivalry", "super-luck"];
+const SELF_STATUS_ABILITY_IDS = ["guts", "competitive", "flare-boost"];
 const catalogued = [
   ...Object.keys(IMMUNITY_ABILITIES), ...Object.keys(RESISTANCE_ABILITIES), ...Object.keys(WEATHER_ABILITIES),
   ...Object.keys(STATUS_IMMUNITY_ABILITIES), ...FULL_STATUS_IMMUNITY_ABILITIES, ...Object.keys(CONTACT_DAMAGE_ABILITIES), ...LOW_HP_STAB_ABILITIES,
-  ...MOVE_PROFILE_ABILITY_IDS
+  ...MOVE_PROFILE_ABILITY_IDS, ...SELF_STATUS_ABILITY_IDS
 ];
 const unknown = catalogued.filter(id => !abilityIds.has(id));
 assert.deepEqual(unknown, [], `Habilidades sin correspondencia en data/abilities.json: ${unknown.join(", ")}`);
@@ -21,6 +22,10 @@ const statusIds = new Set(Object.keys(POKEMON_STATUS_EFFECTS));
 for (const [ability, statuses] of Object.entries(STATUS_IMMUNITY_ABILITIES)) {
   for (const status of statuses) assert.ok(statusIds.has(status), `${ability} apunta a un estado desconocido: ${status}`);
 }
+for (const [ability, statuses] of Object.entries(SELF_STATUS_DAMAGE_BOOST_ABILITIES)) {
+  for (const status of statuses) assert.ok(statusIds.has(status), `${ability} apunta a un estado desconocido: ${status}`);
+}
+for (const status of GUTS_IGNORED_STATUSES) assert.ok(statusIds.has(status), `Vigor apunta a un estado desconocido: ${status}`);
 
 const DAMAGE_TYPES = new Set(["bug", "dark", "dragon", "electric", "fairy", "fighting", "fire", "flying", "ghost", "grass", "ground", "ice", "normal", "poison", "psychic", "rock", "steel", "water"]);
 for (const type of Object.values(IMMUNITY_ABILITIES)) assert.ok(DAMAGE_TYPES.has(type), `Tipo de daño desconocido: ${type}`);
@@ -80,4 +85,18 @@ assert.deepEqual(abilityMoveProfile(["super-luck"]), { attack: 0, damage: 0, cri
 assert.deepEqual(abilityMoveProfile([]), { attack: 0, damage: 0, criticalRange: 0 });
 assert.deepEqual(abilityMoveProfile(["compound-eyes", "super-luck"]), { attack: 1, damage: 0, criticalRange: 1 }, "Varias habilidades del lote se combinan");
 
-console.log(`Pokémon abilities validation passed: ${Object.keys(IMMUNITY_ABILITIES).length} immunities, ${Object.keys(RESISTANCE_ABILITIES).length} resistances, ${Object.keys(WEATHER_ABILITIES).length} weather-setters, ${Object.keys(STATUS_IMMUNITY_ABILITIES).length + FULL_STATUS_IMMUNITY_ABILITIES.size} status immunities, ${Object.keys(CONTACT_DAMAGE_ABILITIES).length} contact reactions, ${LOW_HP_STAB_ABILITIES.size} low-HP STAB doublers, ${MOVE_PROFILE_ABILITY_IDS.length} move-profile bonuses out of ${abilities.length} known abilities.`);
+assert.equal(abilitySelfStatusDamageBonus(["competitive"], ["poisoned"], 3), 3, "Competitivo suma competencia estando envenenado");
+assert.equal(abilitySelfStatusDamageBonus(["competitive"], ["confused"], 3), 3, "Competitivo también cubre Confuso");
+assert.equal(abilitySelfStatusDamageBonus(["competitive"], [], 3), 0, "Sin ningún estado activo no hay bono");
+assert.equal(abilitySelfStatusDamageBonus(["flare-boost"], ["burned"], 4), 4, "Impulso Ígneo suma competencia estando quemado");
+assert.equal(abilitySelfStatusDamageBonus(["flare-boost"], ["poisoned"], 4), 0, "Impulso Ígneo no cubre Envenenado");
+assert.equal(abilitySelfStatusDamageBonus(["competitive", "flare-boost"], ["burned"], 3), 3, "Las dos habilidades a la vez no duplican el bono");
+assert.equal(abilitySelfStatusDamageBonus(["overgrow"], ["poisoned"], 3), 0, "Una habilidad sin este efecto no aporta nada aunque el estado coincida");
+assert.equal(abilitySelfStatusDamageBonus([], ["poisoned"], 3), 0);
+assert.equal(abilitySelfStatusDamageBonus(["competitive"], ["poisoned"], 0), 0, "Con competencia 0 el bono también es 0");
+
+assert.equal(abilityIgnoresStatusPenalty(["guts"]), true);
+assert.equal(abilityIgnoresStatusPenalty(["overgrow"]), false, "Una habilidad distinta de Vigor no anula la desventaja de estado");
+assert.equal(abilityIgnoresStatusPenalty([]), false);
+
+console.log(`Pokémon abilities validation passed: ${Object.keys(IMMUNITY_ABILITIES).length} immunities, ${Object.keys(RESISTANCE_ABILITIES).length} resistances, ${Object.keys(WEATHER_ABILITIES).length} weather-setters, ${Object.keys(STATUS_IMMUNITY_ABILITIES).length + FULL_STATUS_IMMUNITY_ABILITIES.size} status immunities, ${Object.keys(CONTACT_DAMAGE_ABILITIES).length} contact reactions, ${LOW_HP_STAB_ABILITIES.size} low-HP STAB doublers, ${MOVE_PROFILE_ABILITY_IDS.length} move-profile bonuses, ${Object.keys(SELF_STATUS_DAMAGE_BOOST_ABILITIES).length} self-status damage boosters + Guts out of ${abilities.length} known abilities.`);

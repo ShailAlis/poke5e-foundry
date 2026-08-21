@@ -29,7 +29,7 @@ import { acupressureEffect, hiddenPowerType, magnitudeDice } from "../combat/ran
 import { requestForcedSwitch, selfForcedSwitch } from "../combat/forced-switch.mjs";
 import { FULL_NEGATION_MOVES, HALF_NEGATION_MOVES, SURVIVE_MOVES, armDamageShield } from "../combat/damage-shields.mjs";
 import { FIELD_PULSE_MOVES, FIELD_RULE_MOVES, TERRAIN_MOVES, WEATHER_BALL_TYPES, WEATHER_MOVES, clearField, currentField, requestFieldEffect } from "../combat/terrain-effects.mjs";
-import { abilityLowHpStabBonus, abilityMoveProfile, applyContactDamageReaction } from "./pokemon-abilities.mjs";
+import { abilityIgnoresStatusPenalty, abilityLowHpStabBonus, abilityMoveProfile, abilitySelfStatusDamageBonus, applyContactDamageReaction } from "./pokemon-abilities.mjs";
 import { promptSpendTrainerResource, trainerResourceState } from "../trainer/trainer-resources.mjs";
 import { pokemonFeatOptions } from "../trainer/feat-catalog.mjs";
 import { SKILLS } from "../trainer/trainer-creation-data.mjs";
@@ -885,7 +885,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       await magnitudeRoll.toMessage({ speaker, flavor: `${flavor} — Magnitud` });
       magnitudeFormula = appendModifier(magnitudeDice(magnitudeRoll.total), damageMoveModifier);
     }
-    const formula = finalGambitFormula ?? magnitudeFormula ?? (moveHasImmediateDamage(move) ? damageFormula(move, level, damageMoveModifier, species, combatModifiers.damage + heldProfile.damage + pathProfile.damage + trumpCardBonus + abilityProfile.damage, heldProfile.stab + pathProfile.stab + lowHpStabBonus, escalationMultiplier * weatherDiceMultiplier * targetStatusDiceMultiplier * selfHpDiceMultiplier * ownDamagedDiceMultiplier * ownMissedDiceMultiplier * targetDamagedThisRoundMultiplier, ownMissedExtraDie, forceStab) : null);
+    const formula = finalGambitFormula ?? magnitudeFormula ?? (moveHasImmediateDamage(move) ? damageFormula(move, level, damageMoveModifier, species, combatModifiers.damage + heldProfile.damage + pathProfile.damage + trumpCardBonus + abilityProfile.damage + abilitySelfStatusDamageBonus(instance.abilities, instance.conditions ?? [], proficiency), heldProfile.stab + pathProfile.stab + lowHpStabBonus, escalationMultiplier * weatherDiceMultiplier * targetStatusDiceMultiplier * selfHpDiceMultiplier * ownDamagedDiceMultiplier * ownMissedDiceMultiplier * targetDamagedThisRoundMultiplier, ownMissedExtraDie, forceStab) : null);
     let hiddenPowerRoll = null;
     if (formula && move.id === "hidden-power") {
       hiddenPowerRoll = await new Roll("1d20").evaluate();
@@ -904,7 +904,12 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
 
     let attackResult = null;
     if (move.attack?.scope) {
-      const statusDisadvantage = ["poisoned", "badly-poisoned", "flinched"].some(id => (instance.conditions ?? []).includes(id) || combatActor?.statuses?.has(pokemonStatusId(id)));
+      // Vigor (guts) anula la desventaja por Envenenado/Gravemente
+      // envenenado, pero no la de Amedrentado, que sigue aplicando igual.
+      const statusDisadvantageIds = abilityIgnoresStatusPenalty(instance.abilities)
+        ? ["flinched"]
+        : ["poisoned", "badly-poisoned", "flinched"];
+      const statusDisadvantage = statusDisadvantageIds.some(id => (instance.conditions ?? []).includes(id) || combatActor?.statuses?.has(pokemonStatusId(id)));
       const powerAbilities = Array.isArray(move.power) ? move.power : [move.power].filter(Boolean);
       const abilityAdvantage = combatModifiers.attackAdvantageAbilities.some(key => powerAbilities.includes(key));
       const meleeAdvantage = combatModifiers.meleeAttackAdvantage && move.attack.scope === "melee";
@@ -1043,7 +1048,8 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     if (formula) {
       const DamageRoll = CONFIG.Dice?.DamageRoll;
       if (DamageRoll) {
-        const burned = damageType !== "healing" && (instance.conditions ?? []).includes("burned");
+        // Vigor (guts) ignora la tirada doble-quedarse-con-la-menor de Quemado.
+        const burned = damageType !== "healing" && (instance.conditions ?? []).includes("burned") && !abilityIgnoresStatusPenalty(instance.abilities);
         const damageOptions = { type: damageType, critical: Boolean(attackResult?.critical) };
         const damageRolls = [await new DamageRoll(formula, {}, damageOptions).evaluate()];
         if (burned) damageRolls.push(await new DamageRoll(formula, {}, damageOptions).evaluate());
@@ -1056,7 +1062,8 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
           flags: { dnd5e: { messageType: "roll", roll: { type: rollType }, targets: targetDescriptors() } }
         });
       } else {
-        const burned = damageType !== "healing" && (instance.conditions ?? []).includes("burned");
+        // Vigor (guts) ignora la tirada doble-quedarse-con-la-menor de Quemado.
+        const burned = damageType !== "healing" && (instance.conditions ?? []).includes("burned") && !abilityIgnoresStatusPenalty(instance.abilities);
         const damageRolls = [await new Roll(formula).evaluate()];
         if (burned) damageRolls.push(await new Roll(formula).evaluate());
         const damage = damageRolls.reduce((lowest, candidate) => Number(candidate.total) < Number(lowest.total) ? candidate : lowest);
