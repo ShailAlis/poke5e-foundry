@@ -15,12 +15,13 @@
  * turnos y aquí solo se calcula el multiplicador de dados que corresponde.
  */
 
-/** Movimientos de golpes en cadena: una tirada de ataque, extensión por 1d4. */
-export const CHAIN_MULTI_HIT_MOVES = Object.freeze(new Set([
-  "arm-thrust", "bone-rush", "bullet-seed", "comet-punch", "double-slap",
-  "fury-attack", "fury-swipes", "icicle-spear", "pin-missile", "rock-blast",
-  "spike-cannon", "tail-slap", "water-shuriken"
-]));
+/** Movimientos de golpes en cadena: una tirada de ataque, extensión por 1d4, con su tope de golpes extra. */
+export const CHAIN_MULTI_HIT_MOVES = Object.freeze({
+  "arm-thrust": 4, "bone-rush": 4, "bullet-seed": 4, "comet-punch": 4, "double-slap": 4,
+  "fury-attack": 4, "fury-swipes": 4, "icicle-spear": 4, "pin-missile": 4, "rock-blast": 4,
+  "spike-cannon": 4, "tail-slap": 4, "water-shuriken": 4,
+  thrash: 2
+});
 
 /** Movimientos de escalada consecutiva y su tope de duplicaciones. */
 export const CONSECUTIVE_ESCALATION_MOVES = Object.freeze({
@@ -28,6 +29,34 @@ export const CONSECUTIVE_ESCALATION_MOVES = Object.freeze({
   rollout: { maxStacks: 4 },
   outrage: { maxStacks: 2, automatic: true }
 });
+
+/**
+ * Golpes fijos (Bonemerang, Burbuja, Bomba Demográfica...): a diferencia de
+ * la cadena de arriba, cada golpe tira su propio ataque Y su propio daño con
+ * el modificador MOVE completo (el texto dice "on each successful hit, do
+ * X + MOVE", no solo dados extra). #rollFixedMultiAttack() en
+ * pokemon-sheet.mjs resuelve el bucle.
+ */
+export const FIXED_MULTI_ATTACK_MOVES = Object.freeze({
+  bonemerang: 2,
+  bubble: 3,
+  "gear-grind": 2,
+  "origin-pulse": 3,
+  "population-bomb": 10,
+  "precipice-blades": 3
+});
+
+/** Golpes fijos que se detienen en cuanto uno falla (Ola Trompa, Triple Patada). */
+export const STOP_ON_MISS_MOVES = Object.freeze(new Set(["triple-axel", "triple-kick"]));
+
+/** Golpe Rápido: el número de proyectiles depende del nivel, no de la tabla de dados. */
+export function swiftProjectileCount(level) {
+  const lvl = Number(level) || 1;
+  if (lvl >= 17) return 6;
+  if (lvl >= 10) return 5;
+  if (lvl >= 5) return 4;
+  return 2;
+}
 
 /** Un resultado de 1d4 de 3 o 4 permite continuar la cadena de golpes. */
 export function continuesChain(value) {
@@ -37,14 +66,15 @@ export function continuesChain(value) {
 /**
  * Cuenta los golpes adicionales confirmados de una cadena ya tirada: recorre
  * los resultados de 1d4 en orden y se detiene en el primero que no siga la
- * cadena, con un máximo de 4 golpes extra (aunque sobren tiradas en la lista).
+ * cadena, con el tope de golpes extra que corresponda al movimiento (4 por
+ * defecto; Enfado limita a 2, ver CHAIN_MULTI_HIT_MOVES).
  */
-export function resolveChainHits(rolls = []) {
+export function resolveChainHits(rolls = [], maxExtra = 4) {
   let extra = 0;
   for (const value of rolls) {
     if (!continuesChain(value)) break;
     extra += 1;
-    if (extra >= 4) break;
+    if (extra >= maxExtra) break;
   }
   return extra;
 }
@@ -65,4 +95,12 @@ export function scaleDiceCount(expression, multiplier) {
   if (!match) return expression;
   const [, count, sides] = match;
   return `${Math.max(1, Math.round(Number(count) * (Number(multiplier) || 1)))}d${sides}`;
+}
+
+/** Añade un dado más (no lo duplica) a una expresión simple "NdM" (Bengala Cansada tras fallar su último ataque). */
+export function addExtraDie(expression) {
+  const match = String(expression).match(/^(\d+)d(\d+)$/);
+  if (!match) return expression;
+  const [, count, sides] = match;
+  return `${Number(count) + 1}d${sides}`;
 }

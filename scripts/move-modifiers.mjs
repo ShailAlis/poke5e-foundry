@@ -95,7 +95,7 @@ export async function applyMoveModifierEffects({ move, attack = null, saveDc, sa
 
 /** Suma los modificadores activos que afectan a las tiradas del actor. */
 export function pokemonCombatModifiers(actor, { targetUuids = [] } = {}) {
-  const total = { attack: 0, damage: 0, moveModifierMultiplier: 1, attackDice: [], saveDice: [], saves: {}, attackAdvantage: false, attackDisadvantage: false, incomingAttackAdvantage: false, saveAdvantage: false, saveTargetsAdvantage: false, suppressAttackProficiency: false, disableHeldItem: false, abilityCheckDisadvantage: false, attackAdvantageAbilities: [], saveDisadvantageAbilities: [], saveTargetsDisadvantageAbilities: [], saveAdvantageAbilities: [], meleeAttackAdvantage: false, guaranteedHit: false, guaranteedCritical: false, moveLockAll: false, debuffImmune: false, statusImmune: false, recallLock: false, damageHalved: false };
+  const total = { attack: 0, damage: 0, criticalRangeBonus: 0, moveModifierMultiplier: 1, attackDice: [], saveDice: [], saves: {}, attackAdvantage: false, attackDisadvantage: false, incomingAttackAdvantage: false, saveAdvantage: false, saveTargetsAdvantage: false, suppressAttackProficiency: false, disableHeldItem: false, abilityCheckDisadvantage: false, attackAdvantageAbilities: [], saveDisadvantageAbilities: [], saveTargetsDisadvantageAbilities: [], saveAdvantageAbilities: [], meleeAttackAdvantage: false, guaranteedHit: false, guaranteedCritical: false, moveLockAll: false, debuffImmune: false, statusImmune: false, recallLock: false, damageHalved: false };
   for (const effect of actor?.effects ?? []) {
     if (effect.getFlag?.(MODULE_ID, "kind") !== KIND) continue;
     const state = effect.getFlag(MODULE_ID, "modifier") ?? {};
@@ -103,6 +103,7 @@ export function pokemonCombatModifiers(actor, { targetUuids = [] } = {}) {
     const modifiers = state.modifiers ?? {};
     total.attack += Number(modifiers.attack) || 0;
     total.damage += Number(modifiers.damage) || 0;
+    total.criticalRangeBonus += Number(modifiers.criticalRangeBonus) || 0;
     total.moveModifierMultiplier = Math.max(total.moveModifierMultiplier, Number(modifiers.moveModifierMultiplier) || 1);
     if (modifiers.attackDice) total.attackDice.push(modifiers.attackDice);
     if (modifiers.saveDice) total.saveDice.push(modifiers.saveDice);
@@ -223,6 +224,36 @@ export async function applyMoveLock(actor, moveId, { durationRounds = 1, concent
       [MODULE_ID]: {
         kind: KIND,
         modifier: { moveId, moveName: sourceName, category: "debuffs", stacks: 1, stackMax: 1, durationRounds, consume: null, sourceOnly: false, concentration, modifiers: { rechargeLock: true }, description }
+      }
+    }
+  };
+  await actor.createEmbeddedDocuments("ActiveEffect", [source]);
+}
+
+/**
+ * Aplica un modificador dinámico con la forma que elija quien llama, sin
+ * depender de una entrada estática de MOVE_MODIFIER_EFFECTS: lo usa Acupresión
+ * (acupressure), cuyo efecto concreto depende de una tirada de 1d6 en vez de
+ * ser fijo por movimiento. Sustituye cualquier efecto anterior del mismo
+ * moveId sobre el actor, tal como indica su propio texto ("cualquier efecto
+ * previo termina").
+ */
+export async function applyDynamicModifier(actor, moveId, { modifiers, description = "", durationRounds = null, concentration = false, sourceName = "", category = "buffs", icon = "buffs/concentration" } = {}) {
+  if (!actor || !moveId) return;
+  const previous = actor.effects?.filter(effect => effect.getFlag(MODULE_ID, "kind") === KIND && effect.getFlag(MODULE_ID, "modifier")?.moveId === moveId) ?? [];
+  if (previous.length) await actor.deleteEmbeddedDocuments("ActiveEffect", previous.map(effect => effect.id));
+  const [iconCategory, iconId] = icon.split("/");
+  const img = pokemonEffectIcon(iconCategory, iconId, "icons/svg/aura.svg");
+  const source = {
+    name: sourceName || moveId,
+    img, icon: img, description,
+    statuses: [],
+    changes: activeEffectChanges(modifiers),
+    duration: durationRounds == null ? {} : { rounds: durationRounds, startRound: game.combat?.round ?? 0, startTurn: game.combat?.turn ?? 0 },
+    flags: {
+      [MODULE_ID]: {
+        kind: KIND,
+        modifier: { moveId, moveName: sourceName, category, stacks: 1, stackMax: 1, durationRounds, consume: null, sourceOnly: false, concentration, modifiers, description }
       }
     }
   };

@@ -29,6 +29,7 @@ import { registerItemSwap } from "./item-swap.mjs";
 import { registerForcedSwitch } from "./forced-switch.mjs";
 import { registerDamageShields } from "./damage-shields.mjs";
 import { registerFieldEffects } from "./terrain-effects.mjs";
+import { registerCombatHistory } from "./combat-history.mjs";
 import { restoreHeldItemChargesAfterRest } from "./held-items.mjs";
 import { clearPoke5eDataCache, loadPoke5eData } from "./data-service.mjs";
 import { configurePokedollarEconomy } from "./economy.mjs";
@@ -130,6 +131,7 @@ Hooks.once("ready", async () => {
   registerForcedSwitch();
   registerDamageShields();
   registerFieldEffects();
+  registerCombatHistory();
   game.poke5e = {
     openImporter: () => new Poke5eImporter().render(true),
     openReference: () => new Poke5eReference().render(true),

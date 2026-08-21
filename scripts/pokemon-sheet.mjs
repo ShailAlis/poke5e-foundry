@@ -12,18 +12,20 @@
  */
 import { loadPoke5eData } from "./data-service.mjs";
 import { MODULE_ID, MODULE_PATH, displayPokemonName, gearItemSource, portraitUrl } from "./model.mjs";
+import { pokedollars, updatePokedollars } from "./economy.mjs";
 import { MAX_KNOWN_MOVES, applyLearnedMove, filterMoveCatalog, moveEligibility } from "./move-learning.mjs";
 import { normalizeMoveDamageTypes, pokemonDefenses, typeLabel } from "./combat.mjs";
 import { deployedActorFor, recallPokemon, syncPokemonHeldItemToDeployment, syncPokemonIdentityToDeployment } from "./deployment.mjs";
 import { CONTEST_TYPES, contestAppealOutcome, contestCompatibility, contestDetailsForMove, contestTypeOptions } from "./contests.mjs";
 import { applyMoveStatuses, pokemonStatusEntries, pokemonStatusId, removePokemonStatus } from "./status-effects.mjs";
 import { applyMoveOngoingEffects, moveHasImmediateDamage, ongoingEffectEntries, removeOngoingEffect } from "./ongoing-effects.mjs";
-import { applyMoveLock, applyMoveModifierEffects, attackHitsPokemonTarget, consecutiveStrikeStacks, consumeCapturedMoveModifiers, isMoveRecharging, moveModifierEntries, moveModifierIdsToConsume, pokemonCombatModifiers, removeAllMoveModifiers, removeMoveModifier, resetConsecutiveStrike, targetedPokemonModifiers } from "./move-modifiers.mjs";
-import { CHAIN_MULTI_HIT_MOVES, CONSECUTIVE_ESCALATION_MOVES, diceMultiplierForStacks, resolveChainHits, scaleDiceCount } from "./multi-hit.mjs";
+import { applyDynamicModifier, applyMoveLock, applyMoveModifierEffects, attackHitsPokemonTarget, consecutiveStrikeStacks, consumeCapturedMoveModifiers, isMoveRecharging, moveModifierEntries, moveModifierIdsToConsume, pokemonCombatModifiers, removeAllMoveModifiers, removeMoveModifier, resetConsecutiveStrike, targetedPokemonModifiers } from "./move-modifiers.mjs";
+import { CHAIN_MULTI_HIT_MOVES, CONSECUTIVE_ESCALATION_MOVES, FIXED_MULTI_ATTACK_MOVES, STOP_ON_MISS_MOVES, addExtraDie, diceMultiplierForStacks, resolveChainHits, scaleDiceCount, swiftProjectileCount } from "./multi-hit.mjs";
 import { DRAIN_FRACTION_MOVES, RECOIL_FRACTION_MOVES, recoilAmount } from "./recoil.mjs";
 import { markFalseSwipeTarget, requestFaintTargets, requestHpEffect, rollFailedSaves } from "./hp-effects.mjs";
 import { releaseBideDamage } from "./bide.mjs";
-import { requestHeldItemSwap } from "./item-swap.mjs";
+import { isBerryHeldItem, requestHeldItemDestroy, requestHeldItemSwap } from "./item-swap.mjs";
+import { acupressureEffect, hiddenPowerType, magnitudeDice } from "./random-tables.mjs";
 import { requestForcedSwitch, selfForcedSwitch } from "./forced-switch.mjs";
 import { FULL_NEGATION_MOVES, HALF_NEGATION_MOVES, SURVIVE_MOVES, armDamageShield } from "./damage-shields.mjs";
 import { FIELD_PULSE_MOVES, FIELD_RULE_MOVES, TERRAIN_MOVES, WEATHER_BALL_TYPES, WEATHER_MOVES, clearField, currentField, requestFieldEffect } from "./terrain-effects.mjs";
@@ -55,6 +57,26 @@ const TARGET_HP_MODIFIER_DOUBLE_MOVES = new Set(["wring-out"]);
 const SELF_HP_DICE_MULTIPLIER_MOVES = new Set(["flail", "reversal"]);
 /** Reducen a la mitad los dados de daño si el propio usuario está por debajo del 50% de sus PG máximos (Chorro de Agua). */
 const SELF_HP_HALF_DICE_MOVES = new Set(["water-spout"]);
+/** Doblan los dados de daño si el usuario ha recibido daño desde que acabó su último turno (Payback/Avalanche, ver combat-history.mjs). */
+const OWN_DAMAGED_DICE_DOUBLE_MOVES = new Set(["payback", "avalanche"]);
+/** Doblan el modificador MOVE si el último movimiento del objetivo (instance.lastMoveId) no fue un movimiento de ataque. */
+const TARGET_LAST_MOVE_NOT_ATTACK_MODIFIER_DOUBLE_MOVES = new Set(["bolt-beak", "fishious-rend"]);
+/** Doblan los dados de daño si el propio último ataque del usuario falló (Berrinche Pisotón). */
+const OWN_MISSED_DICE_DOUBLE_MOVES = new Set(["stomping-tantrum"]);
+/** Suman un dado extra a la tirada si el propio último ataque del usuario falló (Bengala Cansada). */
+const OWN_MISSED_EXTRA_DIE_MOVES = new Set(["temper-flare"]);
+/** Doblan los dados de daño si el objetivo ya recibió daño esta misma ronda (Certeza, ver combat-history.mjs). */
+const TARGET_DAMAGED_THIS_ROUND_DICE_DOUBLE_MOVES = new Set(["assurance"]);
+/**
+ * Movimientos cuyo estado no es fijo sino que sale de una tirada propia en su
+ * texto: se tira una sola vez para toda la activación (no una por objetivo,
+ * simplificación deliberada para Certeza Tri-Ataque) y se construye un
+ * `move.statusEffects` sintético que reutiliza applyMoveStatuses() tal cual.
+ */
+const RANDOM_STATUS_TABLE_MOVES = {
+  "secret-power": { faces: 6, trigger: "natural", minimum: 15, resolve: roll => ["poisoned", "burned", "confused", "frozen", "paralyzed", "asleep"][roll - 1] },
+  "tri-attack": { faces: 6, trigger: "failed-save", margin: 5, resolve: roll => (roll <= 2 ? "burned" : roll <= 4 ? "frozen" : "paralyzed") }
+};
 import { hasTrainerPath, machineConsumption, pokemonPathMoveBonuses } from "./trainer-path-rules.mjs";
 import {
   activateHeldItem,
@@ -651,6 +673,10 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     if (catalogMove.id === "counter") return this.#rollRetaliation(instance, entry, catalogMove, { dice: "1d4", damageType: "fighting", trackingKey: "counterArmed", label: "Melee" });
     if (catalogMove.id === "mirror-coat") return this.#rollRetaliation(instance, entry, catalogMove, { dice: "1d6", damageType: "psychic", trackingKey: "mirrorCoatArmed", label: "Ranged" });
     if (catalogMove.id === "explosion") return this.#rollExplosion(instance, entry, catalogMove);
+    if (FIXED_MULTI_ATTACK_MOVES[catalogMove.id]) return this.#rollFixedMultiAttack(instance, entry, catalogMove, FIXED_MULTI_ATTACK_MOVES[catalogMove.id]);
+    if (STOP_ON_MISS_MOVES.has(catalogMove.id)) return this.#rollFixedMultiAttack(instance, entry, catalogMove, 3, { stopOnMiss: true });
+    if (catalogMove.id === "swift") return this.#rollFixedMultiAttack(instance, entry, catalogMove, swiftProjectileCount(instance.level));
+    if (catalogMove.id === "acupressure") return this.#rollAcupressure(instance, entry, catalogMove);
     if (Number(entry.pp.max) > 0 && Number(entry.pp.value) <= 0) {
       return ui.notifications.warn(game.i18n.format("POKE5E.Notifications.NoPP", { name: displayPokemonName(this.pokemonItem), move: catalogMove.name }));
     }
@@ -690,16 +716,42 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const targetHpFraction = selectedTokens[0]?.actor?.system?.attributes?.hp?.max ? Number(selectedTokens[0].actor.system.attributes.hp.value) / Number(selectedTokens[0].actor.system.attributes.hp.max) : 1;
     const targetHpModifierMultiplier = TARGET_HP_MODIFIER_DOUBLE_MOVES.has(move.id) && targetHpFraction >= 0.5 ? 2 : 1;
     const weatherModifierMultiplier = WEATHER_MODIFIER_DOUBLE_MOVES[move.id] && WEATHER_MODIFIER_DOUBLE_MOVES[move.id] === activeWeather ? 2 : 1;
-    const damageMoveModifier = moveModifier * (targetAsleep ? 2 : 1) * weatherModifierMultiplier * targetStatusModifierMultiplier * targetHpModifierMultiplier * heldProfile.damageMoveMultiplier * combatModifiers.moveModifierMultiplier;
+    let targetLastMoveNotAttackMultiplier = 1;
+    if (TARGET_LAST_MOVE_NOT_ATTACK_MODIFIER_DOUBLE_MOVES.has(move.id) && selectedTokens.length) {
+      const targetPokemonItem = await pokemonItemForActor(selectedTokens[0].actor);
+      const targetLastMoveId = targetPokemonItem?.getFlag(MODULE_ID, "instance")?.lastMoveId;
+      const targetLastMove = targetLastMoveId ? data.movesById.get(targetLastMoveId) : null;
+      if (!targetLastMove?.damage) targetLastMoveNotAttackMultiplier = 2;
+    }
+    const damageMoveModifier = moveModifier * (targetAsleep ? 2 : 1) * weatherModifierMultiplier * targetStatusModifierMultiplier * targetHpModifierMultiplier * targetLastMoveNotAttackMultiplier * heldProfile.damageMoveMultiplier * combatModifiers.moveModifierMultiplier;
     const escalation = CONSECUTIVE_ESCALATION_MOVES[move.id];
     const escalationMultiplier = escalation ? diceMultiplierForStacks(consecutiveStrikeStacks(combatActor, move.id)) : 1;
     const weatherDiceMultiplier = (WEATHER_DICE_DOUBLE_MOVES[move.id] && WEATHER_DICE_DOUBLE_MOVES[move.id] === activeWeather) || (move.id === "weather-ball" && activeWeather) ? 2 : 1;
     const targetStatusDiceMultiplier = TARGET_STATUS_DICE_DOUBLE_MOVES[move.id]?.some(id => selectedTokens.some(token => token.actor?.statuses?.has(pokemonStatusId(id)))) ? 2 : 1;
     const selfHpDiceMultiplier = SELF_HP_DICE_MULTIPLIER_MOVES.has(move.id) ? (ownHpFraction <= 0.1 ? 3 : ownHpFraction < 0.5 ? 2 : 1) : SELF_HP_HALF_DICE_MOVES.has(move.id) && ownHpFraction < 0.5 ? 0.5 : 1;
+    const ownDamagedDiceMultiplier = OWN_DAMAGED_DICE_DOUBLE_MOVES.has(move.id) && instance.damagedSinceLastTurn ? 2 : 1;
+    const ownMissedDiceMultiplier = OWN_MISSED_DICE_DOUBLE_MOVES.has(move.id) && instance.lastAttackMissed ? 2 : 1;
+    const ownMissedExtraDie = OWN_MISSED_EXTRA_DIE_MOVES.has(move.id) && Boolean(instance.lastAttackMissed);
+    let targetDamagedThisRoundMultiplier = 1;
+    if (TARGET_DAMAGED_THIS_ROUND_DICE_DOUBLE_MOVES.has(move.id) && selectedTokens.length) {
+      const targetPokemonItem = await pokemonItemForActor(selectedTokens[0].actor);
+      if (targetPokemonItem?.getFlag(MODULE_ID, "instance")?.damagedThisRound) targetDamagedThisRoundMultiplier = 2;
+    }
     const finalGambitFormula = move.id === "final-gambit" ? appendModifier(String(Math.max(0, Number(combatActor?.system?.attributes?.hp?.value) || 0)), (species.type ?? []).includes(move.type) ? 2 + heldProfile.stab : 0) : null;
     const trumpCardBonus = move.id === "trump-card" ? moveModifier * Math.max(0, Number(entry.pp.max) - Number(entry.pp.value)) : 0;
-    const formula = finalGambitFormula ?? (moveHasImmediateDamage(move) ? damageFormula(move, level, damageMoveModifier, species, combatModifiers.damage + heldProfile.damage + pathProfile.damage + trumpCardBonus, heldProfile.stab + pathProfile.stab, escalationMultiplier * weatherDiceMultiplier * targetStatusDiceMultiplier * selfHpDiceMultiplier) : null);
-    let damageType = formula ? await chooseDamageType(move) : null;
+    let magnitudeFormula = null;
+    if (move.id === "magnitude") {
+      const magnitudeRoll = await new Roll("1d100").evaluate();
+      await magnitudeRoll.toMessage({ speaker, flavor: `${flavor} — Magnitud` });
+      magnitudeFormula = appendModifier(magnitudeDice(magnitudeRoll.total), damageMoveModifier);
+    }
+    const formula = finalGambitFormula ?? magnitudeFormula ?? (moveHasImmediateDamage(move) ? damageFormula(move, level, damageMoveModifier, species, combatModifiers.damage + heldProfile.damage + pathProfile.damage + trumpCardBonus, heldProfile.stab + pathProfile.stab, escalationMultiplier * weatherDiceMultiplier * targetStatusDiceMultiplier * selfHpDiceMultiplier * ownDamagedDiceMultiplier * ownMissedDiceMultiplier * targetDamagedThisRoundMultiplier, ownMissedExtraDie) : null);
+    let hiddenPowerRoll = null;
+    if (formula && move.id === "hidden-power") {
+      hiddenPowerRoll = await new Roll("1d20").evaluate();
+      await hiddenPowerRoll.toMessage({ speaker, flavor: `${flavor} — Tipo` });
+    }
+    let damageType = formula ? (hiddenPowerRoll ? hiddenPowerType(hiddenPowerRoll.total) ?? await chooseDamageType(move) : await chooseDamageType(move)) : null;
     if (formula && !damageType) return;
     if (damageType === "normal" && move.type === "normal" && currentField(game.combat).pulse?.id === "ion-deluge") damageType = "electric";
     if (move.id === "weather-ball" && activeWeather && WEATHER_BALL_TYPES[activeWeather]) damageType = WEATHER_BALL_TYPES[activeWeather];
@@ -731,8 +783,15 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       attackResult = {
         natural,
         total: guaranteed ? Number.MAX_SAFE_INTEGER : Number(attack.total) || 0,
-        critical: combatModifiers.guaranteedCritical || natural >= Math.max(1, 20 - heldProfile.criticalRange)
+        critical: combatModifiers.guaranteedCritical || natural >= Math.max(1, 20 - heldProfile.criticalRange - combatModifiers.criticalRangeBonus)
       };
+      if (selectedTokens.length) {
+        const missed = !selectedTokens.some(token => attackHitsPokemonTarget(attackResult, token.actor));
+        if (instance.lastAttackMissed !== missed) {
+          instance.lastAttackMissed = missed;
+          await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
+        }
+      }
     } else if (move.save) {
       const dc = 8 + attackMoveModifier + proficiency;
       const attributes = (move.save.attribute ?? []).map(key => key.toUpperCase()).join("/");
@@ -776,6 +835,21 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
             const nextEntry = nextInstance.moves.find(candidate => candidate.id === lastEntry.id);
             nextEntry.pp.value = Math.max(0, Number(lastEntry.pp.value) - Number(drop.total));
             await targetPokemonItem.setFlag(MODULE_ID, "instance", nextInstance);
+          }
+        }
+      }
+      if (move.id === "make-it-rain") {
+        if (!selectedTokens.length) ui.notifications.warn(game.i18n.format("POKE5E.StatusEffects.NoTarget", { move: move.name }));
+        else {
+          const failed = await rollFailedSaves(selectedTokens, "dex", dc, speaker, move.name);
+          const failedUuids = new Set(failed.map(target => target.actorUuid));
+          const succeededCount = selectedTokens.filter(token => !failedUuids.has(token.actor?.uuid)).length;
+          const trainer = this.pokemonItem.parent?.type === "character" ? this.pokemonItem.parent : null;
+          if (trainer && (failed.length || succeededCount)) {
+            const formula = [failed.length ? `${failed.length}d10` : null, succeededCount ? `${succeededCount * 2}d10` : null].filter(Boolean).join(" + ");
+            const earnings = await new Roll(formula).evaluate();
+            await earnings.toMessage({ speaker, flavor: `${flavor} — ₽ recogidos` });
+            await updatePokedollars(trainer, pokedollars(trainer) + (Number(earnings.total) || 0));
           }
         }
       }
@@ -834,6 +908,17 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       await combatActor.update({ "system.attributes.hp.value": 0 });
       await ChatMessage.create({ speaker, content: `<div class="dnd5e chat-card poke5e-status-card"><p>${escapeHtml(flavor)} se debilita al activar el movimiento.</p></div>` });
     }
+    if (move.id === "pay-day" && attackResult) {
+      const trainer = this.pokemonItem.parent?.type === "character" ? this.pokemonItem.parent : null;
+      for (const token of selectedTokens) {
+        if (!attackHitsPokemonTarget(attackResult, token.actor) || token.actor?.getFlag(MODULE_ID, "payDayTriggered")) continue;
+        await token.actor.setFlag(MODULE_ID, "payDayTriggered", true);
+        if (!trainer) continue;
+        const earned = 10 * level;
+        await updatePokedollars(trainer, pokedollars(trainer) + earned);
+        await ChatMessage.create({ speaker, content: `<div class="dnd5e chat-card poke5e-status-card"><p>${escapeHtml(flavor)} desparrama ${earned}₽ por el suelo.</p></div>` });
+      }
+    }
     if (move.id === "false-swipe" && attackResult) {
       for (const token of selectedTokens) if (attackHitsPokemonTarget(attackResult, token.actor)) await markFalseSwipeTarget(token.actor);
     }
@@ -841,6 +926,29 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       for (const token of selectedTokens) {
         if (!attackHitsPokemonTarget(attackResult, token.actor)) continue;
         await requestHeldItemSwap({ sourcePokemonItem: this.pokemonItem, targetActor: token.actor, sourceName: name, targetName: token.name });
+      }
+    }
+    if (move.id === "thief" && attackResult && !instance.heldItem) {
+      const hitTokens = selectedTokens.filter(token => attackHitsPokemonTarget(attackResult, token.actor));
+      if (hitTokens.length) {
+        const dc = 8 + attackMoveModifier + proficiency;
+        const failed = await rollFailedSaves(hitTokens, "dex", dc, speaker, move.name);
+        for (const target of failed) await requestHeldItemSwap({ sourcePokemonItem: this.pokemonItem, targetActor: target.actor, sourceName: name, targetName: target.tokenName });
+      }
+    }
+    if (move.id === "incinerate" && attackResult) {
+      for (const token of selectedTokens) {
+        if (!attackHitsPokemonTarget(attackResult, token.actor)) continue;
+        const targetPokemonItem = await pokemonItemForActor(token.actor);
+        const targetHeldItem = targetPokemonItem?.getFlag(MODULE_ID, "instance")?.heldItem;
+        if (!isBerryHeldItem(targetHeldItem?.sourceId)) continue;
+        await requestHeldItemDestroy({ targetActor: token.actor, sourceName: name, targetName: token.name, restoreAfterCombat: false });
+      }
+    }
+    if (move.id === "knock-off" && attackResult) {
+      for (const token of selectedTokens) {
+        if (!attackHitsPokemonTarget(attackResult, token.actor)) continue;
+        await requestHeldItemDestroy({ targetActor: token.actor, sourceName: name, targetName: token.name, restoreAfterCombat: true });
       }
     }
     if (move.id === "clear-smog" && attackResult) {
@@ -875,9 +983,17 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     if (move.id === "take-heart") {
       for (const id of [...(instance.conditions ?? [])]) await removePokemonStatus(this.pokemonItem, id);
     }
-    if (formula && selectedHit && CHAIN_MULTI_HIT_MOVES.has(move.id)) await rollChainMultiHit(move, level, damageType, flavor, speaker);
+    if (formula && selectedHit && CHAIN_MULTI_HIT_MOVES[move.id]) await rollChainMultiHit(move, level, damageType, flavor, speaker, CHAIN_MULTI_HIT_MOVES[move.id]);
     if (escalation && !escalation.automatic && attackResult && !selectedHit) await resetConsecutiveStrike(combatActor, move.id);
-    const statusResolution = await applyMoveStatuses({ move, attack: attackResult, saveDc: 8 + attackMoveModifier + proficiency, sourceActor: this.pokemonItem.parent, sourceCombatActor: combatActor, sourceName: name });
+    let statusMove = move;
+    if (RANDOM_STATUS_TABLE_MOVES[move.id]) {
+      const table = RANDOM_STATUS_TABLE_MOVES[move.id];
+      const tableRoll = await new Roll(`1d${table.faces}`).evaluate();
+      await tableRoll.toMessage({ speaker, flavor: `${flavor} — Estado al azar` });
+      const chosenStatus = table.resolve(tableRoll.total);
+      statusMove = { ...move, statusEffects: [{ id: chosenStatus, trigger: table.trigger, minimum: table.minimum ?? null, margin: table.margin ?? 0, requiresHit: false, target: "selected" }] };
+    }
+    const statusResolution = await applyMoveStatuses({ move: statusMove, attack: attackResult, saveDc: 8 + attackMoveModifier + proficiency, sourceActor: this.pokemonItem.parent, sourceCombatActor: combatActor, sourceName: name });
     await applyMoveOngoingEffects({
       move, attack: attackResult, saveDc: 8 + attackMoveModifier + proficiency,
       sourceOwnerActor: this.pokemonItem.parent, sourceCombatActor: combatActor,
@@ -1091,6 +1207,96 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       await requestFaintTargets(selectedTokens, name);
     } else {
       await ChatMessage.create({ speaker, content: `<div class="dnd5e chat-card poke5e-status-card"><p>La explosión no llega a activarse.</p></div>` });
+    }
+    this.render({ force: true });
+  }
+
+  /**
+   * Golpes fijos en una sola activación (Bonemerang, Burbuja, Bomba
+   * Demográfica, Golpe Rápido...): a diferencia de la cadena de multi-hit.mjs
+   * (una sola tirada de ataque, dados extra sin modificador), aquí cada golpe
+   * tira su propio ataque Y su propio daño con el modificador MOVE completo,
+   * tal como dice el texto original ("on each successful hit, do X + MOVE").
+   * Los que se detienen en el primer fallo (Ola Trompa, Triple Patada) pasan
+   * `stopOnMiss: true`. No reutiliza heldProfile/pathProfile ni los
+   * modificadores de combate por simplicidad, igual que #rollRetaliation.
+   */
+  async #rollFixedMultiAttack(instance, entry, move, count, { stopOnMiss = false } = {}) {
+    const name = displayPokemonName(this.pokemonItem);
+    const speaker = ChatMessage.getSpeaker({ actor: this.pokemonItem.parent, alias: name });
+    const combatActor = this.pokemonItem.parent?.getFlag?.(MODULE_ID, "kind") === "wild" ? this.pokemonItem.parent : deployedActorFor(this.pokemonItem);
+    if (isMoveRecharging(combatActor, move.id)) return ui.notifications.warn(game.i18n.format("POKE5E.Notifications.Recharging", { name, move: move.name }));
+    if (pokemonCombatModifiers(combatActor).moveLockAll) return ui.notifications.warn(game.i18n.format("POKE5E.Notifications.MoveLocked", { name, move: move.name }));
+    if (Number(entry.pp.max) > 0 && Number(entry.pp.value) <= 0) {
+      return ui.notifications.warn(game.i18n.format("POKE5E.Notifications.NoPP", { name, move: move.name }));
+    }
+    const selectedTokens = [...(game.user.targets ?? [])];
+    if (!selectedTokens.length) return ui.notifications.warn(game.i18n.format("POKE5E.StatusEffects.NoTarget", { move: move.name }));
+    const level = Number(instance.level) || 1;
+    const proficiency = 2 + Math.floor((level - 1) / 4);
+    const storedSpecies = this.pokemonItem.getFlag(MODULE_ID, "species") ?? {};
+    const species = { ...storedSpecies, attributes: instance.attributes ?? storedSpecies.attributes ?? {} };
+    const moveModifier = getMoveModifier(species, move);
+    const flavor = `${name} — ${move.name}`;
+    const damageType = await chooseDamageType(move);
+    if (!damageType) return;
+    instance.lastMoveId = move.id;
+    if (Number(entry.pp.max) > 0) entry.pp.value = Math.max(0, Number(entry.pp.value) - 1);
+    await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
+    if (Number(entry.pp.max) > 0 && Number(entry.pp.value) === 0) await tryLeppaBerryReaction(this.pokemonItem, entry.id);
+    const baseDice = resolveDamageDice(move, level);
+    const DamageRoll = CONFIG.Dice?.DamageRoll;
+    let hits = 0;
+    for (let i = 0; i < count; i++) {
+      const attack = await new Roll("1d20 + @mod + @prof", { mod: moveModifier, prof: proficiency }).evaluate();
+      await attack.toMessage({ speaker, flavor: `${flavor} — Golpe ${i + 1}/${count}` });
+      const natural = Number(attack.dice?.[0]?.results?.find(result => result.active)?.result ?? attack.dice?.[0]?.total) || 0;
+      const attackResult = { natural, total: Number(attack.total) || 0 };
+      const hit = selectedTokens.some(token => attackHitsPokemonTarget(attackResult, token.actor));
+      if (!hit) {
+        if (stopOnMiss) break;
+        continue;
+      }
+      hits += 1;
+      if (!baseDice) continue;
+      const formula = appendModifier(baseDice, moveModifier);
+      const damage = DamageRoll
+        ? await new DamageRoll(formula, {}, { type: damageType }).evaluate()
+        : await new Roll(formula).evaluate();
+      await damage.toMessage({ speaker, flavor: `${flavor} — ${typeLabel(damageType)}`, flags: { dnd5e: { messageType: "roll", roll: { type: "damage" }, targets: targetDescriptors() } } });
+    }
+    if (!hits) await ChatMessage.create({ speaker, content: `<div class="dnd5e chat-card poke5e-status-card"><p>${escapeHtml(flavor)} no llega a impactar ninguna vez.</p></div>` });
+    this.render({ force: true });
+  }
+
+  /**
+   * Acupresión no ataca ni exige salvación: tira 1d6 en su propia tabla
+   * (random-tables.mjs) y aplica un modificador dinámico distinto según el
+   * resultado (applyDynamicModifier() en move-modifiers.mjs), salvo los PG
+   * temporales, que se escriben directamente porque no encajan en el modelo
+   * de ActiveEffect. Cualquier aplicación anterior de Acupresión sobre el
+   * mismo actor se sustituye, tal como indica su propio texto.
+   */
+  async #rollAcupressure(instance, entry, move) {
+    const name = displayPokemonName(this.pokemonItem);
+    const speaker = ChatMessage.getSpeaker({ actor: this.pokemonItem.parent, alias: name });
+    const combatActor = this.pokemonItem.parent?.getFlag?.(MODULE_ID, "kind") === "wild" ? this.pokemonItem.parent : deployedActorFor(this.pokemonItem);
+    if (Number(entry.pp.max) > 0 && Number(entry.pp.value) <= 0) {
+      return ui.notifications.warn(game.i18n.format("POKE5E.Notifications.NoPP", { name, move: move.name }));
+    }
+    if (Number(entry.pp.max) > 0) entry.pp.value = Math.max(0, Number(entry.pp.value) - 1);
+    await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
+    const roll = await new Roll("1d6").evaluate();
+    await roll.toMessage({ speaker, flavor: `${name} — ${move.name}` });
+    const effect = acupressureEffect(roll.total);
+    if (!combatActor) {
+      ui.notifications.warn(game.i18n.format("POKE5E.MoveEffects.MustBeDeployed", { move: move.name }));
+    } else if (effect.tempHp) {
+      const hp = combatActor.system.attributes?.hp;
+      if (hp) await combatActor.update({ "system.attributes.hp.temp": Math.max(Number(hp.temp) || 0, effect.tempHp) });
+      await ChatMessage.create({ speaker, content: `<div class="dnd5e chat-card poke5e-status-card"><p>${escapeHtml(name)} — ${escapeHtml(move.name)}: ${escapeHtml(effect.description)}</p></div>` });
+    } else {
+      await applyDynamicModifier(combatActor, move.id, { modifiers: effect.modifiers, description: effect.description, durationRounds: 10, sourceName: name });
     }
     this.render({ force: true });
   }
@@ -1554,10 +1760,11 @@ function moveIsHealing(move) {
   return types.includes("healing");
 }
 
-function damageFormula(move, level, moveModifier, species, effectDamage = 0, heldItemStab = 0, diceMultiplier = 1) {
+function damageFormula(move, level, moveModifier, species, effectDamage = 0, heldItemStab = 0, diceMultiplier = 1, extraDie = false) {
   const baseDice = resolveDamageDice(move, level);
   if (!baseDice) return null;
-  const dice = diceMultiplier !== 1 ? scaleDiceCount(baseDice, diceMultiplier) : baseDice;
+  let dice = diceMultiplier !== 1 ? scaleDiceCount(baseDice, diceMultiplier) : baseDice;
+  if (extraDie) dice = addExtraDie(dice);
   const modifier = move.damage.modifier;
   let formula = String(dice);
   if (modifier === "MOVE") formula = appendModifier(dice, moveModifier);
@@ -1583,14 +1790,14 @@ function resolveDamageDice(move, level) {
  * dados del movimiento, sin repetir el modificador MOVE, tal como describe el
  * texto original. Auxiliar de #rollMove().
  */
-async function rollChainMultiHit(move, level, damageType, flavor, speaker) {
+async function rollChainMultiHit(move, level, damageType, flavor, speaker, maxExtra = 4) {
   const chainRolls = [];
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < maxExtra; i++) {
     const roll = await new Roll("1d4").evaluate();
     chainRolls.push(Number(roll.total));
     if (Number(roll.total) < 3) break;
   }
-  const extraHits = resolveChainHits(chainRolls);
+  const extraHits = resolveChainHits(chainRolls, maxExtra);
   if (!extraHits) return;
   const baseDice = resolveDamageDice(move, level);
   if (!baseDice) return;
