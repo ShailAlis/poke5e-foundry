@@ -132,16 +132,17 @@ La versión 1.2 incorpora el asistente guiado de creación de Entrenadores. Los 
 
 ## Estructura del código
 
-Todo el código vive en `scripts/`, en módulos ES sin paso de build. Cada archivo lleva un comentario de cabecera con su rol y con qué otros archivos se relaciona, y cada función (exportada o privada) tiene su propio comentario JSDoc — abre el archivo y usa el buscador del editor si necesitas más detalle que el de esta tabla.
+Todo el código vive en `scripts/`, en módulos ES sin paso de build. Desde agosto de 2026 está repartido en subcarpetas por dominio en vez de los ~80 archivos sueltos que tenía antes, precisamente para que se pueda navegar sin memorizar el nombre exacto de cada uno. Cada archivo sigue llevando un comentario de cabecera con su rol y con qué otros archivos se relaciona, y cada función (exportada o privada) tiene su propio comentario JSDoc — abre el archivo y usa el buscador del editor si necesitas más detalle que el de esta tabla.
 
-La arquitectura tiene cuatro capas, de abajo arriba:
+- **`scripts/core/`** — arranque del módulo y utilidades compartidas: `main.mjs` (punto de entrada, engancha los hooks de Foundry y registra el resto de motores), `model.mjs` y `data-service.mjs` (convierten los JSON de `data/` en documentos de Foundry y los cachean), `sync-data.mjs`, `importer.mjs`, `condition-catalog.mjs`, `effect-icons.mjs`.
+- **`scripts/pokemon/`** — el Pokémon individual: ficha (`pokemon-sheet.mjs`), actor temporal de mapa (`pokemon-actor-sheet.mjs`), progresión y avance (`progression.mjs`, `pokemon-advancement.mjs`), aprendizaje de movimientos y MTs (`move-learning.mjs`, `move-machines.mjs`), captura (`capture.mjs`, `capture-rules.mjs`), objetos equipados (`held-items.mjs`).
+- **`scripts/combat/`** — los motores de combate: reglas base (`combat.mjs`), modificadores temporales y sus catálogos (`move-modifiers.mjs`, `move-modifier-rules.mjs`), golpes múltiples (`multi-hit.mjs`), retroceso/drenaje (`recoil.mjs`), escudos de daño (`damage-shields.mjs`), efectos mantenidos (`ongoing-effects.mjs`), estados alterados (`status-effects.mjs`), PG directos (`hp-effects.mjs`), Onda Choque/Golpe Metálico (`bide.mjs`), cambios forzados (`forced-switch.mjs`), terreno y clima (`terrain-effects.mjs`), rastro de acciones recientes (`combat-history.mjs`), intercambio/destrucción de objetos (`item-swap.mjs`), tablas aleatorias (`random-tables.mjs`).
+- **`scripts/trainer/`** — el Entrenador: ficha y equipo (`trainer-actor-sheet.mjs`, `trainer-team.mjs`, `primary-party.mjs`), asistente de creación (`trainer-creator.mjs`, `trainer-creation-data.mjs`), progresión de clase y Camino (`trainer-progression.mjs`, `trainer-path-rules.mjs`), dotes (`feat-catalog.mjs`), entrenadores NPC (`npc-trainer-actor.mjs`, `npc-trainer-generator.mjs`, `npc-trainer-rules.mjs`).
+- **`scripts/world/`** — despliegue en el mapa y meta-sistemas: `deployment.mjs`, `wild-deployment.mjs`, generación de encuentros (`encounter-builder.mjs`, `encounter-generator.mjs`), economía (`economy.mjs`), concursos (`contests.mjs`).
+- **`scripts/ui/`** — ventanas independientes que no son fichas: navegador de especies (`species-browser.mjs`) y ficha de referencia de reglas (`reference.mjs`).
+- **`scripts/validators/`** — todos los `validate-*.mjs` que ejecuta `npm run check` en Node, sin globales de Foundry; verifican los datos en bruto y las capas de reglas puras (combate, progresión, captura, aprendizaje de movimientos, creación de entrenador, etc.).
 
-1. **Núcleo** (`model.mjs`, `data-service.mjs`) — convierte los JSON de `data/` en documentos de Foundry y los cachea.
-2. **Reglas** (`combat.mjs`, `progression.mjs`, `capture-rules.mjs`, `move-learning.mjs`, `contests.mjs`, `status-effects.mjs`, `held-items.mjs`, `encounter-generator.mjs`, `npc-trainer-rules.mjs`, `trainer-creation-data.mjs`) — cálculos puros, casi sin depender de los globales de Foundry; son los que verifican los `validate-*.mjs` en Node.
-3. **Documentos y mapa** (`deployment.mjs`, `wild-deployment.mjs`, `capture.mjs`) — traducen Pokémon entre Item embebido, actor temporal y token.
-4. **Interfaz** (fichas, generadores, asistente, importador) — presenta las reglas y escribe el resultado en `flags.<módulo>.instance`.
-
-`main.mjs` no está en ninguna capa: es el punto de entrada que engancha los hooks de Foundry y conecta unas con otras.
+Por capas, de abajo arriba: `core/` es el cimiento; `pokemon/`, `combat/`, `trainer/` y `world/` son las reglas (casi todas puras, verificadas por `validators/`); la interfaz (fichas, generadores, asistente, importador, repartida entre `pokemon/`, `trainer/`, `world/` y `ui/` según a qué actor pertenece) presenta esas reglas y escribe el resultado en `flags.<módulo>.instance`.
 
 ### Índice por archivo
 
@@ -203,6 +204,6 @@ La arquitectura tiene cuatro capas, de abajo arriba:
 
 ## Desarrollo
 
-Los JSON de `data/` se generan a partir de `../static/data`. Ejecuta `node scripts/sync-data.mjs` desde esta carpeta después de actualizar los datos del sitio. Después ejecuta `npm run check`.
+Los JSON de `data/` se generan a partir de `../static/data`. Ejecuta `node scripts/core/sync-data.mjs` desde esta carpeta después de actualizar los datos del sitio. Después ejecuta `npm run check`.
 
 Este proyecto es contenido fan no oficial. Pokémon pertenece a Nintendo, Game Freak y The Pokémon Company; Dungeons & Dragons pertenece a Wizards of the Coast.

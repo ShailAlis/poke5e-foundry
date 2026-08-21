@@ -14,7 +14,7 @@
     }
   ],
   "esmodules": [
-    "scripts/main.mjs"
+    "scripts/core/main.mjs"
   ],
   "styles": [
     "styles/poke5e.css"
