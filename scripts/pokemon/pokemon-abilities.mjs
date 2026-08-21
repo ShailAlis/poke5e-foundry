@@ -58,6 +58,16 @@
  *   lote solo tiran el dado y devuelven el resultado; quien llama desde
  *   pokemon-sheet.mjs aplica el estado o el bloqueo con las funciones que sí
  *   tiene importadas.
+ * - Lote 6: bonos/inmunidades condicionados al propio estado alterado del
+ *   Pokémon, no al del rival. Vigor (`guts`) anula la desventaja en ataque
+ *   por Envenenado/Gravemente envenenado y la tirada doble-quedarse-con-la-
+ *   menor por Quemado en #rollMove() (pokemon-sheet.mjs), sin tocar el daño
+ *   periódico de fin de turno que ya aplica applyEndTurnStatusDamage()
+ *   (status-effects.mjs) — el texto de Vigor solo exime la desventaja/
+ *   reducción, no ese daño. Competitivo (`competitive`) e Impulso Ígneo
+ *   (`flare-boost`) suman la competencia al daño mientras el propio Pokémon
+ *   sufre ciertos estados, vía abilitySelfStatusDamageBonus(), en el mismo
+ *   hueco de damageFormula() que ya usa abilityProfile.damage del lote 4.
  *
  * El resto del catálogo queda para lotes posteriores porque exige más que un
  * ajuste al desplegar o una comprobación puntual: absorber un tipo de daño
@@ -444,3 +454,41 @@ export const FULL_HP_HALF_DAMAGE_ABILITIES = new Set(["multiscale", "shadow-shie
  * FULL_HP_HALF_DAMAGE_ABILITIES por si el catálogo suma alguna más adelante.
  */
 export const STURDY_HALF_DAMAGE_ABILITIES = new Set(["sturdy"]);
+
+/**
+ * Habilidad → lista de estados propios (mismos ids que POKEMON_STATUS_EFFECTS
+ * en status-effects.mjs) que activan un bono de daño igual a la competencia
+ * mientras el Pokémon los sufre.
+ */
+export const SELF_STATUS_DAMAGE_BOOST_ABILITIES = Object.freeze({
+  competitive: ["poisoned", "badly-poisoned", "burned", "confused", "paralyzed"],
+  "flare-boost": ["burned"]
+});
+
+/**
+ * Bono de daño (competencia, o 0) que aportan las habilidades conocidas de
+ * un Pokémon según su propio estado alterado actual (`activeConditions`,
+ * p.ej. `instance.conditions`). No es acumulable: si por lo que sea el
+ * Pokémon conociera dos habilidades de la tabla a la vez y ambas coincidieran
+ * con un estado activo, el bono se suma una sola vez — de ahí el `some` en
+ * vez de un `reduce` que las sumara todas.
+ */
+export function abilitySelfStatusDamageBonus(abilities = [], activeConditions = [], proficiency = 0) {
+  const known = abilities ?? [];
+  const conditions = activeConditions ?? [];
+  const applies = known.some(id => (SELF_STATUS_DAMAGE_BOOST_ABILITIES[id] ?? []).some(status => conditions.includes(status)));
+  return applies ? proficiency : 0;
+}
+
+/** Estados propios cuya desventaja/reducción anula Vigor (`guts`). */
+export const GUTS_IGNORED_STATUSES = new Set(["poisoned", "badly-poisoned", "burned"]);
+
+/**
+ * True si el Pokémon conoce Vigor (`guts`): sigue sufriendo el daño
+ * periódico de fin de turno de Envenenado/Quemado, pero no la desventaja en
+ * ataque ni la tirada doble-quedarse-con-la-menor de daño que normalmente
+ * acompañan a esos estados. Lo consulta #rollMove() (pokemon-sheet.mjs).
+ */
+export function abilityIgnoresStatusPenalty(abilities = []) {
+  return (abilities ?? []).includes("guts");
+}
