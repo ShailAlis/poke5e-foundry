@@ -13,9 +13,10 @@
  */
 import { MODULE_ID } from "../core/model.mjs";
 import { pokemonEffectIcon } from "../core/effect-icons.mjs";
-import { abilityBlocksStatus, abilityStatusBonusEffectSource } from "../pokemon/pokemon-abilities.mjs";
+import { abilityBlocksStatus, abilityStatusBonusEffectSource, abilityWeatherHeal } from "../pokemon/pokemon-abilities.mjs";
 import { attackHitsPokemonTarget, pokemonCombatModifiers } from "./move-modifiers.mjs";
 import { confirmHeldItemReaction, consumeHeldItem, heldItemId, postHeldItemMessage, statusBerryMatches } from "../pokemon/held-items.mjs";
+import { currentField } from "./terrain-effects.mjs";
 import { hasTrainerPath } from "../trainer/trainer-path-rules.mjs";
 import { applyGruntSaveAdvantage, applyHobbyistSaveBoost, applyNurseStatusSaveAdvantage, applyTacticianDcBoost } from "../trainer/trainer-resources.mjs";
 
@@ -486,6 +487,31 @@ export async function applyEndTurnStatusDamage(actor) {
   const hp = actor.system.attributes.hp;
   await actor.update({ "system.attributes.hp.value": Math.max(0, Number(hp.value) - damage) });
   await ChatMessage.create({ content: `<div class="dnd5e chat-card poke5e-status-card"><p><strong>${escapeHtml(actor.name)}</strong> recibe <strong>${damage} de daño</strong> por ${escapeHtml(label)} al final de su turno.</p></div>` });
+}
+
+/**
+ * Curación de fin de turno por habilidad de clima (Cuenco Lluvia con lluvia,
+ * Cuerpo Hielo con granizo o nieve): consulta el clima activo del combate con
+ * currentField() (terrain-effects.mjs) y, si abilityWeatherHeal() da true
+ * para las habilidades conocidas del Pokémon, cura una cantidad de PG igual a
+ * su competencia por nivel (misma escala que applyEndTurnStatusDamage()),
+ * topada al máximo de PG. No hace nada sin combate activo, con el Pokémon a 0
+ * PG o ya a tope. Lo invoca ongoing-effects.mjs junto a
+ * applyEndTurnStatusDamage(), en el mismo procesamiento de `combatTurnChange`.
+ */
+export async function applyEndTurnAbilityHealing(actor) {
+  if (!actor || !game.combat) return;
+  const hp = actor.system.attributes?.hp;
+  if (!hp || Number(hp.value) <= 0 || Number(hp.value) >= Number(hp.max)) return;
+  const abilities = await pokemonAbilities(actor);
+  const weatherId = currentField(game.combat).weather?.id ?? null;
+  if (!abilityWeatherHeal(abilities, weatherId)) return;
+  const pokemonItem = await pokemonItemForActor(actor);
+  const level = Number(pokemonItem?.getFlag(MODULE_ID, "instance")?.level) || 1;
+  const healing = 2 + Math.floor((Math.max(1, Math.min(20, level)) - 1) / 4);
+  const newValue = Math.min(Number(hp.max), Number(hp.value) + healing);
+  await actor.update({ "system.attributes.hp.value": newValue });
+  await ChatMessage.create({ content: `<div class="dnd5e chat-card poke5e-status-card"><p><strong>${escapeHtml(actor.name)}</strong> recupera <strong>${newValue - Number(hp.value)} PG</strong> por su habilidad al final de su turno.</p></div>` });
 }
 
 /**
