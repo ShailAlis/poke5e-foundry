@@ -1,18 +1,19 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import {
-  CONTACT_DAMAGE_ABILITIES, FULL_STATUS_IMMUNITY_ABILITIES, IMMUNITY_ABILITIES, LOW_HP_STAB_ABILITIES, RESISTANCE_ABILITIES, STATUS_IMMUNITY_ABILITIES, WEATHER_ABILITIES,
-  abilityBlocksStatus, abilityDeployWeather, abilityLowHpStabBonus, abilityMoveProfile, applyAbilityDefenses, contactDamageReaction, pokemonAbilityDefenses
+  CONTACT_DAMAGE_ABILITIES, CONTACT_STATUS_ABILITIES, FULL_STATUS_IMMUNITY_ABILITIES, IMMUNITY_ABILITIES, LOW_HP_STAB_ABILITIES, RESISTANCE_ABILITIES, STATUS_IMMUNITY_ABILITIES, WEATHER_ABILITIES,
+  abilityBlocksStatus, abilityDeployWeather, abilityLowHpStabBonus, abilityMoveProfile, applyAbilityDefenses, contactDamageReaction, contactStatusReaction, pokemonAbilityDefenses
 } from "../pokemon/pokemon-abilities.mjs";
 import { POKEMON_STATUS_EFFECTS } from "../combat/status-effects.mjs";
 
 const abilities = JSON.parse(fs.readFileSync(new URL("../../data/abilities.json", import.meta.url), "utf8")).items;
 const abilityIds = new Set(abilities.map(entry => entry.id));
 const MOVE_PROFILE_ABILITY_IDS = ["compound-eyes", "gale-wings", "steelworker", "rivalry", "super-luck"];
+const CURSED_BODY_ABILITY_ID = "cursed-body";
 const catalogued = [
   ...Object.keys(IMMUNITY_ABILITIES), ...Object.keys(RESISTANCE_ABILITIES), ...Object.keys(WEATHER_ABILITIES),
   ...Object.keys(STATUS_IMMUNITY_ABILITIES), ...FULL_STATUS_IMMUNITY_ABILITIES, ...Object.keys(CONTACT_DAMAGE_ABILITIES), ...LOW_HP_STAB_ABILITIES,
-  ...MOVE_PROFILE_ABILITY_IDS
+  ...MOVE_PROFILE_ABILITY_IDS, ...Object.keys(CONTACT_STATUS_ABILITIES), CURSED_BODY_ABILITY_ID
 ];
 const unknown = catalogued.filter(id => !abilityIds.has(id));
 assert.deepEqual(unknown, [], `Habilidades sin correspondencia en data/abilities.json: ${unknown.join(", ")}`);
@@ -60,6 +61,12 @@ assert.equal(contactDamageReaction(["overgrow"]), null, "Una habilidad sin reacc
 assert.equal(contactDamageReaction([]), null);
 for (const { type } of Object.values(CONTACT_DAMAGE_ABILITIES)) assert.ok(type === "typeless" || DAMAGE_TYPES.has(type), `Tipo de daño desconocido: ${type}`);
 
+assert.deepEqual(contactStatusReaction(["flame-body"]), { ability: "flame-body", status: "burned", die: 10, on: 10 });
+assert.deepEqual(contactStatusReaction(["stench"]), { ability: "stench", status: "flinched", die: 10, on: 10 });
+assert.equal(contactStatusReaction(["overgrow"]), null, "Una habilidad sin reacción de contacto-a-estado no aporta nada");
+assert.equal(contactStatusReaction([]), null);
+for (const { status } of Object.values(CONTACT_STATUS_ABILITIES)) assert.ok(statusIds.has(status), `Estado desconocido: ${status}`);
+
 assert.equal(abilityLowHpStabBonus(["blaze"], 0.25), 2);
 assert.equal(abilityLowHpStabBonus(["blaze"], 0.1), 2);
 assert.equal(abilityLowHpStabBonus(["blaze"], 0.26), 0, "Por encima del 25% no dobla el STAB");
@@ -80,4 +87,4 @@ assert.deepEqual(abilityMoveProfile(["super-luck"]), { attack: 0, damage: 0, cri
 assert.deepEqual(abilityMoveProfile([]), { attack: 0, damage: 0, criticalRange: 0 });
 assert.deepEqual(abilityMoveProfile(["compound-eyes", "super-luck"]), { attack: 1, damage: 0, criticalRange: 1 }, "Varias habilidades del lote se combinan");
 
-console.log(`Pokémon abilities validation passed: ${Object.keys(IMMUNITY_ABILITIES).length} immunities, ${Object.keys(RESISTANCE_ABILITIES).length} resistances, ${Object.keys(WEATHER_ABILITIES).length} weather-setters, ${Object.keys(STATUS_IMMUNITY_ABILITIES).length + FULL_STATUS_IMMUNITY_ABILITIES.size} status immunities, ${Object.keys(CONTACT_DAMAGE_ABILITIES).length} contact reactions, ${LOW_HP_STAB_ABILITIES.size} low-HP STAB doublers, ${MOVE_PROFILE_ABILITY_IDS.length} move-profile bonuses out of ${abilities.length} known abilities.`);
+console.log(`Pokémon abilities validation passed: ${Object.keys(IMMUNITY_ABILITIES).length} immunities, ${Object.keys(RESISTANCE_ABILITIES).length} resistances, ${Object.keys(WEATHER_ABILITIES).length} weather-setters, ${Object.keys(STATUS_IMMUNITY_ABILITIES).length + FULL_STATUS_IMMUNITY_ABILITIES.size} status immunities, ${Object.keys(CONTACT_DAMAGE_ABILITIES).length} contact damage reactions, ${LOW_HP_STAB_ABILITIES.size} low-HP STAB doublers, ${MOVE_PROFILE_ABILITY_IDS.length} move-profile bonuses, ${Object.keys(CONTACT_STATUS_ABILITIES).length + 1} contact status reactions out of ${abilities.length} known abilities.`);

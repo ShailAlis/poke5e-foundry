@@ -47,6 +47,17 @@
  *   rastrear más allá del tipo del movimiento y, para Rivalidad, el tipo del
  *   objetivo (ya disponible por el flag `pokemonTypes` que llevan los actores
  *   desplegados y salvajes).
+ * - Lote 5: reacciones de contacto que aplican un estado al atacante en vez
+ *   de dañarlo (Cuerpo Ardiente quema con un 10 en 1d10, Hedor amedrenta con
+ *   un 10 en 1d10; Cuerpo Maldito es distinto, bloquea el último movimiento
+ *   del atacante con un 4 en 1d4 en vez de un estado del catálogo). Mismo
+ *   punto que el lote 2 (#rollMove(), tras resolver un ataque cuerpo a
+ *   cuerpo), pero como este archivo no importa applyPokemonStatus() ni
+ *   applyMoveLock() (evitar el ciclo de imports con status-effects.mjs, que
+ *   ya importa abilityBlocksStatus() de aquí) las tres funciones de este
+ *   lote solo tiran el dado y devuelven el resultado; quien llama desde
+ *   pokemon-sheet.mjs aplica el estado o el bloqueo con las funciones que sí
+ *   tiene importadas.
  *
  * El resto del catálogo queda para lotes posteriores porque exige más que un
  * ajuste al desplegar o una comprobación puntual: absorber un tipo de daño
@@ -324,3 +335,75 @@ async function pokemonItemForActor(actor) {
 
 /** Escapa texto para los mensajes de chat que genera este archivo. */
 function escapeHtml(value) { return foundry.utils.escapeHTML(String(value ?? "")); }
+
+/**
+ * Habilidad → reacción de contacto que aplica un estado del catálogo
+ * (POKEMON_STATUS_EFFECTS, status-effects.mjs) al atacante en vez de daño:
+ * "si un golpe cuerpo a cuerpo te alcanza, tira `die` y en el resultado `on`
+ * el atacante sufre `status`". Cuerpo Maldito no vive aquí porque no aplica
+ * un estado del catálogo, ver applyCursedBodyReaction() más abajo.
+ */
+export const CONTACT_STATUS_ABILITIES = Object.freeze({
+  "flame-body": { status: "burned", die: 10, on: 10 },
+  stench: { status: "flinched", die: 10, on: 10 }
+});
+
+/**
+ * Primera reacción de contacto-a-estado que aporta un conjunto de
+ * habilidades conocidas, o null si ninguna tiene una. Mismo criterio de
+ * "primera coincidencia" que contactDamageReaction() y abilityDeployWeather().
+ */
+export function contactStatusReaction(abilities = []) {
+  for (const id of abilities ?? []) if (CONTACT_STATUS_ABILITIES[id]) return { ability: id, ...CONTACT_STATUS_ABILITIES[id] };
+  return null;
+}
+
+/**
+ * Resuelve la reacción de contacto de un defensor tras recibir un golpe
+ * cuerpo a cuerpo cuando esa reacción aplica un estado (Cuerpo Ardiente,
+ * Hedor) en vez de daño: tira el dado de la habilidad y publica la tirada
+ * pública en el chat, igual que applyContactDamageReaction(). Si acierta
+ * devuelve `{ ability, status }` para que quien llame aplique el estado al
+ * atacante con applyPokemonStatus() (status-effects.mjs); si no, devuelve
+ * null. Esta función nunca aplica el estado ella misma: pokemon-abilities.mjs
+ * no importa status-effects.mjs para no crear un ciclo de imports (ese
+ * archivo ya importa abilityBlocksStatus() de aquí). La llama #rollMove()
+ * (pokemon-sheet.mjs) tras resolver el ataque, una vez por objetivo
+ * alcanzado, solo cuando el movimiento es cuerpo a cuerpo.
+ */
+export async function applyContactStatusReaction(defenderActor) {
+  if (!defenderActor) return null;
+  const pokemonItem = await pokemonItemForActor(defenderActor);
+  const instance = pokemonItem?.getFlag(MODULE_ID, "instance");
+  const reaction = contactStatusReaction(instance?.abilities);
+  if (!reaction) return null;
+  const label = pokemonItem.name ?? defenderActor.name;
+  const roll = await new Roll(`1d${reaction.die}`).evaluate();
+  await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor: defenderActor }), flavor: `${defenderActor.name} — ${label} (contacto): ¿inflige un estado al atacante? (ocurre con un ${reaction.on})` });
+  if (Number(roll.total) !== reaction.on) return null;
+  return { ability: reaction.ability, status: reaction.status };
+}
+
+/**
+ * Resuelve Cuerpo Maldito tras recibir un golpe cuerpo a cuerpo: tira 1d4 y,
+ * en un 4, publica la tirada y un aviso corto en el chat y devuelve true para
+ * que quien llame bloquee el último movimiento del atacante con
+ * applyMoveLock() (move-modifiers.mjs); si no, devuelve false sin publicar el
+ * aviso adicional. No aplica el bloqueo ella misma por el mismo motivo que
+ * applyContactStatusReaction(): esta función no conoce moveId, solo la llamada
+ * desde #rollMove() (pokemon-sheet.mjs) lo tiene a mano.
+ */
+export async function applyCursedBodyReaction(defenderActor, attackerActor) {
+  if (!defenderActor || !attackerActor || defenderActor === attackerActor) return false;
+  const pokemonItem = await pokemonItemForActor(defenderActor);
+  const instance = pokemonItem?.getFlag(MODULE_ID, "instance");
+  if (!(instance?.abilities ?? []).includes("cursed-body")) return false;
+  const label = pokemonItem.name ?? defenderActor.name;
+  const roll = await new Roll("1d4").evaluate();
+  await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor: defenderActor }), flavor: `${defenderActor.name} — ${label} (contacto): ¿bloquea el movimiento del atacante? (ocurre con un 4)` });
+  if (Number(roll.total) !== 4) return false;
+  await ChatMessage.create({
+    content: `<div class="dnd5e chat-card poke5e-status-card"><p><strong>${escapeHtml(attackerActor.name)}</strong> no podrá repetir ese movimiento en su próximo turno por Cuerpo Maldito de ${escapeHtml(defenderActor.name)}.</p></div>`
+  });
+  return true;
+}

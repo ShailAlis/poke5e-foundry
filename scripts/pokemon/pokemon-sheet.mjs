@@ -17,7 +17,7 @@ import { MAX_KNOWN_MOVES, applyLearnedMove, filterMoveCatalog, moveEligibility }
 import { normalizeMoveDamageTypes, pokemonDefenses, typeLabel } from "../combat/combat.mjs";
 import { deployedActorFor, recallPokemon, syncPokemonHeldItemToDeployment, syncPokemonIdentityToDeployment } from "../world/deployment.mjs";
 import { CONTEST_TYPES, contestAppealOutcome, contestCompatibility, contestDetailsForMove, contestTypeOptions } from "../world/contests.mjs";
-import { POKEMON_STATUS_EFFECTS, applyMoveStatuses, pokemonIncapacitatingStatus, pokemonStatusEntries, pokemonStatusId, removePokemonStatus } from "../combat/status-effects.mjs";
+import { POKEMON_STATUS_EFFECTS, applyMoveStatuses, applyPokemonStatus, pokemonIncapacitatingStatus, pokemonStatusEntries, pokemonStatusId, removePokemonStatus } from "../combat/status-effects.mjs";
 import { applyMoveOngoingEffects, moveHasImmediateDamage, ongoingEffectEntries, removeOngoingEffect } from "../combat/ongoing-effects.mjs";
 import { applyDynamicModifier, applyMoveLock, applyMoveModifierEffects, attackHitsPokemonTarget, consecutiveStrikeStacks, consumeCapturedMoveModifiers, isMoveRecharging, moveModifierEntries, moveModifierIdsToConsume, pokemonCombatModifiers, removeAllMoveModifiers, removeMoveModifier, resetConsecutiveStrike, targetedPokemonModifiers } from "../combat/move-modifiers.mjs";
 import { CHAIN_MULTI_HIT_MOVES, CONSECUTIVE_ESCALATION_MOVES, FIXED_MULTI_ATTACK_MOVES, STOP_ON_MISS_MOVES, addExtraDie, diceMultiplierForStacks, resolveChainHits, scaleDiceCount, swiftProjectileCount } from "../combat/multi-hit.mjs";
@@ -29,7 +29,7 @@ import { acupressureEffect, hiddenPowerType, magnitudeDice } from "../combat/ran
 import { requestForcedSwitch, selfForcedSwitch } from "../combat/forced-switch.mjs";
 import { FULL_NEGATION_MOVES, HALF_NEGATION_MOVES, SURVIVE_MOVES, armDamageShield } from "../combat/damage-shields.mjs";
 import { FIELD_PULSE_MOVES, FIELD_RULE_MOVES, TERRAIN_MOVES, WEATHER_BALL_TYPES, WEATHER_MOVES, clearField, currentField, requestFieldEffect } from "../combat/terrain-effects.mjs";
-import { abilityLowHpStabBonus, abilityMoveProfile, applyContactDamageReaction } from "./pokemon-abilities.mjs";
+import { abilityLowHpStabBonus, abilityMoveProfile, applyContactDamageReaction, applyContactStatusReaction, applyCursedBodyReaction } from "./pokemon-abilities.mjs";
 import { promptSpendTrainerResource, trainerResourceState } from "../trainer/trainer-resources.mjs";
 import { pokemonFeatOptions } from "../trainer/feat-catalog.mjs";
 import { SKILLS } from "../trainer/trainer-creation-data.mjs";
@@ -1144,6 +1144,16 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       for (const token of selectedTokens) {
         if (!attackHitsPokemonTarget(attackResult, token.actor)) continue;
         await applyContactDamageReaction(token.actor, combatActor);
+        // Lote 5: reacciones de contacto que aplican un estado (Cuerpo
+        // Ardiente, Hedor) o bloquean un movimiento (Cuerpo Maldito) al
+        // atacante en vez de dañarlo. pokemon-abilities.mjs solo tira el
+        // dado y devuelve el resultado (evita el ciclo de imports con
+        // status-effects.mjs); aquí, que ya tiene ambas funciones
+        // importadas, se aplica el estado o el bloqueo.
+        const statusReaction = await applyContactStatusReaction(token.actor);
+        if (statusReaction) await applyPokemonStatus(combatActor, statusReaction.status, { sourceName: token.name, moveName: move.name });
+        const cursedBody = await applyCursedBodyReaction(token.actor, combatActor);
+        if (cursedBody) await applyMoveLock(combatActor, move.id, { sourceName: token.name, description: `${move.name} no puede repetirse en el próximo turno por Cuerpo Maldito de ${escapeHtml(token.name)}.` });
       }
     }
     if (move.id === "trick" && attackResult) {
