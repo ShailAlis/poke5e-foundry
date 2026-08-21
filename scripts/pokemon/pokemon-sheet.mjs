@@ -971,7 +971,12 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
         if (burned) damageRolls.push(await new Roll(formula).evaluate());
         const damage = damageRolls.reduce((lowest, candidate) => Number(candidate.total) < Number(lowest.total) ? candidate : lowest);
         dealtDamageTotal = Number(damage.total) || 0;
-        await damage.toMessage({ speaker, flavor: `${flavor} — ${typeLabel(damageType)}${burned ? ` · Quemado: menor de ${damageRolls.map(roll => roll.total).join("/")}` : ""}` });
+        const rollType = damageType === "healing" ? "healing" : "damage";
+        await damage.toMessage({
+          speaker,
+          flavor: `${flavor} — ${typeLabel(damageType)}${burned ? ` · Quemado: menor de ${damageRolls.map(roll => roll.total).join("/")}` : ""}`,
+          flags: { dnd5e: { messageType: "roll", roll: { type: rollType }, targets: targetDescriptors() } }
+        });
       }
     }
     const selectedHit = Boolean(attackResult) && selectedTokens.some(token => attackHitsPokemonTarget(attackResult, token.actor));
@@ -1886,7 +1891,8 @@ async function rollChainMultiHit(move, level, damageType, flavor, speaker, maxEx
     : await new Roll(extraFormula).evaluate();
   await extraDamage.toMessage({
     speaker,
-    flavor: `${flavor} — ${extraHits} golpe${extraHits === 1 ? "" : "s"} adicional${extraHits === 1 ? "" : "es"} (${typeLabel(damageType)})`
+    flavor: `${flavor} — ${extraHits} golpe${extraHits === 1 ? "" : "s"} adicional${extraHits === 1 ? "" : "es"} (${typeLabel(damageType)})`,
+    flags: { dnd5e: { messageType: "roll", roll: { type: "damage" }, targets: targetDescriptors() } }
   });
 }
 
