@@ -588,6 +588,7 @@ body.poke5e-dark-mode .poke5e-exp-award { color: hsl(47, 90%, 76%); background: 
 body.poke5e-dark-mode .poke5e-encounter-summary { color: hsl(205, 85%, 76%); background: hsla(205, 70%, 42%, 0.2); }
 body.poke5e-dark-mode .poke5e-encounter-roster-list .deployed-label { color: hsl(135, 55%, 68%); }
 body.poke5e-dark-mode .poke5e-learning-methods > span.warning { color: hsl(355, 84%, 76%); background: hsla(355, 70%, 42%, 0.24); }
+body.poke5e-dark-mode .poke5e-move-meta { color: hsla(0, 0%, 100%, 0.75); }
 body.poke5e-dark-mode .poke5e-team-card > img,
 body.poke5e-dark-mode .poke5e-dex-header > img { background: linear-gradient(145deg, hsl(0, 0%, 28%), hsl(0, 0%, 20%)); }
 body.poke5e-dark-mode .poke5e-sheet-team-tab { color: hsl(0, 0%, 83%); background: linear-gradient(145deg, hsl(0, 0%, 20%), hsl(251, 13%, 12%)); }
