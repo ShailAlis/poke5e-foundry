@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import {
-  CONTACT_DAMAGE_ABILITIES, FULL_STATUS_IMMUNITY_ABILITIES, IMMUNITY_ABILITIES, LOW_HP_STAB_ABILITIES, RESISTANCE_ABILITIES, STATUS_IMMUNITY_ABILITIES, WEATHER_ABILITIES,
-  abilityBlocksStatus, abilityDeployWeather, abilityLowHpStabBonus, abilityMoveProfile, applyAbilityDefenses, contactDamageReaction, pokemonAbilityDefenses
+  AC_STATUS_BONUS_ABILITIES, CONTACT_DAMAGE_ABILITIES, FULL_STATUS_IMMUNITY_ABILITIES, IMMUNITY_ABILITIES, LOW_HP_STAB_ABILITIES, RESISTANCE_ABILITIES, SPEED_STATUS_BONUS_ABILITIES, STATUS_IMMUNITY_ABILITIES, WEATHER_ABILITIES,
+  abilityBlocksStatus, abilityDeployWeather, abilityLowHpStabBonus, abilityMoveProfile, abilityStatusBonusEffectSource, applyAbilityDefenses, contactDamageReaction, pokemonAbilityDefenses
 } from "../pokemon/pokemon-abilities.mjs";
 import { POKEMON_STATUS_EFFECTS } from "../combat/status-effects.mjs";
 
@@ -12,7 +12,7 @@ const MOVE_PROFILE_ABILITY_IDS = ["compound-eyes", "gale-wings", "steelworker", 
 const catalogued = [
   ...Object.keys(IMMUNITY_ABILITIES), ...Object.keys(RESISTANCE_ABILITIES), ...Object.keys(WEATHER_ABILITIES),
   ...Object.keys(STATUS_IMMUNITY_ABILITIES), ...FULL_STATUS_IMMUNITY_ABILITIES, ...Object.keys(CONTACT_DAMAGE_ABILITIES), ...LOW_HP_STAB_ABILITIES,
-  ...MOVE_PROFILE_ABILITY_IDS
+  ...MOVE_PROFILE_ABILITY_IDS, ...Object.keys(AC_STATUS_BONUS_ABILITIES), ...Object.keys(SPEED_STATUS_BONUS_ABILITIES)
 ];
 const unknown = catalogued.filter(id => !abilityIds.has(id));
 assert.deepEqual(unknown, [], `Habilidades sin correspondencia en data/abilities.json: ${unknown.join(", ")}`);
@@ -80,4 +80,28 @@ assert.deepEqual(abilityMoveProfile(["super-luck"]), { attack: 0, damage: 0, cri
 assert.deepEqual(abilityMoveProfile([]), { attack: 0, damage: 0, criticalRange: 0 });
 assert.deepEqual(abilityMoveProfile(["compound-eyes", "super-luck"]), { attack: 1, damage: 0, criticalRange: 1 }, "Varias habilidades del lote se combinan");
 
-console.log(`Pokémon abilities validation passed: ${Object.keys(IMMUNITY_ABILITIES).length} immunities, ${Object.keys(RESISTANCE_ABILITIES).length} resistances, ${Object.keys(WEATHER_ABILITIES).length} weather-setters, ${Object.keys(STATUS_IMMUNITY_ABILITIES).length + FULL_STATUS_IMMUNITY_ABILITIES.size} status immunities, ${Object.keys(CONTACT_DAMAGE_ABILITIES).length} contact reactions, ${LOW_HP_STAB_ABILITIES.size} low-HP STAB doublers, ${MOVE_PROFILE_ABILITY_IDS.length} move-profile bonuses out of ${abilities.length} known abilities.`);
+// abilityStatusBonusEffectSource() (Lote 7) usa CONST.ACTIVE_EFFECT_MODES.ADD,
+// global en Foundry pero ausente en Node — se define aquí como ya hace
+// validate-status-effects.mjs con MULTIPLY para pokemonStatusEffectSource().
+globalThis.CONST = { ACTIVE_EFFECT_MODES: { ADD: 2 } };
+assert.equal(abilityStatusBonusEffectSource([]), null, "Sin Escama Prodigio ni Pies Rápidos no hay ActiveEffect que crear");
+assert.equal(abilityStatusBonusEffectSource(["overgrow"]), null, "Una habilidad sin bono de estado no aporta nada");
+
+const marvelScaleSource = abilityStatusBonusEffectSource(["marvel-scale"]);
+assert.ok(marvelScaleSource?.changes?.length, "Escama Prodigio debe producir al menos un change");
+assert.deepEqual(marvelScaleSource.changes, [{ key: "system.attributes.ac.bonus", mode: CONST.ACTIVE_EFFECT_MODES.ADD, value: AC_STATUS_BONUS_ABILITIES["marvel-scale"] }]);
+assert.equal(marvelScaleSource.flags["poke5e-foundry"].kind, "ability-status-bonus");
+
+const quickFeetSource = abilityStatusBonusEffectSource(["quick-feet"]);
+assert.ok(quickFeetSource?.changes?.length, "Pies Rápidos debe producir al menos un change");
+assert.equal(quickFeetSource.changes.length, 5, "Pies Rápidos afecta a las cinco formas de movimiento");
+for (const change of quickFeetSource.changes) {
+  assert.ok(change.key.startsWith("system.attributes.movement."), `Change inesperado: ${change.key}`);
+  assert.equal(change.mode, CONST.ACTIVE_EFFECT_MODES.ADD);
+  assert.equal(change.value, SPEED_STATUS_BONUS_ABILITIES["quick-feet"]);
+}
+
+const bothSource = abilityStatusBonusEffectSource(["marvel-scale", "quick-feet"]);
+assert.equal(bothSource.changes.length, 6, "Ambas habilidades a la vez suman sus changes en vez de sustituirse");
+
+console.log(`Pokémon abilities validation passed: ${Object.keys(IMMUNITY_ABILITIES).length} immunities, ${Object.keys(RESISTANCE_ABILITIES).length} resistances, ${Object.keys(WEATHER_ABILITIES).length} weather-setters, ${Object.keys(STATUS_IMMUNITY_ABILITIES).length + FULL_STATUS_IMMUNITY_ABILITIES.size} status immunities, ${Object.keys(CONTACT_DAMAGE_ABILITIES).length} contact reactions, ${LOW_HP_STAB_ABILITIES.size} low-HP STAB doublers, ${MOVE_PROFILE_ABILITY_IDS.length} move-profile bonuses, ${Object.keys(AC_STATUS_BONUS_ABILITIES).length + Object.keys(SPEED_STATUS_BONUS_ABILITIES).length} status AC/speed bonuses out of ${abilities.length} known abilities.`);

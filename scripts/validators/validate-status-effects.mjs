@@ -8,7 +8,7 @@
  */
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { POKEMON_STATUS_EFFECTS, applyPokemonStatus, inferMoveStatusEffects, pokemonIncapacitatingStatus, pokemonStatusEffectSource } from "../combat/status-effects.mjs";
+import { POKEMON_STATUS_EFFECTS, applyPokemonStatus, inferMoveStatusEffects, pokemonIncapacitatingStatus, pokemonStatusEffectSource, removePokemonStatus } from "../combat/status-effects.mjs";
 
 const moves = JSON.parse(fs.readFileSync(new URL("../../data/moves.json", import.meta.url))).moves;
 const translated = JSON.parse(fs.readFileSync(new URL("../../data/es/moves.json", import.meta.url))).moves;
@@ -36,7 +36,7 @@ assert.equal(inferMoveStatusEffects(translated.find(move => move.id === "fire-pu
 assert.deepEqual(inferMoveStatusEffects(translated.find(move => move.id === "ember")), [{ id: "burned", trigger: "natural", minimum: 19 }]);
 assert.equal(POKEMON_STATUS_EFFECTS.burned.immuneTypes.includes("fire"), true);
 assert.equal(POKEMON_STATUS_EFFECTS.frozen.immuneTypes.includes("ice"), true);
-globalThis.CONST = { ACTIVE_EFFECT_MODES: { MULTIPLY: 1 } };
+globalThis.CONST = { ACTIVE_EFFECT_MODES: { MULTIPLY: 1, ADD: 2 } };
 globalThis.game = { combat: null };
 globalThis.CONFIG = { statusEffects: [{ id: "bloodied", name: "Bloodied" }] };
 const burnedSource = pokemonStatusEffectSource("burned");
@@ -70,9 +70,9 @@ const notifications = [];
 globalThis.ui = { notifications: { info: message => notifications.push(message) } };
 game.i18n = { format: (key, data) => `${key} ${JSON.stringify(data)}`, localize: key => key };
 
-function fakeAsleepActor({ withEffect = false, conditions = [] } = {}) {
+function fakeAsleepActor({ withEffect = false, conditions = [], abilities = [] } = {}) {
   const effects = [];
-  const item = { getFlag: (scope, key) => key === "kind" ? "pokemon" : key === "instance" ? { conditions } : null, async setFlag(scope, key, value) { conditions = value.conditions; } };
+  const item = { getFlag: (scope, key) => key === "kind" ? "pokemon" : key === "instance" ? { conditions, abilities } : null, async setFlag(scope, key, value) { conditions = value.conditions; } };
   item.parent = null; // se enlaza más abajo, una vez existe `actor`.
   const actor = {
     name: "Snorlax", documentName: "Actor",
@@ -81,7 +81,9 @@ function fakeAsleepActor({ withEffect = false, conditions = [] } = {}) {
     statuses: new Set(),
     items: [item],
     async createEmbeddedDocuments(type, docs) {
-      for (const doc of docs) effects.push({ id: `eff-${effects.length}`, statuses: new Set(doc.statuses), getFlag: (s, k) => k === "status" ? doc.flags["poke5e-foundry"].status : null });
+      // getFlag() expone cualquier clave del flag del módulo, no solo "status":
+      // el bono de habilidad de estado (Lote 7) se localiza por "kind".
+      for (const doc of docs) effects.push({ id: `eff-${effects.length}`, statuses: new Set(doc.statuses), getFlag: (s, k) => doc.flags["poke5e-foundry"]?.[k] ?? null });
     },
     async deleteEmbeddedDocuments(type, ids) { for (const id of ids) { const index = effects.findIndex(effect => effect.id === id); if (index >= 0) effects.splice(index, 1); } }
   };
@@ -131,5 +133,24 @@ assert.equal(pokemonIncapacitatingStatus(asleepActor), "asleep");
 const paralyzedActor = { effects: [{ getFlag: (s, k) => k === "status" ? "paralyzed" : null }], statuses: new Set() };
 assert.equal(pokemonIncapacitatingStatus(paralyzedActor), null, "Parálisis es un fallo aleatorio, no un bloqueo");
 assert.equal(pokemonIncapacitatingStatus(null), null);
+
+// Escama Prodigio/Pies Rápidos (Lote 7): el ActiveEffect de bono se crea junto
+// al PRIMER estado que sufre el Pokémon y se borra cuando se queda sin
+// NINGUNO, sin duplicarse ni perderse si hay varios estados compatibles.
+const marvelScale = fakeAsleepActor({ abilities: ["marvel-scale"] });
+await applyPokemonStatus(marvelScale.actor, "asleep", { sourceName: "Ash's Pikachu", moveName: "Hypnosis" });
+assert.equal(marvelScale.actor.effects.length, 2, "El primer estado debe levantar también el bono de Escama Prodigio.");
+const bonusEffect = marvelScale.actor.effects.find(effect => effect.getFlag("poke5e-foundry", "kind") === "ability-status-bonus");
+assert.ok(bonusEffect, "Debe existir un ActiveEffect marcado como ability-status-bonus.");
+await removePokemonStatus(marvelScale.item, "asleep");
+assert.equal(marvelScale.actor.effects.length, 0, "Al quedarse sin estados, el bono de habilidad también debe borrarse.");
+
+// Sin Escama Prodigio/Pies Rápidos, aplicar y quitar un estado no debe crear
+// ni dejar ningún ActiveEffect adicional.
+const noAbility = fakeAsleepActor({ abilities: [] });
+await applyPokemonStatus(noAbility.actor, "asleep", { sourceName: "Ash's Pikachu", moveName: "Hypnosis" });
+assert.equal(noAbility.actor.effects.length, 1, "Sin la habilidad no debe crearse ningún ActiveEffect de bono.");
+await removePokemonStatus(noAbility.item, "asleep");
+assert.equal(noAbility.actor.effects.length, 0);
 
 console.log(`Pokémon status-effect validation passed after auditing ${mentionedStatuses.length} textual candidates.`);
