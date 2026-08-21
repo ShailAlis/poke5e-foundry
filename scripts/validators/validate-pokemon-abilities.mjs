@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import {
-  CONTACT_DAMAGE_ABILITIES, FULL_STATUS_IMMUNITY_ABILITIES, IMMUNITY_ABILITIES, LOW_HP_STAB_ABILITIES, RESISTANCE_ABILITIES, STATUS_IMMUNITY_ABILITIES, WEATHER_ABILITIES,
-  abilityBlocksStatus, abilityDeployWeather, abilityLowHpStabBonus, abilityMoveProfile, applyAbilityDefenses, contactDamageReaction, pokemonAbilityDefenses
+  CONTACT_DAMAGE_ABILITIES, FULL_STATUS_IMMUNITY_ABILITIES, IMMUNITY_ABILITIES, LOW_HP_STAB_ABILITIES, RESISTANCE_ABILITIES, STATUS_IMMUNITY_ABILITIES, WEATHER_ABILITIES, WEATHER_HEAL_ABILITIES,
+  abilityBlocksStatus, abilityDeployWeather, abilityLowHpStabBonus, abilityMoveProfile, abilityWeatherHeal, applyAbilityDefenses, contactDamageReaction, pokemonAbilityDefenses
 } from "../pokemon/pokemon-abilities.mjs";
 import { POKEMON_STATUS_EFFECTS } from "../combat/status-effects.mjs";
 
@@ -12,7 +12,7 @@ const MOVE_PROFILE_ABILITY_IDS = ["compound-eyes", "gale-wings", "steelworker", 
 const catalogued = [
   ...Object.keys(IMMUNITY_ABILITIES), ...Object.keys(RESISTANCE_ABILITIES), ...Object.keys(WEATHER_ABILITIES),
   ...Object.keys(STATUS_IMMUNITY_ABILITIES), ...FULL_STATUS_IMMUNITY_ABILITIES, ...Object.keys(CONTACT_DAMAGE_ABILITIES), ...LOW_HP_STAB_ABILITIES,
-  ...MOVE_PROFILE_ABILITY_IDS
+  ...MOVE_PROFILE_ABILITY_IDS, ...Object.keys(WEATHER_HEAL_ABILITIES)
 ];
 const unknown = catalogued.filter(id => !abilityIds.has(id));
 assert.deepEqual(unknown, [], `Habilidades sin correspondencia en data/abilities.json: ${unknown.join(", ")}`);
@@ -80,4 +80,14 @@ assert.deepEqual(abilityMoveProfile(["super-luck"]), { attack: 0, damage: 0, cri
 assert.deepEqual(abilityMoveProfile([]), { attack: 0, damage: 0, criticalRange: 0 });
 assert.deepEqual(abilityMoveProfile(["compound-eyes", "super-luck"]), { attack: 1, damage: 0, criticalRange: 1 }, "Varias habilidades del lote se combinan");
 
-console.log(`Pokémon abilities validation passed: ${Object.keys(IMMUNITY_ABILITIES).length} immunities, ${Object.keys(RESISTANCE_ABILITIES).length} resistances, ${Object.keys(WEATHER_ABILITIES).length} weather-setters, ${Object.keys(STATUS_IMMUNITY_ABILITIES).length + FULL_STATUS_IMMUNITY_ABILITIES.size} status immunities, ${Object.keys(CONTACT_DAMAGE_ABILITIES).length} contact reactions, ${LOW_HP_STAB_ABILITIES.size} low-HP STAB doublers, ${MOVE_PROFILE_ABILITY_IDS.length} move-profile bonuses out of ${abilities.length} known abilities.`);
+assert.equal(abilityWeatherHeal(["rain-dish"], "rain"), true);
+assert.equal(abilityWeatherHeal(["rain-dish"], "sun"), false, "Cuenco Lluvia solo cura con lluvia");
+assert.equal(abilityWeatherHeal(["ice-body"], "hail"), true);
+assert.equal(abilityWeatherHeal(["ice-body"], "snow"), true);
+assert.equal(abilityWeatherHeal(["ice-body"], "sandstorm"), false);
+assert.equal(abilityWeatherHeal(["overgrow"], "rain"), false, "Una habilidad sin curación por clima no aporta nada");
+assert.equal(abilityWeatherHeal(["rain-dish"], null), false, "Sin clima activo no cura");
+assert.equal(abilityWeatherHeal([], "rain"), false);
+assert.equal(abilityWeatherHeal(["rain-dish", "ice-body"], "snow"), true, "Varias habilidades del lote se combinan");
+
+console.log(`Pokémon abilities validation passed: ${Object.keys(IMMUNITY_ABILITIES).length} immunities, ${Object.keys(RESISTANCE_ABILITIES).length} resistances, ${Object.keys(WEATHER_ABILITIES).length} weather-setters, ${Object.keys(STATUS_IMMUNITY_ABILITIES).length + FULL_STATUS_IMMUNITY_ABILITIES.size} status immunities, ${Object.keys(CONTACT_DAMAGE_ABILITIES).length} contact reactions, ${LOW_HP_STAB_ABILITIES.size} low-HP STAB doublers, ${MOVE_PROFILE_ABILITY_IDS.length} move-profile bonuses, ${Object.keys(WEATHER_HEAL_ABILITIES).length} weather-healing abilities out of ${abilities.length} known abilities.`);

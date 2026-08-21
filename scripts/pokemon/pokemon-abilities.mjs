@@ -60,6 +60,20 @@
  * el turno de otro actor, la misma limitación estructural que ya excluye
  * varias familias de movimientos (ver CONTEXTUAL_MODIFIER_COVERAGE en
  * move-modifier-rules.mjs).
+ *
+ * Lote 8: curación de fin de turno condicionada al clima activo del combate
+ * — Cuenco Lluvia (rain-dish) con lluvia y Cuerpo Hielo (ice-body) con
+ * granizo o nieve. Se engancha en el mismo punto que ya resuelve el daño
+ * periódico de estado (`applyEndTurnStatusDamage()` en status-effects.mjs,
+ * llamada desde ongoing-effects.mjs en el cambio de turno), con una función
+ * hermana nueva, `applyEndTurnAbilityHealing()`, que consulta el clima del
+ * combate con `currentField()` (terrain-effects.mjs) y las habilidades
+ * conocidas del Pokémon (reutilizando `pokemonAbilities()`, la misma función
+ * local que ya usa applyPokemonStatus() para las inmunidades a estado por
+ * habilidad). La parte de Cuerpo Hielo sobre "no recibe daño de granizo" no
+ * necesita código propio: este proyecto no automatiza ningún daño de
+ * granizo por ronda (move-modifier-rules.mjs lo deja como resolución manual
+ * explícitamente), así que no hay nada que anular.
  */
 import { MODULE_ID } from "../core/model.mjs";
 import { typeLabel } from "../combat/combat.mjs";
@@ -320,6 +334,23 @@ async function pokemonItemForActor(actor) {
   const uuid = actor.getFlag(MODULE_ID, "pokemonItemUuid");
   if (uuid) return fromUuid(uuid);
   return actor.items?.find(item => item.getFlag(MODULE_ID, "kind") === "pokemon") ?? null;
+}
+
+/** Habilidad → climas que activan curación de fin de turno con ese clima. */
+export const WEATHER_HEAL_ABILITIES = Object.freeze({
+  "rain-dish": ["rain"],
+  "ice-body": ["hail", "snow"]
+});
+
+/**
+ * Indica si alguna de las habilidades conocidas cura al final del turno con
+ * el clima actualmente activo (`weatherId`, el `id` que devuelve
+ * currentField().weather, o null/undefined si no hay clima activo). La usa
+ * applyEndTurnAbilityHealing() en status-effects.mjs.
+ */
+export function abilityWeatherHeal(abilities = [], weatherId = null) {
+  if (!weatherId) return false;
+  return (abilities ?? []).some(id => WEATHER_HEAL_ABILITIES[id]?.includes(weatherId));
 }
 
 /** Escapa texto para los mensajes de chat que genera este archivo. */
