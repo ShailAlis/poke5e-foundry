@@ -1,231 +1,233 @@
-# Pokémon 5e for Foundry VTT
+# Pokémon 5e para Foundry VTT
 
-Módulo de contenido para **Foundry VTT 13/14** y **D&D 5e 5.3 o posterior**. Reutiliza los datos de [poke5e.app](https://poke5e.app) y los convierte en documentos de mundo de Foundry.
+Módulo de contenido y automatización para jugar Pokémon 5e en **Foundry VTT 13 o 14** con **D&D 5e 5.3 o posterior**. Incluye especies, movimientos, habilidades, objetos, Entrenadores, encuentros, captura, concursos y herramientas de combate.
 
-## Instalación y actualizaciones automáticas
+## Requisitos
 
-En la pantalla de configuración de Foundry abre **Módulos adicionales → Instalar módulo**, pega esta URL en **URL del manifiesto** y pulsa **Instalar**:
+- Foundry VTT 13 o 14.
+- Sistema D&D 5e 5.3 o posterior.
+- Un mundo configurado con D&D 5e.
+- Permisos de director para importar contenido y utilizar los generadores.
+- Conexión a Internet si se usa `poke5e.app` para sprites y retratos.
+
+## Instalación
+
+En la configuración de Foundry abre **Módulos adicionales → Instalar módulo**, introduce esta dirección en **URL del manifiesto** y pulsa **Instalar**:
 
 ```text
 https://github.com/ShailAlis/poke5e-foundry/releases/latest/download/module.json
 ```
 
-Las versiones posteriores aparecerán al usar **Comprobar actualización** o **Actualizar todo** desde la interfaz de Foundry.
+Activa después **Pokémon 5e for Foundry VTT** en un mundo de D&D 5e.
 
-## Modelo de contenido
+Para una instalación local, copia el repositorio en:
 
-- Las especies, movimientos, habilidades, objetos y la progresión de Entrenador se guardan en **compendios de mundo editables**.
-- **Entrenador** es una clase nativa de D&D 5e. Al arrastrarla a un personaje, el sistema gestiona sus PG y concede sus rasgos mediante avances por nivel.
-- Cada Pokémon capturado es un **Item embebido en su entrenador**. Conserva apodo, nivel, PG, PP, naturaleza, estado, movimientos y habilidades propios.
-- El equipo activo admite seis Pokémon; el resto queda en la reserva del mismo entrenador.
-- Arrastrar una especie desde el compendio a un actor de personaje la convierte automáticamente en un Pokémon individual.
-- Los objetos se arrastran desde su compendio al inventario normal del entrenador.
-- Al sacar un Pokémon al mapa se crea un actor de combate temporal. Sus PG se sincronizan con la ficha del entrenador y se elimina al retirarlo.
-- El compendio **Estados y modificadores** es de tipo ActiveEffect: el director arrastra un estado (Dormido, Envenenado…) o una etapa de característica (Ataque +1, Defensa −2…) directamente sobre cualquier token Pokémon para aplicarlo al instante, sin pasar por el inventario.
-- El compendio **Dotes** trae las 14 dotes propias de Pokémon 5e. Las dotes estándar de D&D (Alert, Tough…) no se reproducen —son contenido con copyright de Wizards of the Coast—: si el mundo tiene el compendio de dotes del sistema (u otro módulo) instalado, aparecen igualmente en los desplegables de dote del asistente de creación y de la subida de nivel de Pokémon.
+```text
+Data/modules/poke5e-foundry
+```
 
-## Funciones
+## Configuración inicial
 
-- Flujo guiado al crear un personaje: fija la especie **Humano** y aplica origen regional, bonificaciones, feat, idiomas, competencias, especialización, equipo inicial y Pokémon inicial con sus elecciones válidas.
-- Las fichas de personaje rechazan especies distintas de Humano. Los actores antiguos no se modifican automáticamente.
-- Ficha de Entrenador Pokémon personalizada, registrada automáticamente como ficha predeterminada para los personajes.
-- Pestaña **Equipo Pokémon** dentro de la ficha: muestra los seis huecos, abre cada Pokémon con un clic y permite añadir, desplegar, retirar o gestionar el equipo sin tapar las características.
-- Modo oscuro inspirado en poke5e.app, configurable por cada usuario desde los ajustes o la propia pestaña de equipo.
-- Buscador de especies con filtros por tipo, rango de SR/CR y nivel mínimo, además de distintas ordenaciones.
-- Ficha Pokédex para cada Pokémon individual.
-- Gestor de movimientos por especie: distingue ataques disponibles, futuros, aprendibles mediante MT o huevo e incompatibles, y bloquea aprendizajes no válidos.
-- Selector Combate/Concurso en cada ficha Pokémon, con categoría, Appeal, Jam, compatibilidad, efectos y tiradas contra la CD del juez.
-- Tiradas de ataque y daño, cálculo de MOVE, CD y consumo/restauración de PP.
-- Objetos equipados con reglas automáticas basadas en poke5e.app: curación y estados mediante bayas con confirmación, cargas y descansos, Banda Focus, Globo Helio, Mineral Evolutivo, modificadores de movimiento y efectos de fin de turno. Los objetos sin una resolución automática compatible siguen pudiendo equiparse y usarse como referencia.
-- Los 18 tipos de daño Pokémon se integran en D&D 5e sin eliminar sus tipos habituales. Las tiradas Pokémon usan el flujo de daño de D&D y aplican automáticamente resistencias, vulnerabilidades e inmunidades a los actores desplegados.
-- Efectos mantenidos de movimientos: daño y curación por turno, agarres y miedo con salvaciones repetidas, duración, concentración, iconos de token y limpieza automática al terminar el combate.
-- Iconos personalizados opcionales para estados, mejoras y debilitaciones: basta con copiar los PNG en `assets/icons/effects/`; el módulo los detecta al iniciar y conserva los iconos de Foundry como respaldo.
-- Motor de modificadores de movimientos: aplica sobre los tokens bonificadores y penalizadores de ataque, CA, daño, salvaciones, características y velocidad, con duración, concentración y acumulación según cada movimiento.
-- Cada Pokémon conserva un sexo generado según la proporción F:M de su especie y muestra sus posibles evoluciones con sus niveles y demás condiciones.
-- Contador de experiencia acumulada, subida automática de nivel y avances guiados de Pokémon: PG, mejoras de característica o dotes, nuevos tramos de movimientos, aumentos de daño y Poder Máximo.
-- Generador de encuentros exclusivo del director con filtros por bioma, región, tipo, SR y nivel, generación por objetivo de PX y despliegue de salvajes temporales.
-- Generador de Entrenadores NPC exclusivo del director: crea rivales o aliados humanos con nivel, origen, especialización, 42 arquetipos, dificultad, inventario, permisos, retrato, token y equipos Pokémon totalmente configurables o aleatorios.
-- Sistema de captura con alcance, límite de nivel, CD por SR/nivel/PG, ventaja por estados y efectos de las distintas Poké Balls. Al capturarlo, el salvaje conserva sus datos y pasa al equipo o a la reserva.
-- Interfaz en español e inglés.
-- Acceso directo a todas las secciones de reglas de poke5e.app.
+1. Entra al mundo como director.
+2. Abre **Ajustes del juego → Configurar ajustes → Pokémon 5e → Importar contenido**.
+3. Selecciona los compendios que quieras crear o actualizar y ejecuta la importación.
+4. Comprueba que estén disponibles los compendios de especies, movimientos, habilidades, objetos, dotes, estados y clase de Entrenador.
+5. Configura el idioma de datos y la URL base de recursos si no quieres utilizar los valores predeterminados.
 
-## Instalación manual o para desarrollo
+Volver a ejecutar el importador actualiza el contenido administrado por el módulo. Los compendios son documentos de mundo y pueden editarse después de importarlos.
 
-1. Copia toda esta carpeta dentro de `Data/modules/poke5e-foundry`.
-2. Activa **Pokémon 5e for Foundry VTT** en un mundo que use D&D 5e.
-3. Abre **Ajustes del juego → Configurar ajustes → Pokémon 5e → Importar contenido** y crea los compendios.
-4. Crea un actor de tipo **Personaje** y completa el asistente de Entrenador que se abrirá automáticamente.
-5. Abre la pestaña **Equipo Pokémon** de esa ficha.
-6. Añade especies con el buscador o arrastrándolas desde **Pokémon 5e — Especies**.
+## Ajustes del módulo
 
-Los sprites y retratos se cargan desde `poke5e.app` para que la instalación y las actualizaciones sean rápidas; su URL base puede cambiarse en los ajustes del mundo. Al actualizar desde una versión anterior, las imágenes guardadas en las fichas se migran automáticamente y los compendios se actualizan al volver a ejecutar el importador.
+- **Idioma de datos:** utiliza los catálogos en español o inglés. Al cambiarlo, el cliente se recarga para que todas las ventanas usen la misma selección.
+- **Modo oscuro:** ajuste individual para las fichas e interfaces del módulo.
+- **URL base de recursos:** origen de sprites, retratos y otros recursos remotos. El valor predeterminado es `https://poke5e.app`.
+
+## Crear un Entrenador jugador
+
+1. Crea un actor de tipo **Personaje**.
+2. Completa el asistente de Entrenador que se abre automáticamente.
+3. Elige origen regional, bonificaciones, dote, idiomas, competencias, especialización, equipo y Pokémon inicial.
+4. Abre la pestaña **Equipo Pokémon** para administrar el equipo.
+
+Los personajes jugadores utilizan la especie Humano. La clase **Entrenador** es una clase nativa de D&D 5e y concede sus rasgos mediante advancements. En nivel 2, el avance de clase permite escoger un Camino de Entrenador.
+
+Todos los personajes controlados por jugadores se sincronizan automáticamente con la **Primary Party**. No es necesario crear ni mantener manualmente un actor de grupo.
+
+### Experiencia y avance
+
+La pestaña **Equipo Pokémon** muestra la experiencia, el nivel y el siguiente umbral del Entrenador.
+
+- **Añadir XP** concede experiencia al personaje.
+- **Avanzar Entrenador** aplica el siguiente nivel cuando se alcanza el umbral.
+- Las elecciones de clase, características, dotes y Camino se presentan mediante el panel de advancements de D&D 5e.
+
+La experiencia puede automatizarse a partir de las recompensas del grupo principal. El nivel no se aplica silenciosamente: el botón de avance permite resolver antes las elecciones reglamentarias.
+
+## Administrar Pokémon
+
+Cada Pokémon de un Entrenador es un Item embebido en su actor. Conserva de forma independiente:
+
+- especie, apodo, sexo y variante shiny;
+- nivel, experiencia, PG y características;
+- movimientos, PP y habilidades;
+- naturaleza, estados y objeto equipado;
+- pertenencia al equipo activo o a la reserva.
+
+El equipo activo admite hasta seis Pokémon. Para añadir uno puedes pulsar **Añadir Pokémon**, arrastrar una especie desde el compendio sobre el Entrenador o capturar un Pokémon salvaje.
+
+Desde la pestaña de equipo puedes abrir su Pokédex, moverlo entre equipo y reserva, desplegarlo, retirarlo o eliminarlo del Entrenador.
+
+### Experiencia, nivel y evolución
+
+La ficha Pokédex permite conceder experiencia y muestra los avances pendientes. Al alcanzar un nuevo nivel, **Aplicar avances** resuelve los PG, mejoras de característica o dotes y los demás beneficios correspondientes.
+
+Las evoluciones disponibles aparecen con sus condiciones. Las condiciones comprobables se validan automáticamente; las narrativas o dependientes del mundo requieren confirmación del usuario.
+
+### Movimientos, MT y MO
+
+El gestor de movimientos separa los movimientos conocidos, disponibles, futuros, de huevo e incompatibles.
+
+- Un Pokémon puede conocer normalmente hasta cuatro movimientos.
+- Un movimiento de MT o MO solo puede aprenderse si el Entrenador posee la máquina correspondiente en su inventario.
+- Aprender mediante una máquina consume uno de sus usos cuando sus reglas así lo indiquen.
+- Los PP se gastan al utilizar movimientos y pueden restaurarse desde la ficha o mediante objetos y descansos compatibles.
+
+## Despliegue y combate
+
+Al desplegar un Pokémon se crea un actor temporal enlazado con su Item. Su nombre combina el nombre del Pokémon y el del Entrenador. Los PG, estados y objetos relevantes se sincronizan entre el actor de combate y la ficha persistente.
+
+Al retirarlo se conserva su información persistente, se limpian los efectos temporales y se elimina el actor cuando deja de tener tokens. Los actores Pokémon regresan a posición vertical al terminar su movimiento de token.
+
+### Usar un movimiento
+
+1. Despliega el Pokémon.
+2. Selecciona los tokens objetivo con las herramientas normales de Foundry.
+3. Abre su ficha Pokédex.
+4. Pulsa **Usar movimiento**.
+5. Aplica el daño desde la tarjeta de chat de D&D 5e cuando corresponda.
+
+El módulo calcula ataque, CD, MOVE, STAB, daño, críticos, tipos, PP y modificadores aplicables. Los 18 tipos Pokémon están registrados como tipos de daño de D&D 5e y respetan resistencias, vulnerabilidades e inmunidades.
+
+Cuando la regla dispone de automatización compatible también se gestionan:
+
+- estados alterados y sus inmunidades;
+- mejoras, reducciones y acumulaciones de características;
+- efectos mantenidos, concentración y salvaciones repetidas;
+- daño y curación de inicio o final de turno;
+- retroceso, drenaje, multigolpe, recarga y movimientos de PG directo;
+- escudos, cambios forzados e intercambio o destrucción de objetos;
+- clima, terreno y otras reglas compartidas del campo;
+- objetos equipados, bayas, cargas y reacciones;
+- habilidades propias y auras de Pokémon.
+
+La sección de habilidades indica si cada una es **Automática** o de **Resolución asistida**. Las asistidas incluyen un botón para publicar su texto en el chat. Actualmente 198 de las 330 habilidades del catálogo tienen una regla automática conectada al motor.
+
+## Estados y modificadores manuales
+
+El compendio **Estados y modificadores** contiene Active Effects listos para usar. El director puede arrastrar un estado o una etapa de característica directamente sobre un token Pokémon.
+
+Los efectos activos aparecen sobre el token y en la Pokédex. Desde la ficha se pueden curar estados o terminar efectos mantenidos si el usuario tiene permisos suficientes.
+
+## Objetos y economía
+
+La economía utiliza exclusivamente **Pokédólares (₽)**. Los objetos se importan con sus precios Pokémon y se guardan en el inventario normal del Entrenador.
+
+Para equipar un objeto, añádelo al inventario del Entrenador, abre la Pokédex y selecciónalo en **Equipar desde inventario**. Los objetos compatibles aplican sus bonificaciones, cargas, consumo, curación o reacciones automáticamente. El resto conserva su descripción para resolución manual.
+
+## Captura
+
+1. Añade Poké Balls al inventario del Entrenador.
+2. Selecciona como objetivo un token salvaje.
+3. Pulsa **Capturar objetivo** desde la pestaña de equipo.
+4. Escoge la Poké Ball y resuelve la tirada.
+
+La captura tiene en cuenta alcance, SR, nivel, PG actuales, estados, límites de control y efectos de la Poké Ball. Una captura correcta conserva los datos del salvaje y lo envía al equipo o a la reserva según el espacio disponible.
+
+## Concursos
+
+La Pokédex dispone de un selector **Combate / Concurso**. En modo Concurso puedes elegir la categoría actual, consultar Appeal, Jam, compatibilidad y efectos, y realizar la tirada del movimiento contra la CD del juez.
+
+## Herramientas del director
+
+### Importador
+
+Crea y actualiza los compendios utilizados por el módulo. Se abre desde los ajustes o mediante `game.poke5e.openImporter()`.
+
+### Referencia de reglas
+
+Proporciona accesos a las secciones de reglas y a las herramientas principales del módulo.
+
+### Generador de encuentros
+
+Permite filtrar especies por bioma, región, tipo, SR y nivel, generar un encuentro para un objetivo de experiencia y desplegar sus Pokémon salvajes en la escena.
+
+### Generador de Entrenadores NPC
+
+Crea Entrenadores rivales o aliados con nivel, origen, arquetipo, dificultad, inventario, retrato, token, permisos y equipo Pokémon. Los NPC no utilizan especialización ni Camino de Entrenador: sus capacidades proceden del arquetipo elegido. El sprite se selecciona según el arquetipo y el género generado.
+
+### Edición libre
+
+El director puede editar un Pokémon sin las restricciones normales de aprendizaje: cambiar imagen, tipos, características, movimientos, habilidades, estados, efectos y objetos, incluidos movimientos que la especie no podría aprender normalmente.
 
 ## API para macros
 
 ```js
-game.poke5e.openTeam(canvas.tokens.controlled[0]?.actor)
 game.poke5e.openImporter()
 game.poke5e.openReference()
 game.poke5e.openEncounterBuilder()
 game.poke5e.openNpcTrainerGenerator()
-game.poke5e.captureTarget(canvas.tokens.controlled[0]?.actor)
-game.poke5e.createTrainer(canvas.tokens.controlled[0]?.actor)
+game.poke5e.openTeam(actor)
+game.poke5e.openPokemon(document)
+game.poke5e.captureTarget(actor)
+game.poke5e.createTrainer(actor)
 ```
 
-## Actualización desde 0.1
+Ejemplo con el token controlado:
 
-La versión 0.2 deja de crear especies como actores permanentes. Los actores generados por la versión 0.1 no se eliminan automáticamente para evitar pérdida de datos; el GM puede borrarlos después de comprobar los nuevos compendios.
+```js
+const actor = canvas.tokens.controlled[0]?.actor;
+game.poke5e.openTeam(actor);
+```
 
-## Actualización desde 0.2
+## Recursos visuales
 
-La versión 0.3 añade **Entrenador** como clase real de D&D 5e. Después de actualizar el módulo, vuelve a ejecutar **Gestionar compendios** con la opción **Clase de Entrenador** marcada para crear el nuevo compendio de progresión.
+Los sprites y retratos se obtienen desde la URL base configurada. Los iconos personalizados de efectos son opcionales y se buscan dentro de:
 
-La versión 0.4 añade un acceso permanente al equipo dentro de la ficha del personaje. No es necesario volver a importar los compendios para activar esta mejora visual.
+```text
+assets/icons/effects/statuses
+assets/icons/effects/buffs
+assets/icons/effects/debuffs
+```
 
-La versión 0.5 sustituye esa franja por una ficha personalizada de Entrenador con una pestaña de equipo propia. También deja de crear el personaje de ejemplo al importar: cualquier personaje nuevo usa la ficha adecuada automáticamente. Los personajes de ejemplo existentes no se borran para evitar pérdidas de datos.
+Si no existe un icono personalizado, se utiliza el icono de respaldo de Foundry.
 
-La versión 0.6 corrige la visibilidad de la pestaña de equipo para que solo aparezca al seleccionarla, incorpora el modo oscuro y amplía el buscador Pokémon con filtros y ordenación.
+## Desarrollo y validación
 
-La versión 0.6.1 corrige el desplazamiento de la lista de resultados del buscador Pokémon, manteniendo visibles la búsqueda y los filtros.
+Instala Node.js y ejecuta desde la raíz del repositorio:
 
-La versión 0.7 añade a cada ficha Pokémon un gestor de movimientos basado en la especie y el nivel actual. También valida los movimientos arrastrados desde el compendio y conserva cualquier movimiento antiguo para evitar pérdida de datos.
+```bash
+npm run check
+```
 
-## Actualización a 1.0
+La comprobación valida sintaxis, datos, localización, progresiones, movimientos, habilidades, objetos, encuentros, captura y combate.
 
-La versión 1.0 incorpora el sistema de combate por tipos. Los Pokémon ya guardados que todavía no tengan sexo recibirán uno automáticamente al abrir el mundo. Los actores de combate activos actualizarán sus resistencias, vulnerabilidades e inmunidades; al volver a desplegarlos también se generarán siempre con estos datos. Para actualizar las descripciones de los compendios con evoluciones y afinidades, vuelve a ejecutar **Gestionar compendios** con la opción de especies marcada.
+```text
+data/         Catálogos en inglés y español
+lang/         Textos de interfaz de Foundry
+scripts/      Reglas, fichas, generadores y validadores
+styles/       Estilos del módulo
+templates/    Plantillas Handlebars
+assets/       Recursos gráficos locales
+module.json   Manifiesto de Foundry
+```
 
-## Actualización a 1.1
+Los cambios en reglas deben acompañarse de una prueba o aserción en `scripts/validators/` y superar `npm run check` antes de publicarse.
 
-La versión 1.1 incorpora experiencia y evolución, el generador de encuentros salvajes y el sistema de captura. Para capturar, añade Poké Balls desde el compendio de objetos al inventario del entrenador, selecciona como objetivo un token salvaje y pulsa **Capturar objetivo** en la pestaña o gestor de equipo. Los actores salvajes se eliminan automáticamente después de una captura o al borrar su último token.
+## Resolución de problemas
 
-## Actualización a 1.4
-
-La versión 1.4 añade el modo **Concurso** a las fichas Pokémon. El selector Combate/Concurso cambia la presentación de los movimientos y permite elegir la categoría actual, consultar Appeal, Jam, compatibilidad y efectos, y realizar pruebas contra la CD del juez. Los movimientos aún no definidos por las reglas originales muestran una alternativa sugerida basada en su tipo.
-
-## Actualización a 1.7
-
-La versión 1.7 incorpora un motor de efectos mantenidos ligado a los turnos de combate. Automatiza Drenadoras, Giro Fuego, Acoso, Acua Aro, Arraigo, Cura Salina y Maldición, además de los agarres, jaulas y efectos de miedo con salvación repetida. Los efectos aparecen en el token y en la ficha Pokédex; la concentración se comprueba al recibir daño y los efectos se limpian al expirar, retirarse o terminar el combate.
-
-La versión 1.7.1 corrige el registro de Quemado, Congelado, Paralizado, Envenenado y los demás estados Pokémon después de la inicialización de D&D 5e. También repara automáticamente las etiquetas e identificadores de efectos creados por versiones anteriores, sin confundirlos con el indicador independiente Bloodied.
-
-La versión 1.7.2 prepara carpetas separadas para iconos de estados, mejoras y debilitaciones. Los archivos PNG con los nombres documentados se detectan automáticamente al abrir el mundo y actualizan tanto efectos nuevos como efectos activos de versiones anteriores.
-
-## Actualización a 1.8
-
-La versión 1.8 audita los 830 movimientos e incorpora 115 reglas explícitas de modificadores, además de ampliar los casos de estado que no podían deducirse con seguridad desde el texto. Growl, Leer, Tail Whip, Mud-Slap y efectos equivalentes respetan ahora sus acumulaciones; los buffs, debuffs, cargas y áreas persistentes aparecen sobre el token y en la ficha Pokédex. Las carpetas documentan 146 iconos PNG opcionales.
-
-La versión 1.8.1 incorpora avances para Entrenadores y Pokémon, reacciones y efectos de objetos equipados, cambio de idioma con recarga coherente, aprendizaje mediante MT/MO condicionado por el inventario y una economía unificada en Pokédólares.
-
-La versión 1.8.2 añade una sección propia para los Pokémon en la ficha de Entrenador y clasifica correctamente como rasgos de clase las capacidades concedidas por Entrenador, incluyendo la migración de actores existentes.
-
-La auditoría de movimientos se amplió de nuevo (agosto de 2026): de los 830 movimientos, 218 tienen ahora una regla explícita de modificador (buff o debuff) y 24 un efecto mantenido, cubriendo derribos, agarres, cegueras, autobuffs de característica/CA/velocidad, cargas y áreas de concentración que antes solo constaban en el texto. Una segunda pasada de verificación (cruzar los movimientos con tirada de salvación contra los tres catálogos) encontró dos casos que la búsqueda automática por palabras clave no había marcado (Magma Storm, Guard Split) y confirmó que el resto de movimientos con salvación son variantes de "mitad de daño en éxito" ya cubiertas por el motor de daño base.
-
-Una ronda final construyó mecánicas nuevas para automatizar lo que antes quedaba fuera deliberadamente: `multi-hit.mjs` (golpes en cadena y escalada consecutiva como Bola de Hielo), recarga de movimiento y restricción total de movimientos en el propio motor de modificadores, `recoil.mjs` (retroceso proporcional al daño), `hp-effects.mjs` (PG directos: Resignación, Fatalidad, Falso Tortazo) y `item-swap.mjs` (Truco, Robo), `bide.mjs` (Onda Choque y Golpe Metálico, con el mismo rastreo de daño recibido), `forced-switch.mjs` (cambios de Pokémon libres y forzados, delegados al director cuando el objetivo no es propio), `damage-shields.mjs` (Escudo Real y familia: recortan el golpe entrante antes de guardarlo, con el mismo patrón `preUpdateActor` que ya usaba Falso Tortazo) y `terrain-effects.mjs` (terreno, clima y reglas de campo compartidas del combate activo: Terreno Eléctrico/de Hierba/Místico/Psíquico, los cinco climas —Danza Lluvia, Día Soleado, Tormenta de Arena, Granizo, Paisaje Nevado, más el clima que activa Recepción Fría— y Gravedad, consultados por Psicoespada, Deslizamiento de Hierba, Diluvio Iónico, Bola Clima, Síntesis, Recuperar Costa, Rayo Solar/Hoja Solar e Hidro Vapor; Niebla los despeja todos de golpe). Una revisión posterior localizó una familia de movimientos con mecánica propia que la auditoría original no marcaba (no encajan en "modificador temporal" ni en ninguno de los motores anteriores): Contraataque y Copión (reacción de dos fases con dados fijos, sin necesitar el rastreo de Onda Choque), Fatalidad Final (daño igual a los PG actuales del usuario, que después se debilita), Autodestrucción (se debilita antes del golpe) y Explosión (solo se activa con un 20 natural en 1d20), Canto Fatal (cuenta atrás compartida de tres rondas que debilita a quien falle la salvación, incluido el propio usuario, gestionada por el mismo motor de efectos mantenidos que Semilla Drenadora) y recordatorios de carga para Impacto Congelante, Combustión Gélida y Levantón, que faltaban junto al resto de la familia Volar/Cavar/Rayo Solar. Lo que sigue sin automatizar —copiar movimientos ajenos, reacciones que interceptan la tirada de otro actor antes de resolverse, mutar de forma permanente y sin reversión los datos guardados de un Pokémon, Sustituto (el escudo distingue daño de sonido de cualquier otro, algo que el catálogo no etiqueta), Vínculo Destino (redirección repetida de daño a un tercero mientras dura la concentración), Habitación Trampa (invierte el orden de iniciativa, que este proyecto no reordena), Premonición/Deseo Oculto (daño programado varias rondas después) y Deseo Cúrativo/Danza Lunar (curan al siguiente Pokémon desplegado por el mismo entrenador, lo que exigiría enganchar el propio flujo de despliegue)— queda documentado en el propio código con el motivo técnico exacto, igual que el resto de excepciones. Las carpetas de iconos documentan ahora 252 huecos PNG opcionales (95 mejoras, 149 debilitaciones, 8 estados).
-
-Un barrido con varios agentes en paralelo sobre los 830 movimientos (uno de nuevo, agosto de 2026) encontró y corrigió un bug real —el lector de "crítico en 19-20" no reconocía el fraseo "19s and 20s" y dejaba sin ampliar el rango crítico de 11 movimientos (Cross Chop, Karate Chop, Razor Leaf, Ivy Cudgel, Slash...)— y sumó automatizaciones nuevas: 10 autobuffs que faltaban en el catálogo (Meditar, Anillo, Danza Pluma, Danza Aleteo, Encogerse, Guardia Algodón, Orden Defender, Cambio Marcha, Afilar, Salvaguarda), daño condicionado al estado o a los PG del objetivo/del propio usuario (Hex, Desfile Infernal, Andanada Tóxica, Golpe Tóxico, Sales Aromáticas, Golpe Descuido, Inversión, Chorro de Agua, Escurrir), Furia de la Naturaleza (reutiliza el motor de Resignación/Fatalidad), la familia de drenaje que cura al usuario una fracción del daño infligido (Absorber, Giga Drenaje, Chupavidas, Ala Cierre...), Carta Triunfo (bono por PP ya gastados), Rencor (reduce PP del último movimiento del objetivo, mismo rastreo que Anular), Golpe de Dolor (iguala PG con el objetivo), la familia de escudos ampliada (Protección, Detectar, Búnker Dañino, Guardia Rápida, Guardia Amplia y un nuevo modo "nunca deja en 0 PG" para Aguante) y los golpes fijos en una sola activación —Bonemerang, Burbuja, Engranaje, Pulso de Origen, Bomba Demográfica, Hojas de Precipicio, Golpe Rápido (con el número de proyectiles según nivel) y Ola Trompa/Triple Patada (que se detienen en el primer fallo)— con su propio método `#rollFixedMultiAttack()`, distinto de la cadena por 1d4 que ya usaban Taladradora y compañía; Enfado (thrash) se sumó a esa cadena con un tope propio de 2 golpes extra en vez de 4.
-
-La misma sesión siguió con el resto de bloques encontrados en el barrido: `combat-history.mjs` (rastro de acciones recientes: si el usuario recibió daño desde su último turno para Golpe Bajo/Avalancha, si su último ataque falló para Berrinche Pisotón/Bengala Cansada, si el objetivo ya recibió daño esta ronda para Certeza; Pico Trueno/Colmillo Rayo reutilizan `instance.lastMoveId`, que ya existía), economía de combate (Día de Pago, Recolecta reparten ₽ al entrenador vía `economy.mjs`; Hora Feliz queda documentada porque este proyecto no calcula premios de combate automáticamente), la familia de robo/destrucción de objetos ampliada en `item-swap.mjs` (Robo reutiliza el intercambio existente cuando el usuario no lleva nada; Ascuas destruye la baya equipada del objetivo; Robo Nocturno/Knock Off la retira hasta el final del combate y la devuelve al terminar) y `random-tables.mjs` (Poder Oculto: tipo por 1d20; Terremoto Furioso: dados de daño por d100 independientes del nivel; Polvo Secreto/Tri Ataque: estado por 1d6, con una sola tirada compartida por activación en vez de una por objetivo; Acupresión: mejora aleatoria por 1d6 aplicada como modificador dinámico nuevo —`applyDynamicModifier()`— o PG temporales directos, con un campo `criticalRangeBonus` nuevo en el motor de modificadores para el resultado de rango crítico). Las trampas de entrada (Trampa Rocas, Púas, Red Viscosa, Púas Tóxicas), copiar movimientos ajenos (Metrónomo) y mutar el propio tipo o el del objetivo sin reversión segura (Empapar, Truco o Trato, Maldición del Bosque, Polvo Mágico, Reflejo Tipo) quedan documentados como excepción con su motivo técnico, igual que el resto.
-
-Los estados alterados llevaban su texto mecánico escrito en la descripción pero sin aplicarlo (agosto de 2026): ahora `pokemonCombatModifiers()` (`move-modifiers.mjs`) también suma los modificadores de los propios ActiveEffects de estado, no solo los del catálogo de movimientos —Envenenado y Gravemente envenenado dan desventaja en ataques, Amedrentado además en salvaciones de las seis características, y Parálisis en salvaciones de FUE/DES—, con lo que las tiradas de salvación de `status-effects.mjs`, `move-modifiers.mjs` y las de escape de agarres/apresamientos de `ongoing-effects.mjs` ahora heredan ventaja/desventaja del propio estado del que tira, no solo del movimiento activo. Al inicio del turno de un Pokémon paralizado o confuso se tira automáticamente su comprobación —1d4 con un 1 de fallo para Parálisis (posibilidad de perder el turno, sin poder impedir de verdad que el jugador actúe) y 1d3 con un 1 de autogolpe para Confusión, que si sale sí se aplica de verdad como daño típeless igual a la competencia del nivel—. Quemado, Congelado y Dormido siguen sin cambios: el primero ya dobla la tirada de daño, y los otros dos dependen de que la mesa respete su incapacidad, como el resto de condiciones que enlazan con las nativas de D&D 5e.
-
-Una auditoría de la progresión de Entrenador (agosto de 2026) encontró que varios rasgos de Camino de Entrenador estaban mal etiquetados: la ficha del rasgo decía "resolución manual" cuando el código ya lo aplicaba de verdad (Guru 2 sobre el límite de control, o el descuento de coste de dote de Poké Mentor 5/Guru 9), y Guru 5 decía "automática" sin que nada estuviera conectado —se corrigieron las etiquetas en `pathFeatureAutomation()` (`model.mjs`), con una categoría "parcial" nueva para cuando solo una parte del texto tiene código detrás, y Guru 5 pasó a tirar de verdad dos veces la tabla de Confusión y quedarse con el mejor resultado. La misma auditoría construyó `trainer-resources.mjs`, el motor que faltaba para que los recursos de "gastar para modificar una tirada" (que ya llevaban la cuenta de usos en la ficha del rasgo, pero sin aplicar el efecto) lo hagan de verdad: el dado de batalla de Ace Trainer y el dado de habilidad de Hobbyist (1d6/1d8/1d10 según el nivel) se ofrecen como tirada adicional tras el daño/curación o la salvación de un Pokémon; los Puntos Tácticos de Tactician aumentan la curación en 1d4 por punto gastado y permiten Golpe dirigido (repetir la tirada de daño y quedarse con la mayor); y Sabotaje (Grunt 2) gasta un Punto de Sombra para armar el mismo escudo de "anulación total" que ya usaban Protección o Escudo Real (`damage-shields.mjs`, con el id sintético `sabotage`), con un botón nuevo en la ficha del Pokémon. Los rasgos de nivel 9 y 15 de Grunt y Tactician siguieron en la misma sesión: Ventaja oscura (Grunt 5, 3 Puntos de Sombra) da ventaja de verdad al siguiente ataque o salvación de un Pokémon; Esquiva siniestra (Grunt 9, 4 puntos) arma el escudo de "reduce a la mitad" —el texto original mejora un grado la resistencia al tipo concreto del golpe entrante, simplificado a reducirlo a la mitad porque el escudo no sabe qué tipo trae el golpe hasta que ya se ha resuelto—; Golpe infame (Grunt 15, 2 puntos) sustituye el retroceso por Aturdido durante una ronda; Alza tus defensas (Tactician 9) sube la CA lo justo para que un golpe falle, pero solo con un único objetivo (con varios se favorecería a quien no paga, así que no se ofrece); y Esta vez no (Tactician 15) sube la CD de una salvación ya superada hasta 5 puntos para convertirla en fallo. Las mejoras de característica/expertise que acompañan a Ace Trainer 9 y Hobbyist 9/15 siguen sin automatizar, documentadas igual que el resto.
-
-Congelado y Dormido eran los dos únicos estados que dependían de que la mesa recordara aplicarlos a mano (agosto de 2026): ahora `pokemonIncapacitatingStatus()` (`status-effects.mjs`) bloquea de verdad el botón de un movimiento en `#rollMove()` mientras cualquiera de los dos esté activo, con la única excepción de Somnitalk (existe precisamente para usarse estando dormido). Congelado además se quita solo al recibir daño de Fuego (comprobado en el mismo punto donde `pokemon-sheet.mjs` ya resuelve el daño de un movimiento) y tiene una posibilidad de descongelarse por sí mismo al empezar el turno (1d5, ocurre con un 1, el 20% clásico de los videojuegos), tirada junto a la comprobación de Parálisis/Confusión que ya existía. Con esto los ocho estados alterados del catálogo tienen ya toda su mecánica —no solo el texto— conectada al motor: los que fallan una acción al azar (Parálisis, Confusión) lo anuncian y aplican su parte automática; los que impiden actuar sin condición (Congelado, Dormido) lo hacen cumplir de verdad.
-
-Última ronda sobre los caminos que quedaban con rasgos de nivel 9/15 sin tocar: Almacenar poder (Type Master 9) deja elegir un tipo desde la propia ficha del entrenador (pestaña Equipo Pokémon) y aplica resistencia a ese tipo —quitando cualquier vulnerabilidad previa— a todos los Pokémon que coincidan con sus especializaciones, vía `applyTypeMasteryDefense()` en `deployedActorSource()`/`syncPokemonHeldItemToDeployment()` (`deployment.mjs`); Liberar poder (Type Master 15) deja sumar el STAB aunque el movimiento no comparta tipo, con un parámetro `forceStab` nuevo en `damageFormula()`. Golpes disciplinados (Pokémon Collector 9) reutiliza `markFalseSwipeTarget()` de Falso Tortazo como oferta opcional en cualquier golpe, no solo en el movimiento que ya lo hacía automático. Médico de campo (Nurse 9) es un botón nuevo en la ficha del Pokémon que tira la Medicina del entrenador (CD 12, calculada a mano desde `system.skills.med.total`) y cura su estado no volátil si tiene éxito; En plena forma (Nurse 15) da ventaja de verdad a las salvaciones de un Pokémon contra estados negativos, conectado en los mismos tres puntos de tirada de salvación que ya tocó Ventaja oscura. Se corrigió además que Mente (Guru 5) estaba etiquetado "parcial" sin necesidad: la competencia en salvaciones de Sabiduría de sus Pokémon ya se concedía desde siempre en `deployedActorSource()`, solo faltaba documentarlo. Generalista (Hobbyist 9) concede Todólogo de verdad al entrenador reutilizando el flag nativo de dnd5e (`flags.dnd5e.jackOfAllTrades`); la mitad que menciona a sus Pokémon queda como excepción porque este módulo no tiene ninguna tirada de prueba de habilidad de Pokémon de la que colgarse.
-
-Una última ronda cerró el resto de la progresión de Entrenador, con tres decisiones de diseño confirmadas en directo porque el texto de los rasgos no bastaba para automatizarlas sin más: Experto en evolución (Researcher 9) reutiliza los propios puntos de mejora que ya reparte una evolución —gastar 2 en una dote en vez de característica, elegible en el mismo diálogo de evolución— en vez de inventar una moneda "puntos de evolución" que el texto original no explicaba; Capturador (Ranger 5) resuelve el +10 por rodear al objetivo con una casilla de confianza en el diálogo de captura, ya que este proyecto no puede verificar movimiento real en el mapa; y Maestría táctica (Ace Trainer 9) aplica su +1 de característica elegida (para todo el equipo presente y futuro) en `deployedActorSource()`, el mismo patrón que ya usaba la competencia de Guru 5, así que no hace falta reescribir nada guardado. Compañero y Poké Assist (Ranger 9/15) añaden un selector de compañero en la ficha del entrenador que suma Sabiduría a sus ataques contra salvajes y da ventaja a movimientos/capturas que compartan su tipo. Multitalento (Hobbyist 15) deja elegir una competencia de habilidad por Pokémon. Pokéchef (Nurse 5/9/15) por fin prepara y da la golosina de verdad —un botón nuevo por Pokémon en la rejilla de equipo, curación escalada por nivel— y Espíritu (Guru 15) suma Sabiduría a los ataques o el daño de todo el equipo desplegado hasta el siguiente turno del entrenador. Con esto, todos los rasgos de Camino de Entrenador tienen ya código detrás: automáticos del todo o, cuando el texto se resuelve solo a medias por límites estructurales reales (una prueba de habilidad Pokémon que no existe, un "Pokémon adyacente ajeno" que este proyecto no modela de forma utilizable), etiquetados "parcial" con su motivo exacto en `pathFeatureAutomation()`.
-
-La misma ronda abrió `pokemon-abilities.mjs`, el motor de habilidades Pokémon (330 en el catálogo) que faltaba —hasta ahora solo eran texto descriptivo, sin ningún efecto mecánico—. Es una fase 1 deliberadamente acotada a lo que encaja sin obra nueva: inmunidades de tipo fijas (Levitar, Absorbe Agua/Electricidad, Fuga de Calor...), resistencias fijas (Manto Grasa, Cuerpo Bochorno) y clima automático al entrar en combate (Drizzle/Drought/Sand Stream/Snow Warning, con una duración larga en vez de las 5 rondas de los movimientos porque el juego los mantiene mientras el Pokémon siga en combate, algo que este proyecto no rastrea). No hay un concepto de "habilidad activa" distinto de "conocida": `instance.abilities` ya se trataba como el conjunto completo en el resto del proyecto (el `requiredAbilities` de move-modifier-rules.mjs nunca distinguió una sola activa), así que el motor nuevo sigue la misma convención en vez de inventar una restricción que nunca existió —motivo por el que Guru 9 no necesitaba código—. El resto del catálogo (absorber un tipo como PG en vez de inmunidad pura, reaccionar al contacto cuerpo a cuerpo, bonos condicionados al propio estado, golpes múltiples/potencia por categoría de movimiento, Soundproof/Bulletproof por depender de una etiqueta "de sonido"/"balístico" que los movimientos no llevan...) exige interceptar una tirada ya resuelta contra un tercero, la misma limitación estructural que ya excluye familias enteras de movimientos, y queda para rondas futuras del mismo tamaño que costó automatizar los 830 movimientos.
-
-La revisión de agosto de 2026 llevó esa cobertura a 198 de las 330 habilidades mediante familias verificables: sonido y clima, bloqueo o supresión de habilidades defensivas, auras de tipo, PP adicional por Presión, multigolpe garantizado por Encadenado, STAB y mitigaciones condicionadas, Superguarda/Papel Fino, Corrosión/Sincronía/Piel Milagro, Gula, Inicio Lento y cambios de tipo temporales de Protean/Libero/Cambio Color. La segunda auditoría añadió un secuenciador de fin de turno para Mal Sueño, Hospitalidad y Mudar; Teracaparazón y Néctar Dulce; inversión/protección genérica de modificadores para Respondón y Sacapecho; Potencia Bruta, Francotirador y Dinamo en el motor de daño; y tiempos de activación para las cuatro habilidades de terreno y Primer Auxilio. Los cambios de tipo viven solo en el actor desplegado y se revierten al retirarlo. El validador cuenta ids únicos y comprueba también que cada familia de movimientos referenciada exista en los datos, evitando inflar la cobertura con duplicados o reglas huérfanas.
-
-Una aclaración a mitad de esa ronda destapó un malentendido importante: "pruebas de habilidad de Pokémon" (Hobbyist 9, Ranger 9) no se refería a las habilidades Pokémon del párrafo anterior (Levitar, Drizzle...) sino a las competencias nativas de D&D 5e (Atletismo, Sigilo...) aplicadas a un Pokémon — algo que la ficha del Pokémon no ofrecía en absoluto, ni siquiera para tirar sin bono de camino. `#rollSkillCheck()` (pokemon-sheet.mjs) añade esa tirada que faltaba, con un desplegable de competencia y botón nuevos en la ficha, y de paso destapó un bug real: `species.skills` (la competencia "de fábrica" de cada especie, ya presente en 1137 de los 1151 Pokémon de `pokemon.json`) nunca se aplicaba al actor de combate porque nadie la traducía de su nombre en inglés a la clave de tres letras que espera D&D 5e (`speciesSkillKey()`, `trainer-creation-data.mjs`, con la errata real "persuaion" del dataset de origen incluida). Con la tirada ya existiendo, Generalista y Compañero terminaron de cerrarse solos: medio bono de competencia sin entrenar y el modificador de Sabiduría del entrenador se suman ahí mismo.
-
-`pokemon-abilities.mjs` sigue creciendo en lotes de mecánica homogénea, la misma segmentación que ya sirvió para automatizar los 830 movimientos. El lote 1 (inmunidades a un estado alterado completo: Inmunidad, Insomnio, Espíritu Vital, Postura Firme, Velo Acuático, Burbuja de Agua —que de paso suma resistencia a Fuego, junto a Manto Grasa/Cuerpo Bochorno—, Armadura Ígnea y Cuerpo Dorado contra los ocho estados a la vez) se resuelve en el mismo punto de `applyPokemonStatus()` (status-effects.mjs) que ya usan las inmunidades por tipo de daño, con `abilityBlocksStatus()`. El lote 2 son las cinco reacciones de contacto que comparten tirada (Piel Tosca, Punta Acero, Electricidad Estática, Esporas Efecto, Punto Toxico: 1d4, ocurre con un 4, daño al atacante igual a la competencia del defensor) — el primer caso de esta fase que necesita conocer al atacante además del defensor, así que se resuelve en `#rollMove()` (pokemon-sheet.mjs) junto al resto de efectos "por objetivo alcanzado" en vez de al desplegar. El lote 3 es el STAB×2 con poca vida (Blaze/Overgrow/Swarm/Torrent, mismo texto en las cuatro): reutiliza `ownHpFraction`, ya calculado en `#rollMove()` para otros movimientos condicionados a la vida propia, y suma su bono al mismo parámetro `heldItemStab` de `damageFormula()` que ya usa el STAB de un objeto equipado. El lote 4 son los bonos fijos de ataque/daño/rango de crítico por movimiento (Ojo Compuesto +1 a impactar siempre, Alas Danza +1 solo con movimientos Voladores, Metaltrabajador y Rivalidad suman la competencia al daño —de tipo Acero el primero, contra un objetivo que comparta tipo el segundo, usando el flag `pokemonTypes` que ya llevan los actores desplegados y salvajes—, Suertudo amplía el rango de crítico en 1): `abilityMoveProfile()` ocupa el mismo hueco que `heldProfile`/`pathProfile` en la tirada de ataque, el de daño y el umbral de crítico. El lote 5 son las reacciones de contacto que aplican un estado al atacante en vez de dañarlo (Cuerpo Ardiente quema con un 10 en 1d10, Hedor amedrenta con un 10 en 1d10, Cuerpo Maldito bloquea el último movimiento del atacante con un 4 en 1d4): se resuelve en el mismo punto de `#rollMove()` que el lote 2, pero `contactStatusReaction()`/`applyCursedBodyReaction()` solo tiran el dado y devuelven el resultado —este archivo no importa `applyPokemonStatus()` ni `applyMoveLock()` para no crear un ciclo con `status-effects.mjs`—, así que es `pokemon-sheet.mjs` quien aplica el estado o el bloqueo. El lote 6 son los bonos/inmunidades condicionados al propio estado alterado del Pokémon, no al del rival: Vigor anula la desventaja en ataque por Envenenado/Gravemente envenenado y la tirada doble-quedarse-con-la-menor por Quemado en `#rollMove()`, sin tocar el daño periódico de fin de turno de esos estados (eso lo sigue resolviendo `applyEndTurnStatusDamage()`, el texto de Vigor solo exime la desventaja/reducción); Competitivo e Impulso Ígneo suman la competencia al daño mientras el propio Pokémon sufre ciertos estados —Envenenado/Gravemente envenenado/Quemado/Confuso/Paralizado el primero, solo Quemado el segundo—, con `abilitySelfStatusDamageBonus()` sumando en el mismo hueco de `damageFormula()` que ya usa `abilityProfile.damage` del lote 4. El lote 9 son las tres reducciones de daño que no dependen de un movimiento armado a mano (Multiescama/Escudo Sombra: reducen a la mitad el primer golpe recibido a PG máximos; Robustez: 1d4 y en 3 o 4 reduce a la mitad cualquier golpe igual o mayor a la mitad de los PG actuales), resueltas extendiendo el mismo hook `preUpdateActor` que ya usa `damage-shields.mjs` para los escudos de reacción —en vez de un segundo hook compitiendo por el mismo campo `system.attributes.hp.value`—, con un flag nuevo `pokemonAbilities` en los actores desplegados y salvajes para que ese hook síncrono pueda leer las habilidades conocidas sin esperar al Item Pokémon. El lote 7 es Escama Prodigio y Pies Rápidos (CA/velocidad extra mientras el Pokémon sufre cualquier estado alterado negativo): a diferencia de los lotes anteriores no se calcula al desplegar el actor, porque el bono depende de un hecho que cambia durante el combate y puede haber varios estados compatibles a la vez (un no-volátil más Confuso/Amedrentado); `abilityStatusBonusEffectSource()` construye un ActiveEffect propio que `applyPokemonStatus()`/`removePokemonStatus()` (status-effects.mjs) crean y borran atado al primer estado que sufre el Pokémon y al momento en que se queda sin ninguno, no al ciclo de vida de un estado concreto. El lote 8 es curación de fin de turno condicionada al clima activo del combate (Cuenco Lluvia con lluvia, Cuerpo Hielo con granizo o nieve): `applyEndTurnAbilityHealing()` (status-effects.mjs), enganchada junto a `applyEndTurnStatusDamage()` en el mismo cambio de turno de `ongoing-effects.mjs`, consulta el clima con `currentField()` (terrain-effects.mjs) y cura la competencia por nivel del Pokémon con `abilityWeatherHeal()`; la parte de Cuerpo Hielo sobre "no recibe daño de granizo" no necesitó código porque este proyecto nunca automatizó un daño de granizo por ronda del que eximirlo. El lote 10 es Absorbe Agua/Absorbe Electricidad/Come Tierra: el catálogo real de estas tres no es solo "inmune al tipo X" (ya cubierto desde la fase 1), sino que además absorben la mitad del daño recibido como curación —la inmunidad de tipo sigue viniendo de `applyAbilityDefenses()` al desplegar, sin tocar, y la curación se resuelve aparte en `#rollMove()` reutilizando `recoilAmount()` (la misma fracción 0.5 de la familia de drenaje) sobre el daño en bruto ya tirado, antes de que esa inmunidad lo reduzca a cero al aplicarlo. El lote 11 es sin extra de daño por golpe crítico (Armadura Bélica, Armadura Concha, Roca Sólida): apaga el flag `critical` de las opciones de `DamageRoll`, solo con un único objetivo seleccionado, la misma limitación que ya reconoce Alza tus defensas. El lote 12 son dos añadidos al lote 1 (Foco Interior inmune a Amedrentado, Velo Pastel inmune a Envenenado en su parte propia) y una familia nueva, inmunidad a TODO estado condicionada al clima activo (Manto Hoja con sol, Hidratación con lluvia), con `abilityWeatherBlocksStatus()` reutilizando `currentField()` igual que el lote 8. El lote 13 es tirar el daño dos veces y quedarse con el MAYOR cuando el movimiento cumple una condición de tipo o de PP (Adaptabilidad, Fauces de Dragón, Carga Rocosa, Transistor, Técnico) —lo opuesto de Quemado—, resuelto en el mismo bloque de `#rollMove()`; si el Pokémon está quemado, Quemado tiene prioridad y esta familia no se activa esa vez. El lote 14 es protección del objeto equipado: Ventosas bloquea Cambiazo/Ladrón/Robo/Incinerar contra quien la conoce, y Torpeza bloquea el propio flujo de equipar un objeto para que nunca llegue a tener uno. El lote 15 es inmunidad a cambio forzado (Ventosas, Guardián): `abilityBlocksForcedSwitch()` se comprueba al principio de `requestForcedSwitch()` (forced-switch.mjs), antes de cualquier otra cosa.
-
-Una ronda posterior encadenó once lotes más (16-26), la mayoría reutilizando huecos ya existentes en vez de tocar arquitectura nueva. El 16 reutiliza el flag `debuffImmune` que ya calculaba `pokemonCombatModifiers()` (move-modifiers.mjs) para que Cuerpo Puro/Cuerpo de Metal Pleno/Humo Blanco también lo activen. El 17 añade bonos por clima activo en la propia tirada (Poder Solar +2 al daño con sol, Fuerza de Arena STAB×2 con tormenta de arena). El 18 es la primera familia que sí persiste mientras el Pokémon está desplegado sin que él haga nada: Clorofila/Nado Rápido/Paso Arena/Aguanieve/Onda Voltaica duplican la velocidad y Velo Arena/Manto Nieve/Pelaje Herboso suman CA según el clima o terreno ACTIVOS, recalculado por `refreshFieldAbilityBonuses()` en `terrain-effects.mjs` (no en pokemon-abilities.mjs, para no crear un ciclo de imports) cada vez que el campo cambia. El 19 cambia el tipo de daño final con Galvanismo/Pixelado/Refrigerar/Normalizar, sin tocar el STAB (que sigue mirando el tipo original, como ya hacía Diluvio Iónico). El 20 da ventaja en el próximo ataque al recibir un tipo de daño concreto (Firmeza, Nervios, Impulso Tóxico, Intercambio Térmico) vía `applyDynamicModifier()`. El 21 agrupa tres sueltas: Gracia Sereno (+1 a la CD de salvación), Cabeza Roca (sin retroceso propio) y Filo (dobla el modificador MOVE de movimientos con "Cut/Blade/Slash/Edge/Cleave/Razor/Sword/Axe" en el nombre en inglés, el único dato disponible para detectarlo). El 22 es Impasible (+10 pies sin objeto equipado), recalculado junto al resto de ajustes de velocidad del objeto cada vez que este cambia. El 23 son Madurez y Buche, que corrigen la curación de Baya Zanahoria/Baya Saludable en los dos únicos sitios donde se resolvía. El 24 es Desertor/Descontrol (ataques con desventaja al 25% o menos de PG, Descontrol además dobla dados y da ventaja a la salvación del objetivo), calculado dentro de `pokemonCombatModifiers()` a partir de los PG del propio actor. El 25 suma Puño Férreo y Mandíbula Firme al lote 13 (tirar dos veces y quedarse con el mayor), detectando movimientos de puño por el nombre y de mordisco con una lista explícita (`STRONG_JAW_MOVE_IDS`, sin patrón de nombre común). El 26 es Antibalas: inmunidad total —no un tipo de daño real— a movimientos con "Bullet/Ball/Bomb" en el nombre, resuelta anulando la fórmula de daño antes de tirarla, solo con un único objetivo seleccionado.
-
-Cuatro lotes más (27-30) cerraron la ronda. El 27 invierte la dirección de los lotes de contacto anteriores: Toque Tóxico (1d10) y Cadena Tóxica (salvación de CON CD 16, reutilizando `rollFailedSaves()`) envenenan al OBJETIVO con el propio golpe cuerpo a cuerpo, no al atacante que golpea. El 28 es Baba: reduce la velocidad del atacante a 0 durante una ronda con un ActiveEffect propio (mismo patrón OVERRIDE que Parálisis, pero con caducidad automática). El 29 es Analítico (ventaja tras fallar un ataque), reutilizando `instance.lastAttackMissed` ya calculado para otros efectos. El 30 es Constancia (no repetir el mismo movimiento en rondas consecutivas), comparando `instance.lastMoveId` contra el movimiento elegido, en el mismo punto donde ya se bloquea un movimiento en recarga. El resto del catálogo (golpes múltiples por categoría de movimiento, auras que alcanzan a los aliados cercanos —Batería, Punto de Poder, Espíritu Metálico, Estrella Victoria, Guardián Amigo, los "* de la Ruina"... exigen medir distancia entre tokens en el lienzo, algo que este proyecto no hace todavía—, disparadores al debilitar/ser debilitado —no se puede saber si un golpe fue letal antes de que el director aplique el daño—, cambios de forma por umbral de PG que solo revierten con un descanso largo, Soundproof por depender de una etiqueta "de sonido" que los movimientos no llevan, intercambio de habilidad al contacto...) queda para lotes futuros del mismo tamaño que costó automatizar los movimientos.
-
-## Actualización a 1.2
-
-La versión 1.2 incorpora el asistente guiado de creación de Entrenadores. Los personajes nuevos quedan limitados a la especie Humano y reciben automáticamente su origen regional, bonificaciones, competencias, dote, especialización, equipo inicial y Pokémon inicial. Los personajes existentes no se modifican automáticamente.
-
-## Estructura del código
-
-Todo el código vive en `scripts/`, en módulos ES sin paso de build. Desde agosto de 2026 está repartido en subcarpetas por dominio en vez de los ~80 archivos sueltos que tenía antes, precisamente para que se pueda navegar sin memorizar el nombre exacto de cada uno. Cada archivo sigue llevando un comentario de cabecera con su rol y con qué otros archivos se relaciona, y cada función (exportada o privada) tiene su propio comentario JSDoc — abre el archivo y usa el buscador del editor si necesitas más detalle que el de esta tabla.
-
-- **`scripts/core/`** — arranque del módulo y utilidades compartidas: `main.mjs` (punto de entrada, engancha los hooks de Foundry y registra el resto de motores), `model.mjs` y `data-service.mjs` (convierten los JSON de `data/` en documentos de Foundry y los cachean), `sync-data.mjs`, `importer.mjs`, `condition-catalog.mjs`, `effect-icons.mjs`.
-- **`scripts/pokemon/`** — el Pokémon individual: ficha (`pokemon-sheet.mjs`), actor temporal de mapa (`pokemon-actor-sheet.mjs`), progresión y avance (`progression.mjs`, `pokemon-advancement.mjs`), aprendizaje de movimientos y MTs (`move-learning.mjs`, `move-machines.mjs`), captura (`capture.mjs`, `capture-rules.mjs`), objetos equipados (`held-items.mjs`).
-- **`scripts/combat/`** — los motores de combate: reglas base (`combat.mjs`), modificadores temporales y sus catálogos (`move-modifiers.mjs`, `move-modifier-rules.mjs`), golpes múltiples (`multi-hit.mjs`), retroceso/drenaje (`recoil.mjs`), escudos de daño (`damage-shields.mjs`), efectos mantenidos (`ongoing-effects.mjs`), estados alterados (`status-effects.mjs`), PG directos (`hp-effects.mjs`), Onda Choque/Golpe Metálico (`bide.mjs`), cambios forzados (`forced-switch.mjs`), terreno y clima (`terrain-effects.mjs`), rastro de acciones recientes (`combat-history.mjs`), intercambio/destrucción de objetos (`item-swap.mjs`), tablas aleatorias (`random-tables.mjs`).
-- **`scripts/trainer/`** — el Entrenador: ficha y equipo (`trainer-actor-sheet.mjs`, `trainer-team.mjs`, `primary-party.mjs`), asistente de creación (`trainer-creator.mjs`, `trainer-creation-data.mjs`), progresión de clase y Camino (`trainer-progression.mjs`, `trainer-path-rules.mjs`), dotes (`feat-catalog.mjs`), entrenadores NPC (`npc-trainer-actor.mjs`, `npc-trainer-generator.mjs`, `npc-trainer-rules.mjs`).
-- **`scripts/world/`** — despliegue en el mapa y meta-sistemas: `deployment.mjs`, `wild-deployment.mjs`, generación de encuentros (`encounter-builder.mjs`, `encounter-generator.mjs`), economía (`economy.mjs`), concursos (`contests.mjs`).
-- **`scripts/ui/`** — ventanas independientes que no son fichas: navegador de especies (`species-browser.mjs`) y ficha de referencia de reglas (`reference.mjs`).
-- **`scripts/validators/`** — todos los `validate-*.mjs` que ejecuta `npm run check` en Node, sin globales de Foundry; verifican los datos en bruto y las capas de reglas puras (combate, progresión, captura, aprendizaje de movimientos, creación de entrenador, etc.).
-
-Por capas, de abajo arriba: `core/` es el cimiento; `pokemon/`, `combat/`, `trainer/` y `world/` son las reglas (casi todas puras, verificadas por `validators/`); la interfaz (fichas, generadores, asistente, importador, repartida entre `pokemon/`, `trainer/`, `world/` y `ui/` según a qué actor pertenece) presenta esas reglas y escribe el resultado en `flags.<módulo>.instance`.
-
-### Índice por archivo
-
-| Archivo | Qué hace | Funciones/clases clave |
-|---|---|---|
-| `model.mjs` | Fuentes de Item para el compendio y para un Pokémon individual; clase Entrenador; utilidades de URL de recursos. | `speciesItemSource`, `pokemonItemSourceFromSpecies`, `trainerClassSource`, `getPokemonItems`, `trainerPokeslotLimit`, `displayPokemonName`, `portraitUrl` |
-| `data-service.mjs` | Carga y cachea el catálogo JSON por idioma, con traducciones y datos de concurso ya fusionados. | `loadPoke5eData` |
-| `main.mjs` | Hooks de Foundry, ajustes del mundo, menús y la API `game.poke5e`. | hooks `init`/`ready`/`preCreateItem`/`updateActor`/`updateItem` |
-| `combat.mjs` | Tabla de tipos Pokémon y su integración como tipos de daño de D&D 5e. | `pokemonDefenses`, `damageTraitsForPokemonTypes`, `typeLabel`, `registerPokemonDamageTypes` |
-| `progression.mjs` | Experiencia, beneficios por nivel, recompensa por derrota y disponibilidad de evolución. | `experienceAtLevel`, `pokemonAdvancementsBetween`, `evolutionStageCount`, `experienceAward`, `evolutionReadiness` |
-| `pokemon-advancement.mjs` | Diálogo y persistencia de los avances pendientes al subir un Pokémon de nivel. | `applyPendingPokemonAdvancements`, `hasPendingPokemonAdvancements` |
-| `capture-rules.mjs` | Cálculo de la CD de captura y efecto de cada Poké Ball. | `captureDifficulty`, `pokeballAdjustment`, `captureHasAdvantage` |
-| `move-learning.mjs` | Qué movimientos puede aprender una especie, por qué vía y cuándo. | `moveEligibility`, `filterMoveCatalog`, `applyLearnedMove` |
-| `contests.mjs` | Categorías de concurso, compatibilidad y puntuación de una prueba de Appeal. | `contestDetailsForMove`, `contestCompatibility`, `contestAppealOutcome` |
-| `status-effects.mjs` | Catálogo de estados alterados, deducción desde el texto de un movimiento y su aplicación vía socket. | `POKEMON_STATUS_EFFECTS`, `inferMoveStatusEffects`, `applyMoveStatuses`, `pokemonStatusEffectSource` |
-| `held-items.mjs` | Reglas y resolución de objetos equipados: bayas, cargas, descansos, modificadores, reacciones y efectos de turno. | `heldItemHpResolution`, `heldItemMoveModifiers`, `activateHeldItem`, `restoreHeldItemChargesAfterRest` |
-| `ongoing-effects.mjs` | Efectos mantenidos ligados a turnos, concentración, salvaciones repetidas, daño y curación periódicos. | `ONGOING_MOVE_EFFECTS`, `applyMoveOngoingEffects`, `registerOngoingMoveEffects` |
-| `deployment.mjs` | Saca al mapa un Pokémon del equipo (actor temporal + token) y sincroniza sus PG. | `deployPokemon`, `recallPokemon`, `syncDeploymentHp`, `isAllowedDeployment` |
-| `wild-deployment.mjs` | Igual que `deployment.mjs` pero para Pokémon salvajes, sin entrenador detrás. | `deployWildPokemon`, `wildActorSource` |
-| `capture.mjs` | Flujo completo de captura: alcance, inventario, tirada y traspaso al entrenador. | `attemptCapture`, `completeCapture` |
-| `pokemon-sheet.mjs` | Ficha Pokédex: movimientos, tiradas de ataque/daño, modo Concurso, experiencia, evolución, objeto equipado. Es el archivo más grande del módulo. | `Poke5ePokemonSheet`, `damageFormula`, `getMoveModifier` |
-| `pokemon-actor-sheet.mjs` | Redirige la ficha de los actores del mapa a `pokemon-sheet.mjs`. | `Poke5eCombatPokemonActorSheet`, `migratePokemonActorSheets` |
-| `trainer-actor-sheet.mjs` | Ficha de personaje con la pestaña "Equipo Pokémon" añadida. | `Poke5eTrainerActorSheet` |
-| `trainer-team.mjs` | Ventana independiente de gestión de equipo (misma función que la pestaña, en un diálogo aparte). | `Poke5eTrainerTeam` |
-| `species-browser.mjs` | Buscador de especies para añadir Pokémon a un entrenador. | `Poke5eSpeciesBrowser` |
-| `reference.mjs` | Ventana de enlaces a las reglas de poke5e.app. | `Poke5eReference` |
-| `encounter-generator.mjs` | Filtrado, sorteo y construcción de instancia de un encuentro salvaje. | `generateEncounter`, `buildWildInstance`, `adjustedHitPoints` |
-| `encounter-builder.mjs` | Interfaz del generador de encuentros. | `Poke5eEncounterBuilder` |
-| `npc-trainer-rules.mjs` | Arquetipos, dificultades, caminos y sorteo del equipo de un NPC. | `NPC_ARCHETYPES`, `NPC_DIFFICULTIES`, `generateNpcTrainerTeam`, `filterNpcTrainerSpecies`, `trainerControlSr` |
-| `npc-trainer-actor.mjs` | Convierte la configuración del generador en el actor completo de un NPC. | `createNpcTrainerActor`, `placeNpcTrainer` |
-| `npc-trainer-generator.mjs` | Interfaz del generador de Entrenadores NPC. | `Poke5eNpcTrainerGenerator` |
-| `trainer-creator.mjs` | Asistente guiado de creación de Entrenador (jugador). | `Poke5eTrainerCreator`, `applyTrainerCreation`, `isHumanSpecies` |
-| `trainer-creation-data.mjs` | Catálogos y validación compartidos por el asistente y el generador de NPC: características, orígenes, especializaciones. | `ORIGINS`, `SPECIALIZATIONS`, `resolveTrainerCreation`, `resolveBaseAbilities` |
-| `importer.mjs` | Crea/actualiza los compendios de mundo de forma idempotente. | `Poke5eImporter`, `upsertPackItems` |
-| `condition-catalog.mjs` | Contenido del compendio de estados y modificadores (tipo ActiveEffect): los 8 estados alterados y las etapas de característica Pokémon (±1/±2). Solo lo usa `importer.mjs`. | `statusConditionSources`, `statModifierSources` |
-| `feat-catalog.mjs` | Las 14 dotes propias de Pokémon 5e para el compendio y las opciones de los desplegables de dote (propias + las detectadas en otros compendios del mundo). | `pokemonFeatSources`, `pokemonFeatOptions`, `trainerFeatOptions`, `POKEMON_FEATS` |
-| `sync-data.mjs` | Script de desarrollo: copia los datos de `../static` a `data/`. No se ejecuta en Foundry. | — |
-| `validate-*.mjs` (12 archivos) | Uno por cada módulo de reglas; los ejecuta `npm run check` en Node, sin necesidad de Foundry. | — |
-
-### Cómo encontrar...
-
-| Quiero cambiar... | Empieza en |
-|---|---|
-| La tabla de efectividad de tipos | `combat.mjs` → `TYPE_CHART`, `pokemonDefenses` |
-| Cómo se calcula el daño o el MOVE de un movimiento | `pokemon-sheet.mjs` → `damageFormula`, `getMoveModifier` |
-| Los niveles de experiencia o la recompensa por derrota | `progression.mjs` → `EXPERIENCE_BY_LEVEL`, `experienceAward` |
-| La dificultad o el efecto de una Poké Ball | `capture-rules.mjs` → `pokeballAdjustment`, `captureDifficulty` |
-| Qué estados provoca un movimiento y cómo se detectan | `status-effects.mjs` → `inferMoveStatusEffects`, `MANUAL_STATUS_MOVES` |
-| Qué hace un objeto equipado y cuándo se activa | `held-items.mjs` → `heldItemHpResolution`, `heldItemMoveModifiers`, `activateHeldItem` |
-| Cuándo puede aprenderse un movimiento | `move-learning.mjs` → `moveEligibility` |
-| La puntuación de una prueba de concurso | `contests.mjs` → `contestAppealOutcome` |
-| Los Pokéslots por nivel de Entrenador | `model.mjs` → `trainerPokeslotsForLevel` |
-| Los rasgos de la clase Entrenador por nivel | `model.mjs` → `TRAINER_FEATURES`, `trainerClassSource` |
-| Los arquetipos, dificultades o composición de equipo de un NPC | `npc-trainer-rules.mjs` |
-| Los orígenes regionales o especializaciones de Entrenador | `trainer-creation-data.mjs` → `ORIGINS`, `SPECIALIZATIONS` |
-| Dónde y cómo puede desplegarse un Pokémon en el mapa | `deployment.mjs` → `isAllowedDeployment`, `chooseDeploymentPosition` |
-| Un ajuste nuevo del módulo o un hook de Foundry | `main.mjs` → `Hooks.once("init", …)` |
-| Una plantilla Handlebars | `templates/<nombre>.hbs`, referenciada en `static PARTS` de la clase de la ficha correspondiente |
-
-## Desarrollo
-
-Los JSON de `data/` se generan a partir de `../static/data`. Ejecuta `node scripts/core/sync-data.mjs` desde esta carpeta después de actualizar los datos del sitio. Después ejecuta `npm run check`.
-
-Este proyecto es contenido fan no oficial. Pokémon pertenece a Nintendo, Game Freak y The Pokémon Company; Dungeons & Dragons pertenece a Wizards of the Coast.
+- **No aparecen los compendios:** vuelve a ejecutar **Importar contenido** como director.
+- **Las imágenes no cargan:** revisa la URL base de recursos y la conexión del servidor.
+- **Un movimiento de MT/MO no aparece disponible:** comprueba que el Entrenador posea la máquina exacta y que le queden usos.
+- **No aparece el botón de avance:** comprueba que la experiencia alcance el siguiente umbral y que el actor tenga la clase Entrenador importada.
+- **Una habilidad no aplica efectos por sí sola:** revisa su indicador; si figura como resolución asistida, publícala en el chat y resuélvela con el director.
+- **El idioma está mezclado:** cambia el idioma de datos desde los ajustes y deja que el cliente se recargue.
