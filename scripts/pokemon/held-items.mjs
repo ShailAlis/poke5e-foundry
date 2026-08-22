@@ -9,6 +9,7 @@
  */
 import { MODULE_ID, displayPokemonName, getPokemonItems } from "../core/model.mjs";
 import { abilityAutoConsumesHealingBerry, abilityBerryHealBonus } from "./pokemon-abilities.mjs";
+import { escapeHtml } from "../core/utils.mjs";
 
 /** Bayas que consumen una reacción para curar el estado indicado; `*` acepta cualquiera. */
 export const STATUS_BERRIES = Object.freeze({
@@ -520,10 +521,4 @@ async function pokemonItemForActor(actor) {
 function combatActorForPokemon(pokemonItem) {
   if (pokemonItem.parent?.getFlag?.(MODULE_ID, "kind") === "wild") return pokemonItem.parent;
   return game.actors?.find(actor => actor.getFlag(MODULE_ID, "pokemonItemUuid") === pokemonItem.uuid) ?? null;
-}
-
-/** Escapa valores del catálogo antes de insertarlos en diálogos o tarjetas. */
-function escapeHtml(value) {
-  return globalThis.foundry?.utils?.escapeHTML ? foundry.utils.escapeHTML(String(value ?? "")) : String(value ?? "")
-    .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }

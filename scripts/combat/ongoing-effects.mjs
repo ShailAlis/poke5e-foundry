@@ -17,6 +17,7 @@ import { advanceHeldItemTurn, heldItemEndTurnEffect, postHeldItemMessage } from 
 import { pokemonCombatModifiers } from "./move-modifiers.mjs";
 import { applyNurseStatusSaveAdvantage } from "../trainer/trainer-resources.mjs";
 import { applyEndTurnAbilityEffects } from "./ability-turn-effects.mjs";
+import { escapeHtml, isResponsibleGm } from "../core/utils.mjs";
 
 const SOCKET_ACTION = "applyOngoingMoveEffects";
 const KIND = "ongoing-move";
@@ -641,11 +642,6 @@ function savingThrowModifier(actor, key) {
 }
 
 function worldActors() { return game.actors?.contents ?? [...game.actors]; }
-function isResponsibleGm() {
-  const active = game.users.filter(user => user.active && user.isGM).sort((a, b) => a.id.localeCompare(b.id));
-  return active[0]?.id === game.user.id;
-}
 async function postEffectMessage(content, html = false) {
   await ChatMessage.create({ content: `<div class="dnd5e chat-card poke5e-status-card"><p>${html ? content : escapeHtml(content)}</p></div>` });
 }
-function escapeHtml(value) { return foundry.utils.escapeHTML(String(value ?? "")); }

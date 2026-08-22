@@ -13,6 +13,7 @@ import {
 } from "./progression.mjs";
 import { trainerPathFeatDiscount } from "../trainer/trainer-path-rules.mjs";
 import { pokemonFeatOptions } from "../trainer/feat-catalog.mjs";
+import { abilityModifier, escapeHtml } from "../core/utils.mjs";
 
 export const ABILITIES = { str: "FUE", dex: "DES", con: "CON", int: "INT", wis: "SAB", cha: "CAR" };
 
@@ -384,5 +385,3 @@ async function resolveHitPointGain({ method, levels, hitDice, constitutionModifi
 }
 
 function normalizedLevel(level) { return Math.max(1, Math.min(20, Math.trunc(Number(level) || 1))); }
-function abilityModifier(score) { return Math.floor(((Number(score) || 10) - 10) / 2); }
-function escapeHtml(value) { return foundry.utils.escapeHTML(String(value ?? "")); }

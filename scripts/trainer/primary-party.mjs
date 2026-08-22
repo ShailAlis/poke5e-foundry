@@ -1,8 +1,8 @@
 /**
- * Primary Party automÃ¡tica. D&D 5e representa la party mediante un Actor de
- * tipo `group` guardado en el ajuste mundial `dnd5e.primaryParty`. Este mÃ³dulo
+ * Primary Party automática. D&D 5e representa la party mediante un Actor de
+ * tipo `group` guardado en el ajuste mundial `dnd5e.primaryParty`. Este módulo
  * crea ese grupo cuando falta y mantiene dentro todos los PJ controlados o
- * asignados a usuarios jugadores, sin eliminar miembros aÃ±adidos manualmente.
+ * asignados a usuarios jugadores, sin eliminar miembros añadidos manualmente.
  */
 import { MODULE_ID } from "../core/model.mjs";
 
@@ -10,7 +10,7 @@ const PARTY_KIND = "primary-party";
 const MANAGED_MEMBERS_FLAG = "primaryPartyMembers";
 let synchronization = Promise.resolve();
 
-/** Encola la sincronizaciÃ³n para evitar carreras entre hooks simultÃ¡neos. */
+/** Encola la sincronización para evitar carreras entre hooks simultáneos. */
 export function synchronizePrimaryParty() {
   synchronization = synchronization.catch(() => undefined).then(performSynchronization);
   return synchronization;
@@ -30,7 +30,7 @@ export function playerCharacterIds(actors, users) {
 
 /**
  * Combina los miembros existentes con los PJ deseados. Solo elimina IDs que
- * fueron gestionados automÃ¡ticamente en una sincronizaciÃ³n anterior.
+ * fueron gestionados automáticamente en una sincronización anterior.
  */
 export function synchronizedMemberIds(currentIds, previousManagedIds, desiredIds) {
   const previous = new Set(previousManagedIds);

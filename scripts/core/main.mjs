@@ -19,6 +19,7 @@ import { Poke5eEncounterBuilder } from "../world/encounter-builder.mjs";
 import { attemptCapture, registerCaptureSocket } from "../pokemon/capture.mjs";
 import { Poke5eTrainerCreator, enforceHumanActorSource, isHumanSpecies } from "../trainer/trainer-creator.mjs";
 import { Poke5eNpcTrainerGenerator } from "../trainer/npc-trainer-generator.mjs";
+import { migratedNpcSpritePath } from "../trainer/npc-trainer-rules.mjs";
 import { registerPokemonStatusEffects, registerPokemonStatusSocket } from "../combat/status-effects.mjs";
 import { registerOngoingMoveEffects } from "../combat/ongoing-effects.mjs";
 import { loadPokemonEffectIcons } from "./effect-icons.mjs";
@@ -152,6 +153,7 @@ Hooks.once("ready", async () => {
     migrateTrainerClassAdvancements().catch(error => console.error(`${MODULE_ID} | Trainer advancement migration failed`, error));
     synchronizePrimaryParty().catch(error => console.error(`${MODULE_ID} | Primary Party synchronization failed`, error));
     migrateMoveMachineIcons().catch(error => console.error(`${MODULE_ID} | Move-machine icon migration failed`, error));
+    migrateNpcTrainerSprites().catch(error => console.error(`${MODULE_ID} | NPC Trainer sprite migration failed`, error));
   }
 });
 
@@ -231,8 +233,8 @@ Hooks.on("getActorSheetHeaderButtons", (sheet, buttons) => addLegacyHeaderContro
 Hooks.on("getApplicationV1HeaderButtons", (application, buttons) => addLegacyHeaderControl(application, buttons));
 /** Añade a la barra de herramientas de tokens los accesos del director. */
 Hooks.on("getSceneControlButtons", controls => {
-  addEncounterSceneControl(controls);
-  addNpcTrainerSceneControl(controls);
+  if (!game.user.isGM) return;
+  for (const tool of GM_SCENE_TOOLS) addTokenSceneControl(controls, tool);
 });
 /**
  * Equivalente de addLegacyHeaderControl() para las fichas ApplicationV2: inserta
@@ -241,25 +243,9 @@ Hooks.on("getSceneControlButtons", controls => {
  */
 Hooks.on("getHeaderControlsApplicationV2", (application, controls) => {
   if (application instanceof Poke5ePokemonSheet || application instanceof Poke5eTrainerTeam) return;
-  const actor = application.actor ?? application.document;
-  if (actor?.documentName !== "Actor") return;
-  if (actor.type === "character" && !controls.some(control => control.action === "poke5e-open-team")) {
-    controls.unshift({
-      label: teamLabel(actor), icon: "fa-solid fa-circle-dot", action: "poke5e-open-team", visible: true,
-      onClick: () => new Poke5eTrainerTeam({ actor }).render(true)
-    });
-  }
-  if (needsTrainerCreation(actor) && !controls.some(control => control.action === "poke5e-create-trainer")) {
-    controls.unshift({
-      label: game.i18n.localize("POKE5E.Actions.CompleteTrainer"), icon: "fa-solid fa-user-plus", action: "poke5e-create-trainer", visible: true,
-      onClick: () => new Poke5eTrainerCreator({ actor }).render(true)
-    });
-  }
-  if (["deployed", "wild"].includes(actor.getFlag(MODULE_ID, "kind")) && !controls.some(control => control.action === "poke5e-open-pokemon")) {
-    controls.unshift({
-      label: game.i18n.localize("POKE5E.Actions.Pokedex"), icon: "fa-solid fa-address-card", action: "poke5e-open-pokemon", visible: true,
-      onClick: () => openPokemon(actor)
-    });
+  for (const entry of poke5eHeaderControls(application, ["team", "createTrainer", "pokedex"])) {
+    if (controls.some(control => control.action === entry.id)) continue;
+    controls.unshift({ label: entry.label, icon: entry.icon, action: entry.id, visible: true, onClick: entry.open });
   }
 });
 
@@ -320,25 +306,38 @@ Hooks.on("deleteToken", token => {
 });
 
 /**
- * Inserta los botones de cabecera del módulo en las aplicaciones ApplicationV1
- * (equipo Pokémon, completar Entrenador y Pokédex). Comparte criterios con el
- * hook `getHeaderControlsApplicationV2` y se apoya en needsTrainerCreation(),
- * teamLabel() y openPokemon().
+ * Botones de cabecera que el módulo ofrece para un actor: equipo Pokémon,
+ * completar Entrenador y Pokédex, cada uno con su condición de aparición.
+ * Devuelve solo los aplicables, en el orden pedido, para que los dos hooks de
+ * cabecera —ApplicationV1 y V2— compartan criterios y etiquetas y solo tengan
+ * que traducirlos a la forma que espera cada API.
+ */
+function poke5eHeaderControls(application, order) {
+  const actor = application.actor ?? application.document;
+  if (actor?.documentName !== "Actor") return [];
+  const available = {
+    team: actor.type === "character"
+      ? { id: "poke5e-open-team", label: teamLabel(actor), icon: "fa-solid fa-circle-dot", open: () => new Poke5eTrainerTeam({ actor }).render(true) }
+      : null,
+    createTrainer: needsTrainerCreation(actor)
+      ? { id: "poke5e-create-trainer", label: game.i18n.localize("POKE5E.Actions.CompleteTrainer"), icon: "fa-solid fa-user-plus", open: () => new Poke5eTrainerCreator({ actor }).render(true) }
+      : null,
+    pokedex: ["deployed", "wild"].includes(actor.getFlag(MODULE_ID, "kind"))
+      ? { id: "poke5e-open-pokemon", label: game.i18n.localize("POKE5E.Actions.Pokedex"), icon: "fa-solid fa-address-card", open: () => openPokemon(actor) }
+      : null
+  };
+  return order.map(key => available[key]).filter(Boolean);
+}
+
+/**
+ * Traduce poke5eHeaderControls() a la forma de las aplicaciones ApplicationV1
+ * (`class` y `onclick` en vez de `action` y `onClick`). El orden de inserción se
+ * mantiene como estaba antes de compartir el cálculo con el hook V2.
  */
 function addLegacyHeaderControl(application, buttons) {
-  const actor = application.actor ?? application.document;
-  if (actor?.documentName !== "Actor") return;
-  if (needsTrainerCreation(actor) && !buttons.some(button => button.class === "poke5e-create-trainer")) {
-    buttons.unshift({ label: game.i18n.localize("POKE5E.Actions.CompleteTrainer"), class: "poke5e-create-trainer", icon: "fa-solid fa-user-plus", onclick: () => new Poke5eTrainerCreator({ actor }).render(true) });
-  }
-  if (actor.type === "character" && !buttons.some(button => button.class === "poke5e-open-team")) {
-    buttons.unshift({
-      label: teamLabel(actor), class: "poke5e-open-team", icon: "fa-solid fa-circle-dot",
-      onclick: () => new Poke5eTrainerTeam({ actor }).render(true)
-    });
-  }
-  if (["deployed", "wild"].includes(actor.getFlag(MODULE_ID, "kind")) && !buttons.some(button => button.class === "poke5e-open-pokemon")) {
-    buttons.unshift({ label: game.i18n.localize("POKE5E.Actions.Pokedex"), class: "poke5e-open-pokemon", icon: "fa-solid fa-address-card", onclick: () => openPokemon(actor) });
+  for (const entry of poke5eHeaderControls(application, ["createTrainer", "team", "pokedex"])) {
+    if (buttons.some(button => button.class === entry.id)) continue;
+    buttons.unshift({ label: entry.label, class: entry.id, icon: entry.icon, onclick: entry.open });
   }
 }
 
@@ -426,6 +425,10 @@ async function migratePokemonCombatData() {
     const species = pokemonItem?.getFlag(MODULE_ID, "species");
     if (!species) continue;
     const traits = damageTraitsForPokemonTypes(species.type);
+    // La migración corre en cada sesión del director: sin esta comparación
+    // reescribiría las afinidades de todos los desplegados aunque ya fueran las
+    // correctas, con una actualización de base de datos por actor.
+    if (["dr", "dv", "di"].every(key => sameTraitValues(actor.system.traits?.[key]?.value, traits[key].value))) continue;
     await actor.update({
       "system.traits.dr": traits.dr,
       "system.traits.dv": traits.dv,
@@ -435,62 +438,79 @@ async function migratePokemonCombatData() {
 }
 
 /**
- * Añade el botón del generador de encuentros (encounter-builder.mjs) a los
- * controles de token del director, admitiendo tanto la forma de array como la de
- * objeto que han tenido los controles en distintas versiones de Foundry.
- * Gemela de addNpcTrainerSceneControl().
+ * Compara las afinidades guardadas —que D&D 5e expone como Set— con las que
+ * calcula damageTraitsForPokemonTypes(), sin importar el orden. Auxiliar
+ * exclusivo de migratePokemonCombatData().
  */
-function addEncounterSceneControl(controls) {
-  if (!game.user.isGM) return;
-  const open = () => new Poke5eEncounterBuilder().render(true);
-  const tool = {
-    name: "poke5e-encounter-builder",
-    title: game.i18n.localize("POKE5E.Menu.Encounter.Name"),
-    icon: "fa-solid fa-mountain-sun",
-    button: true,
-    visible: true,
-    onChange: (event, active) => { if (active !== false) open(); }
-  };
-  if (Array.isArray(controls)) {
-    const tokenControls = controls.find(control => control.name === "token" || control.name === "tokens");
-    if (tokenControls && !tokenControls.tools.some(entry => entry.name === tool.name)) tokenControls.tools.push(tool);
-    return;
+function sameTraitValues(current, expected) {
+  const stored = current instanceof Set ? [...current] : Array.isArray(current) ? current : [];
+  return stored.length === expected.length && expected.every(value => stored.includes(value));
+}
+
+/**
+ * Migración: los sprites de Entrenador NPC pasaron de PNG a
+ * WebP (de 100 MB a 14 MB), así que los actores generados antes apuntan a
+ * archivos que ya no existen. Reescribe con migratedNpcSpritePath()
+ * (npc-trainer-rules.mjs) el retrato, la textura del prototipo de token y la de
+ * los tokens ya colocados en las escenas. Se ejecuta una vez por sesión de
+ * director desde el hook `ready` y no escribe nada cuando no queda ninguna ruta
+ * antigua, que es el caso habitual.
+ */
+async function migrateNpcTrainerSprites() {
+  for (const actor of game.actors) {
+    const updates = {};
+    const img = migratedNpcSpritePath(actor.img);
+    if (img) updates.img = img;
+    const tokenSrc = migratedNpcSpritePath(actor.prototypeToken?.texture?.src);
+    if (tokenSrc) updates["prototypeToken.texture.src"] = tokenSrc;
+    if (Object.keys(updates).length) await actor.update(updates);
   }
-  const tokenControls = controls.tokens ?? controls.token;
-  if (!tokenControls?.tools) return;
-  if (Array.isArray(tokenControls.tools)) {
-    if (!tokenControls.tools.some(entry => entry.name === tool.name)) tokenControls.tools.push(tool);
-  } else if (!tokenControls.tools[tool.name]) {
-    tokenControls.tools[tool.name] = tool;
+  for (const scene of game.scenes) {
+    const updates = [];
+    for (const token of scene.tokens) {
+      const src = migratedNpcSpritePath(token.texture?.src);
+      if (src) updates.push({ _id: token.id, "texture.src": src });
+    }
+    if (updates.length) await scene.updateEmbeddedDocuments("Token", updates);
   }
 }
 
 /**
- * Añade el botón del generador de Entrenadores NPC (npc-trainer-generator.mjs) a
- * los controles de token del director, con la misma lógica de compatibilidad que
- * addEncounterSceneControl().
+ * Los dos accesos que el módulo añade a la barra de tokens del director: el
+ * generador de encuentros (encounter-builder.mjs) y el de Entrenadores NPC
+ * (npc-trainer-generator.mjs). Los inserta addTokenSceneControl().
  */
-function addNpcTrainerSceneControl(controls) {
-  if (!game.user.isGM) return;
-  const open = () => new Poke5eNpcTrainerGenerator().render(true);
+const GM_SCENE_TOOLS = [
+  { name: "poke5e-encounter-builder", title: "POKE5E.Menu.Encounter.Name", icon: "fa-solid fa-mountain-sun", open: () => new Poke5eEncounterBuilder().render(true) },
+  { name: "poke5e-npc-trainer-generator", title: "POKE5E.Menu.NpcTrainer.Name", icon: "fa-solid fa-users-gear", open: () => new Poke5eNpcTrainerGenerator().render(true) }
+];
+
+/**
+ * Inserta una entrada de GM_SCENE_TOOLS en los controles de token, admitiendo
+ * las tres formas que han tenido los controles en distintas versiones de
+ * Foundry: array de grupos, objeto de grupos con `tools` en array y objeto de
+ * grupos con `tools` indexadas por nombre. Nunca duplica una herramienta ya
+ * presente, porque el hook se dispara en cada redibujado de la barra.
+ */
+function addTokenSceneControl(controls, { name, title, icon, open }) {
   const tool = {
-    name: "poke5e-npc-trainer-generator",
-    title: game.i18n.localize("POKE5E.Menu.NpcTrainer.Name"),
-    icon: "fa-solid fa-users-gear",
+    name,
+    title: game.i18n.localize(title),
+    icon,
     button: true,
     visible: true,
     onChange: (event, active) => { if (active !== false) open(); }
   };
-  if (Array.isArray(controls)) {
-    const tokenControls = controls.find(control => control.name === "token" || control.name === "tokens");
-    if (tokenControls && !tokenControls.tools.some(entry => entry.name === tool.name)) tokenControls.tools.push(tool);
-    return;
+  const tokenControls = Array.isArray(controls)
+    ? controls.find(control => control.name === "token" || control.name === "tokens")
+    : controls.tokens ?? controls.token;
+  const tools = tokenControls?.tools;
+  if (!tools) return;
+  if (Array.isArray(tools)) {
+    if (!tools.some(entry => entry.name === name)) tools.push(tool);
+  } else if (!tools[name]) {
+    tools[name] = tool;
   }
-  const tokenControls = controls.tokens ?? controls.token;
-  if (!tokenControls?.tools) return;
-  if (Array.isArray(tokenControls.tools)) {
-    if (!tokenControls.tools.some(entry => entry.name === tool.name)) tokenControls.tools.push(tool);
-  } else if (!tokenControls.tools[tool.name]) tokenControls.tools[tool.name] = tool;
 }
 
 /**

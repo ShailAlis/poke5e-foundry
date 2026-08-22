@@ -19,6 +19,7 @@
  * uso de movimiento.
  */
 import { MODULE_ID } from "../core/model.mjs";
+import { isResponsibleGm } from "../core/utils.mjs";
 
 export function registerCombatHistory() {
   Hooks.on("preUpdateActor", (actor, changes) => monitorDamageForHistory(actor, changes));
@@ -65,9 +66,4 @@ async function pokemonItemForActor(actor) {
   const uuid = actor?.getFlag?.(MODULE_ID, "pokemonItemUuid");
   if (uuid) return fromUuid(uuid);
   return actor?.items?.find(item => item.getFlag(MODULE_ID, "kind") === "pokemon") ?? null;
-}
-
-function isResponsibleGm() {
-  const active = game.users.filter(user => user.active && user.isGM).sort((a, b) => a.id.localeCompare(b.id));
-  return active[0]?.id === game.user.id;
 }

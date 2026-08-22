@@ -11,6 +11,7 @@
 import { MODULE_ID } from "../core/model.mjs";
 import { abilityBlocksForcedSwitch } from "../pokemon/pokemon-abilities.mjs";
 import { recallPokemon } from "../world/deployment.mjs";
+import { escapeHtml, isResponsibleGm } from "../core/utils.mjs";
 
 const SOCKET_ACTION = "applyForcedSwitch";
 
@@ -81,10 +82,4 @@ async function pokemonItemForActor(actor) {
   const uuid = actor?.getFlag(MODULE_ID, "pokemonItemUuid");
   if (uuid) return fromUuid(uuid);
   return actor?.items?.find(item => item.getFlag(MODULE_ID, "kind") === "pokemon") ?? null;
-}
-
-function escapeHtml(value) { return foundry.utils.escapeHTML(String(value ?? "")); }
-function isResponsibleGm() {
-  const active = game.users.filter(user => user.active && user.isGM).sort((a, b) => a.id.localeCompare(b.id));
-  return active[0]?.id === game.user.id;
 }

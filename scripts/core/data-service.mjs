@@ -42,10 +42,11 @@ export function normalizeDataLanguage(language) {
 /**
  * Carga y ensambla el catálogo: lee los JSON en paralelo con fetchJson(), deduce
  * los efectos de estado de cada movimiento con inferMoveStatusEffects()
- * (status-effects.mjs), superpone la traducción con mergeTranslation(), adjunta
- * los datos de concurso que consume contests.mjs y agrupa las evoluciones por
- * especie de origen. Devuelve también los índices por id que usan las fichas.
- * Solo la llama loadPoke5eData().
+ * (status-effects.mjs), superpone la traducción —con mergeTranslation() para
+ * habilidades y objetos, y en la misma pasada de ensamblado para movimientos—,
+ * adjunta los datos de concurso que consume contests.mjs y agrupa las
+ * evoluciones por especie de origen. Devuelve también los índices por id que
+ * usan las fichas. Solo la llama loadPoke5eData().
  */
 async function load(language) {
   const [pokemon, movesEn, abilitiesEn, itemsEn, evolutions, contests, contestEffects] = await Promise.all([
@@ -57,16 +58,16 @@ async function load(language) {
     fetchJson("contest.json"),
     fetchJson("contest-effects.json")
   ]);
-  let moves = movesEn.moves.map(move => ({ ...move, statusEffects: inferMoveStatusEffects(move) }));
   let abilities = abilitiesEn.items;
   let items = itemsEn.items;
+  let moveTranslations = null;
   if (language !== "en") {
     const [movesLocal, abilitiesLocal, itemsLocal] = await Promise.all([
       fetchJson(`${language}/moves.json`),
       fetchJson(`${language}/abilities.json`),
       fetchJson(`${language}/items.json`)
     ]);
-    moves = mergeTranslation(moves, movesLocal.moves);
+    moveTranslations = new Map(movesLocal.moves.map(value => [value.id, value]));
     abilities = mergeTranslation(abilities, abilitiesLocal.items);
     items = mergeTranslation(items, itemsLocal.items);
   }
@@ -75,10 +76,14 @@ async function load(language) {
   const availableEvolutions = evolutions.items.filter(evolution => availablePokemonIds.has(evolution.from) && availablePokemonIds.has(evolution.to));
   const contestById = new Map(contests.items.map(value => [value.id, value]));
   const contestEffectsById = new Map(contestEffects.items.map(value => [String(value.id), value]));
-  moves = moves.map(move => {
+  // Efectos de estado, traducción y datos de concurso se aplican en una sola
+  // pasada: el catálogo tiene más de ochocientos movimientos y encadenar tres
+  // `map()` construía dos copias intermedias completas de todos ellos.
+  const moves = movesEn.moves.map(move => {
+    const assembled = { ...move, ...(moveTranslations?.get(move.id) ?? {}), statusEffects: inferMoveStatusEffects(move) };
     const contest = contestById.get(move.id);
-    if (!contest) return move;
-    return { ...move, contest: { ...contest, effect: contestEffectsById.get(String(contest.effect)) ?? contest.effect } };
+    if (contest) assembled.contest = { ...contest, effect: contestEffectsById.get(String(contest.effect)) ?? contest.effect };
+    return assembled;
   });
   const evolutionsByFrom = new Map();
   for (const evolution of availableEvolutions) {

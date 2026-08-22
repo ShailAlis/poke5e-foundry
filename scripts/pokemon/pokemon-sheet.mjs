@@ -110,6 +110,7 @@ import {
   normalizedExperience
 } from "./progression.mjs";
 import { ABILITIES, applyPendingPokemonAdvancements, attachStepperGroup, hasPendingPokemonAdvancements, initializePokemonAdvancement, stepperGrid } from "./pokemon-advancement.mjs";
+import { abilityModifier, escapeHtml, formatNumber, signed, titleCase } from "../core/utils.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -245,6 +246,8 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const data = await loadPoke5eData();
     const species = this.pokemonItem.getFlag(MODULE_ID, "species") ?? {};
     const instance = this.pokemonItem.getFlag(MODULE_ID, "instance") ?? {};
+    const trainer = this.pokemonItem.parent;
+    const hasTrainer = trainer?.type === "character";
     const heldItem = instance.heldItem ?? null;
     const effectiveTypes = heldItemEffectiveTypes({
       sourceId: heldItem?.sourceId,
@@ -256,20 +259,23 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const level = Number(instance.level) || 1;
     const moves = (instance.moves ?? []).map(entry => {
       const move = data.movesById.get(entry.moveId);
-      return move ? prepareMove(entry, move, combatSpecies, level, data.contestEffectsById, this.contestType, heldItem, this.pokemonItem.parent, instance.abilities) : null;
+      return move ? prepareMove(entry, move, combatSpecies, level, data.contestEffectsById, this.contestType, heldItem, trainer, instance.abilities) : null;
     }).filter(Boolean);
     const knownMoveIds = new Set((instance.moves ?? []).map(entry => entry.moveId));
-    const machineIds = trainerMoveMachineIds(this.pokemonItem.parent);
+    const machineIds = trainerMoveMachineIds(trainer);
     const catalog = this.moveManagerOpen
       ? filterMoveCatalog(data.moves, species, level, knownMoveIds, { ...this.moveFilters, machineIds })
       : [];
-    const abilities = (instance.abilities ?? []).map(id => data.abilitiesById.get(id)).filter(Boolean).map(ability => ({
-      id: ability.id,
-      name: ability.name,
-      description: `<p>${foundry.utils.escapeHTML(ability.description ?? "")}</p>`,
-      automation: abilityAutomationMode(ability.id),
-      automatic: abilityAutomationMode(ability.id) === "automatic"
-    }));
+    const abilities = (instance.abilities ?? []).map(id => data.abilitiesById.get(id)).filter(Boolean).map(ability => {
+      const automation = abilityAutomationMode(ability.id);
+      return {
+        id: ability.id,
+        name: ability.name,
+        description: `<p>${escapeHtml(ability.description)}</p>`,
+        automation,
+        automatic: automation === "automatic"
+      };
+    });
     const abilityScores = Object.entries(combatSpecies.attributes).map(([key, score]) => ({
       key: key.toUpperCase(), score, modifier: signed(Math.floor((Number(score) - 10) / 2))
     }));
@@ -277,27 +283,28 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const experience = experienceProgress(instance.experience, level);
     const pendingAdvancements = hasPendingPokemonAdvancements(instance);
     const heldActor = heldItemActorAdjustments({ sourceId: heldItem?.sourceId, speciesId: species.id, charges: heldItem?.charges, state: heldItem?.state });
-    const combatActor = this.pokemonItem.parent?.getFlag?.(MODULE_ID, "kind") === "wild" ? this.pokemonItem.parent : deployedActorFor(this.pokemonItem);
-    const activeConditions = Object.keys({ burned: 1, frozen: 1, paralyzed: 1, poisoned: 1, "badly-poisoned": 1, asleep: 1, confused: 1, flinched: 1 })
-      .filter(id => combatActor?.statuses?.has(pokemonStatusId(id)));
-    const inventoryItems = this.pokemonItem.parent?.type === "character"
-      ? this.pokemonItem.parent.items
+    const combatActor = trainer?.getFlag?.(MODULE_ID, "kind") === "wild" ? trainer : deployedActorFor(this.pokemonItem);
+    const activeConditions = POKEMON_STATUS_IDS.filter(id => combatActor?.statuses?.has(pokemonStatusId(id)));
+    const inventoryItems = hasTrainer
+      ? trainer.items
         .filter(item => item.getFlag(MODULE_ID, "kind") === "gear" && Number(item.system.quantity ?? 1) > 0)
         .map(item => ({ id: item.id, sourceId: item.getFlag(MODULE_ID, "sourceId"), name: item.name, quantity: Number(item.system.quantity ?? 1) }))
       : [];
+    // Recurso de Macarra: se consulta una sola vez y lo comparten Sabotaje y
+    // Esquive Sombrío, que solo se ofrecen si el escudo no está ya armado.
+    const gruntResource = hasTrainer && !combatActor?.getFlag(MODULE_ID, "damageShield")
+      ? (state => state?.remaining ? state : null)(trainerResourceState(trainer, "grunt"))
+      : null;
+    const award = experienceAward(level, species.sr);
     return {
       item: this.pokemonItem,
-      trainer: this.pokemonItem.parent,
-      hasTrainer: this.pokemonItem.parent?.type === "character",
-      sabotageResource: this.pokemonItem.parent?.type === "character" && !combatActor?.getFlag(MODULE_ID, "damageShield")
-        ? (state => state?.remaining ? state : null)(trainerResourceState(this.pokemonItem.parent, "grunt"))
-        : null,
-      shadowDodgeResource: this.pokemonItem.parent?.type === "character" && !combatActor?.getFlag(MODULE_ID, "damageShield") && hasTrainerPath(this.pokemonItem.parent, "grunt", 9)
-        ? (state => state?.remaining ? state : null)(trainerResourceState(this.pokemonItem.parent, "grunt"))
-        : null,
-      canFieldMedicine: this.pokemonItem.parent?.type === "character" && hasTrainerPath(this.pokemonItem.parent, "nurse", 9)
+      trainer,
+      hasTrainer,
+      sabotageResource: gruntResource,
+      shadowDodgeResource: gruntResource && hasTrainerPath(trainer, "grunt", 9) ? gruntResource : null,
+      canFieldMedicine: hasTrainer && hasTrainerPath(trainer, "nurse", 9)
         && (instance.conditions ?? []).some(id => POKEMON_STATUS_EFFECTS[id]?.nonVolatile),
-      multitalentChoice: this.pokemonItem.parent?.type === "character" && hasTrainerPath(this.pokemonItem.parent, "hobbyist", 15)
+      multitalentChoice: hasTrainer && hasTrainerPath(trainer, "hobbyist", 15)
         ? { options: SKILLS, selected: instance.multitalentSkill ?? "" }
         : null,
       name: displayPokemonName(this.pokemonItem),
@@ -314,8 +321,8 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
         nextLevel: Math.min(level + 1, 20),
         progressMax: Math.max(experience.span, 1),
         progressValue: experience.maximumLevel ? 1 : experience.gained,
-        award: experienceAward(level, species.sr),
-        awardLabel: formatNumber(experienceAward(level, species.sr))
+        award,
+        awardLabel: formatNumber(award)
       },
       pendingAdvancements,
       heldItem: heldItem ? { ...heldItem, hasCharges: heldItem.charges != null } : null,
@@ -343,7 +350,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
         },
         total: catalog.length,
         truncated: catalog.length > 120,
-        entries: catalog.slice(0, 120).map(entry => prepareCatalogMove(entry, data.movesById.get(entry.id), combatSpecies, level, data.contestEffectsById, this.contestType, this.pokemonItem.parent))
+        entries: catalog.slice(0, 120).map(entry => prepareCatalogMove(entry, data.movesById.get(entry.id), combatSpecies, level, data.contestEffectsById, this.contestType, trainer))
       },
       abilities,
       abilityScores,
@@ -2178,9 +2185,6 @@ function contestPowerLabel(move) {
   return configured.map(value => value.toUpperCase()).join(" / ");
 }
 
-/** Modificador de una puntuación de característica. Auxiliar de todo el archivo. */
-function abilityModifier(score) { return Math.floor(((Number(score) || 10) - 10) / 2); }
-
 /**
  * Resuelve el tipo de daño de una tirada: lo deduce solo cuando
  * normalizeMoveDamageTypes() devuelve uno único y, si hay varios, lo pregunta.
@@ -2813,15 +2817,3 @@ async function returnHeldItem(trainer, heldItem, data) {
   const definition = data.itemsById.get(heldItem.sourceId);
   if (definition) return trainer.createEmbeddedDocuments("Item", [gearItemSource(definition)]);
 }
-
-/** Formatea las cifras de experiencia según el idioma de la interfaz. */
-function formatNumber(value) {
-  return new Intl.NumberFormat(game.i18n.lang || "es").format(Number(value) || 0);
-}
-
-/** Antepone el signo a un modificador ("+3", "-1"). */
-function signed(value) { return Number(value) >= 0 ? `+${value}` : String(value); }
-/** Capitaliza un identificador con guiones; copia local de la de model.mjs. */
-function titleCase(value) { return String(value).split("-").map(part => part.charAt(0).toUpperCase() + part.slice(1)).join(" "); }
-/** Escapa el texto de los datos antes de insertarlo en HTML. */
-function escapeHtml(value) { return foundry.utils.escapeHTML(String(value ?? "")); }

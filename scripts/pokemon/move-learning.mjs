@@ -18,6 +18,30 @@ const LEVEL_GROUPS = [
   [18, "level18"]
 ];
 
+/**
+ * Índices por especie de las listas de aprendizaje, construidos la primera vez
+ * que se consulta una especie. El gestor de movimientos evalúa las ~900 entradas
+ * del catálogo en cada redibujado (y en cada tecla del buscador), así que las
+ * búsquedas lineales sobre los arrays del JSON se sustituyen por Sets. La clave
+ * es el propio objeto `species.moves` del catálogo, inmutable y compartido, de
+ * modo que el índice sobrevive a las copias de especie que hace la ficha.
+ */
+const poolIndexes = new WeakMap();
+
+/** Construye —o recupera— el índice de listas de una especie. Auxiliar de moveEligibility(). */
+function poolIndex(pool) {
+  let index = poolIndexes.get(pool);
+  if (index) return index;
+  index = {
+    levels: LEVEL_GROUPS.map(([required, key]) => [required, new Set(pool[key] ?? [])]),
+    egg: new Set(pool.egg ?? []),
+    tm: new Set((pool.tm ?? []).map(String)),
+    hm: new Set((pool.hm ?? pool.tm ?? []).map(String))
+  };
+  poolIndexes.set(pool, index);
+  return index;
+}
+
 /** Movimientos que un Pokémon puede tener aprendidos a la vez. */
 export const MAX_KNOWN_MOVES = 4;
 
@@ -45,16 +69,18 @@ export function applyLearnedMove(knownMoves, newEntry, replacedEntryId = null) {
  * que hace pokemon-sheet.mjs antes de aprender.
  */
 export function moveEligibility(species, move, level = 1, { machineIds = new Set() } = {}) {
-  const pool = species.moves ?? {};
-  const levelRequirements = LEVEL_GROUPS
-    .filter(([, key]) => (pool[key] ?? []).includes(move.id))
-    .map(([required]) => required);
-  const requiredLevel = levelRequirements.length ? Math.min(...levelRequirements) : null;
+  const index = poolIndex(species.moves ?? {});
+  // LEVEL_GROUPS está ordenado de menor a mayor, así que el primer tramo que
+  // contiene el movimiento ya es el nivel mínimo que lo concede.
+  let requiredLevel = null;
+  for (const [required, ids] of index.levels) {
+    if (ids.has(move.id)) { requiredLevel = required; break; }
+  }
   const machine = moveMachine(move);
-  const machinePool = machine?.kind === "hm" ? (pool.hm ?? pool.tm ?? []) : (pool.tm ?? []);
-  const viaMachine = machine != null && machinePool.map(String).includes(String(machine.id));
+  const machinePool = machine?.kind === "hm" ? index.hm : index.tm;
+  const viaMachine = machine != null && machinePool.has(String(machine.id));
   const machineOwned = viaMachine && machineIds.has(machine.key);
-  const viaEgg = (pool.egg ?? []).includes(move.id);
+  const viaEgg = index.egg.has(move.id);
   const methods = [];
   if (requiredLevel != null) methods.push({ id: "level", label: requiredLevel <= 1 ? "Inicial" : `Nivel ${requiredLevel}` });
   if (viaMachine) methods.push({ id: machine.kind, label: `${machine.label} ${machine.id}${machineOwned ? "" : " · no disponible"}`, available: machineOwned });
@@ -91,27 +117,30 @@ export function moveMachine(move) {
  * moveEligibility(), lo filtra por texto y categoría (disponibles, futuros o
  * incompatibles) y lo ordena poniendo delante los ya conocidos y los
  * disponibles. Solo la usa pokemon-sheet.mjs.
+ *
+ * El filtro de texto se aplica antes de calcular la elegibilidad —el resultado
+ * es el mismo, porque solo mira nombre e id— para no evaluar las reglas de
+ * aprendizaje de todo el catálogo en cada tecla del buscador.
  */
 export function filterMoveCatalog(moves, species, level, knownIds, filters = {}) {
   const query = String(filters.query ?? "").trim().toLocaleLowerCase();
   const category = filters.category ?? "available";
-  const entries = moves.map(move => {
+  const entries = [];
+  for (const move of moves) {
+    if (query && !String(move.name).toLocaleLowerCase().includes(query) && !String(move.id).toLocaleLowerCase().includes(query)) continue;
     const eligibility = moveEligibility(species, move, level, { machineIds: filters.machineIds });
-    return {
+    if (category === "available" && !eligibility.availableNow) continue;
+    if (category === "future" && !eligibility.future) continue;
+    if (category === "incompatible" && eligibility.compatible) continue;
+    entries.push({
       id: move.id,
       name: move.name,
       type: move.type ?? "normal",
       pp: Math.max(Number(move.pp) || 0, 0),
       known: knownIds.has(move.id),
       ...eligibility
-    };
-  }).filter(entry => {
-    if (query && !entry.name.toLocaleLowerCase().includes(query) && !entry.id.toLocaleLowerCase().includes(query)) return false;
-    if (category === "available") return entry.availableNow;
-    if (category === "future") return entry.future;
-    if (category === "incompatible") return !entry.compatible;
-    return true;
-  });
+    });
+  }
   return entries.sort((a, b) => {
     if (a.known !== b.known) return a.known ? -1 : 1;
     if (a.availableNow !== b.availableNow) return a.availableNow ? -1 : 1;

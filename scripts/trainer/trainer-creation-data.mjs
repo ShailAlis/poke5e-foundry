@@ -3,12 +3,14 @@
  * habilidades, naturalezas, orígenes regionales y especializaciones, más la
  * validación completa de una ficha en construcción.
  *
- * Módulo puro y sin dependencias —ni siquiera de los globales de Foundry—, lo
- * que permite a validate-trainer-creation.mjs probar sus reglas en Node. Lo usan
- * el asistente de jugador (trainer-creator.mjs) y el generador de NPC
+ * Módulo puro y sin dependencias —ni siquiera de los globales de Foundry: su
+ * único import es utils.mjs, cuyo escapeHtml() funciona igual fuera de Foundry—,
+ * lo que permite a validate-trainer-creation.mjs probar sus reglas en Node. Lo
+ * usan el asistente de jugador (trainer-creator.mjs) y el generador de NPC
  * (npc-trainer-actor.mjs y npc-trainer-generator.mjs), que comparten así los
  * mismos orígenes y especializaciones.
  */
+import { escapeHtml } from "../core/utils.mjs";
 
 /** Las seis características de D&D 5e con su nombre en español. */
 export const ABILITIES = {
@@ -226,8 +228,3 @@ function specialization(type, name, ability = null, skill = null) {
 function unique(values) { return [...new Set(values.filter(Boolean))]; }
 /** Pasa "str" a "Str" para componer los nombres de campo del formulario. */
 function titleKey(value) { return value.charAt(0).toUpperCase() + value.slice(1); }
-/**
- * Escapa HTML con una implementación propia, sin recurrir a las utilidades de
- * Foundry, para que este archivo siga ejecutándose en Node.
- */
-function escapeHtml(value) { return value.replace(/[&<>"']/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[character]); }

@@ -20,6 +20,7 @@ import { confirmHeldItemReaction, consumeHeldItem, heldItemId, postHeldItemMessa
 import { currentField } from "./terrain-effects.mjs";
 import { hasTrainerPath } from "../trainer/trainer-path-rules.mjs";
 import { applyGruntSaveAdvantage, applyHobbyistSaveBoost, applyNurseStatusSaveAdvantage, applyTacticianDcBoost } from "../trainer/trainer-resources.mjs";
+import { escapeHtml, isResponsibleGm } from "../core/utils.mjs";
 
 /** Acción del socket con la que un jugador pide al director aplicar estados. */
 const STATUS_SOCKET_ACTION = "applyMoveStatuses";
@@ -781,15 +782,4 @@ function actorHasPokemonStatus(actor, id) {
  */
 function actorHasAnyPokemonStatus(actor) {
   return (actor?.effects ?? []).some(effect => POKEMON_STATUS_EFFECTS[effect.getFlag(MODULE_ID, "status")]);
-}
-/** Escapa texto para los mensajes de chat que genera este archivo. */
-function escapeHtml(value) { return foundry.utils.escapeHTML(String(value ?? "")); }
-/**
- * Elige un único director responsable (el de id menor entre los conectados) para
- * que las tareas compartidas —socket, daño de fin de turno y sincronización— se
- * ejecuten una sola vez aunque haya varios directores en la partida.
- */
-function isResponsibleGm() {
-  const active = game.users.filter(user => user.active && user.isGM).sort((a, b) => a.id.localeCompare(b.id));
-  return active[0]?.id === game.user.id;
 }

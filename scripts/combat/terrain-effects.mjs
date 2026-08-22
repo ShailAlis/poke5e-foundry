@@ -21,6 +21,7 @@
  * de allí.
  */
 import { MODULE_ID } from "../core/model.mjs";
+import { escapeHtml, isResponsibleGm } from "../core/utils.mjs";
 
 const SOCKET_ACTION = "applyFieldEffect";
 const FLAG = "field";
@@ -194,10 +195,4 @@ async function refreshFieldAbilityBonuses(combat) {
     if (existing.length) await actor.deleteEmbeddedDocuments("ActiveEffect", existing.map(effect => effect.id));
     if (source) await actor.createEmbeddedDocuments("ActiveEffect", [source]);
   }
-}
-
-function escapeHtml(value) { return foundry.utils.escapeHTML(String(value ?? "")); }
-function isResponsibleGm() {
-  const active = game.users.filter(user => user.active && user.isGM).sort((a, b) => a.id.localeCompare(b.id));
-  return active[0]?.id === game.user.id;
 }

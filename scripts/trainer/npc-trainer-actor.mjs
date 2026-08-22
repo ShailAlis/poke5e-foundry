@@ -16,6 +16,7 @@ import { NATURES, ORIGINS, SKILLS } from "./trainer-creation-data.mjs";
 import { NPC_ARCHETYPES, NPC_DEFAULT_ARCHETYPE, npcTrainerAbilities, npcTrainerHitPoints, npcTrainerSprite, randomNpcTrainerName, resolveNpcTrainerGender } from "./npc-trainer-rules.mjs";
 import { chooseTokenPosition } from "../world/wild-deployment.mjs";
 import { pokedollarCurrency } from "../world/economy.mjs";
+import { escapeHtml } from "../core/utils.mjs";
 
 /**
  * Crea el actor de un Entrenador NPC (solo director). Resuelve el origen y
@@ -240,5 +241,3 @@ function biographyHtml(config, origin, team, data) {
 function clamp(value, minimum, maximum) { return Math.max(minimum, Math.min(maximum, Math.trunc(Number(value) || minimum))); }
 /** Devuelve el número si es válido y, si no, la reserva. Auxiliar de los ajustes de token. */
 function finiteNumber(value, fallback) { return Number.isFinite(Number(value)) ? Number(value) : fallback; }
-/** Escapa el texto de descripciones y biografía. */
-function escapeHtml(value) { return foundry.utils.escapeHTML(String(value ?? "")); }

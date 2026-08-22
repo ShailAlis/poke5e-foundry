@@ -10,6 +10,7 @@
  */
 import { pokemonDefenses, typeLabel } from "../combat/combat.mjs";
 import { experienceAtLevel } from "../pokemon/progression.mjs";
+import { escapeHtml, titleCase } from "./utils.mjs";
 
 /** Identificador del módulo, raíz de sus flags y ajustes; usado en todo el proyecto. */
 export const MODULE_ID = "poke5e-foundry";
@@ -701,23 +702,6 @@ function moveDescription(move) {
 function paragraphs(values) {
   const list = Array.isArray(values) ? values : values ? [values] : [];
   return list.map(value => `<p>${escapeHtml(value).replace(/\n/g, "<br>")}</p>`).join("");
-}
-
-/**
- * Escapa texto procedente de los JSON de datos antes de insertarlo en HTML.
- * Envuelve la utilidad de Foundry, que validate-model.mjs simula al ejecutarse
- * en Node.
- */
-function escapeHtml(value) {
-  return foundry.utils.escapeHTML(String(value ?? ""));
-}
-
-/**
- * Pasa un identificador con guiones a texto capitalizado ("water-gun" → "Water Gun").
- * Auxiliar de presentación de speciesDescription().
- */
-function titleCase(value) {
-  return String(value).split("-").map(part => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
 }
 
 /**

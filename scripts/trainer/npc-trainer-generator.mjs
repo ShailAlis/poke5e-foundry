@@ -15,6 +15,7 @@ import { MODULE_PATH, portraitUrl, trainerPokeslotsForLevel } from "../core/mode
 import { NATURES, ORIGINS } from "./trainer-creation-data.mjs";
 import { createNpcTrainerActor, ensureNpcTrainerFolder, placeNpcTrainer } from "./npc-trainer-actor.mjs";
 import { NPC_ARCHETYPES, NPC_DEFAULT_ARCHETYPE, NPC_DIFFICULTIES, filterNpcTrainerSpecies, generateNpcTrainerTeam, trainerControlSr } from "./npc-trainer-rules.mjs";
+import { titleCase } from "../core/utils.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -292,5 +293,3 @@ function optionMap(entries) { return Object.fromEntries(Object.entries(entries).
 function localizeOptionMap(entries) { return Object.fromEntries(Object.entries(entries).map(([value, key]) => [value, game.i18n.localize(`POKE5E.Options.${key}`)])); }
 /** Desplegable de los valores presentes en el catálogo, sin repetir y ordenados. */
 function uniqueOptions(values, labeler = value => value) { return [...new Set(values)].sort((a, b) => String(a).localeCompare(String(b))).reduce((result, value) => ({ ...result, [value]: labeler(value) }), {}); }
-/** Capitaliza tipos y biomas para los desplegables. */
-function titleCase(value) { return String(value).split("-").map(part => part.charAt(0).toLocaleUpperCase() + part.slice(1)).join(" "); }

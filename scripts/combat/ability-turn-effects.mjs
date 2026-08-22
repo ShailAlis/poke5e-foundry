@@ -6,6 +6,7 @@
 import { MODULE_ID } from "../core/model.mjs";
 import { nearbyAllyActors } from "./aura-abilities.mjs";
 import { POKEMON_STATUS_EFFECTS, removePokemonStatus } from "./status-effects.mjs";
+import { escapeHtml } from "../core/utils.mjs";
 
 export const END_TURN_ABILITY_IDS = Object.freeze(new Set(["bad-dreams", "hospitality", "shed-skin"]));
 
@@ -76,5 +77,3 @@ async function pokemonItemForActor(actor) {
   if (uuid) return fromUuid(uuid);
   return actor?.items?.find(item => item.getFlag(MODULE_ID, "kind") === "pokemon") ?? null;
 }
-
-function escapeHtml(value) { return foundry.utils.escapeHTML(String(value ?? "")); }

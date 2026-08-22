@@ -22,19 +22,56 @@ export const EFFECT_ICON_SLOTS = Object.freeze({
 
 const loadedIcons = new Map();
 
-/** Busca en paralelo los PNG disponibles. Se vuelve a ejecutar al recargar el mundo. */
+/**
+ * Busca los PNG disponibles. Se vuelve a ejecutar al recargar el mundo.
+ *
+ * Primero intenta listar cada carpeta de una sola vez con el explorador de
+ * archivos de Foundry: son tres peticiones en vez de una por hueco (más de
+ * doscientos), y no llena la consola de 404 por los iconos que el usuario aún no
+ * ha copiado. Si el explorador no está disponible —por ejemplo, si el rol del
+ * usuario no tiene permiso para navegar archivos— cae en el sondeo individual
+ * con HEAD, que solo necesita permiso de lectura.
+ */
 export async function loadPokemonEffectIcons() {
   loadedIcons.clear();
-  await Promise.all(Object.entries(EFFECT_ICON_SLOTS).flatMap(([category, ids]) => ids.map(async id => {
-    const path = customEffectIconPath(category, id);
-    try {
-      const response = await fetch(path, { method: "HEAD", cache: "no-store" });
-      if (response.ok) loadedIcons.set(`${category}.${id}`, path);
-    } catch {
-      // El archivo es opcional; el consumidor usará su icono de respaldo.
+  await Promise.all(Object.entries(EFFECT_ICON_SLOTS).map(async ([category, ids]) => {
+    const listed = await listCategoryFiles(category);
+    if (listed) {
+      for (const id of ids) {
+        const path = customEffectIconPath(category, id);
+        if (listed.has(path)) loadedIcons.set(`${category}.${id}`, path);
+      }
+      return;
     }
-  })));
+    await Promise.all(ids.map(id => probeIcon(category, id)));
+  }));
   return loadedIcons.size;
+}
+
+/**
+ * Lista los archivos de una carpeta de iconos con el explorador de Foundry, o
+ * devuelve null si no se puede usar. Auxiliar de loadPokemonEffectIcons().
+ */
+async function listCategoryFiles(category) {
+  const picker = globalThis.foundry?.applications?.apps?.FilePicker?.implementation ?? globalThis.FilePicker;
+  if (!picker?.browse) return null;
+  try {
+    const result = await picker.browse("data", `${MODULE_PATH}/assets/icons/effects/${category}`);
+    return new Set((result?.files ?? []).map(file => decodeURIComponent(file)));
+  } catch {
+    return null;
+  }
+}
+
+/** Sondeo individual de respaldo: el archivo es opcional y su ausencia no es un error. */
+async function probeIcon(category, id) {
+  const path = customEffectIconPath(category, id);
+  try {
+    const response = await fetch(path, { method: "HEAD", cache: "no-store" });
+    if (response.ok) loadedIcons.set(`${category}.${id}`, path);
+  } catch {
+    // El consumidor usará su icono de respaldo.
+  }
 }
 
 /** Devuelve el icono personalizado detectado o el respaldo recibido. */

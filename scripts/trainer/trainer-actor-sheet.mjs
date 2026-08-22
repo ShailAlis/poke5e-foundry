@@ -395,11 +395,11 @@ export async function migrateTrainerFeatureGroups() {
 }
 
 /**
- * Sincroniza la progresiÃ³n canÃ³nica con las clases Entrenador antiguas. Actualiza
- * primero la copia maestra del compendio y despuÃ©s las clases ya embebidas en PJ,
- * que Foundry mantiene como copias independientes y no actualiza por sÃ­ solo.
+ * Sincroniza la progresión canónica con las clases Entrenador antiguas. Actualiza
+ * primero la copia maestra del compendio y después las clases ya embebidas en PJ,
+ * que Foundry mantiene como copias independientes y no actualiza por sí solo.
  * Conserva los avances existentes, sus elecciones y cualquier avance
- * personalizado; solo incorpora las entradas canÃ³nicas que falten.
+ * personalizado; solo incorpora las entradas canónicas que falten.
  */
 export async function migrateTrainerClassAdvancements() {
   if (!game.user.isGM) return;

@@ -13,6 +13,7 @@ import { filterEncounterSpecies, generateEncounter, MAX_ENCOUNTER_POKEMON } from
 import { MODULE_PATH, portraitUrl } from "../core/model.mjs";
 import { experienceAward } from "../pokemon/progression.mjs";
 import { deployWildPokemon } from "./wild-deployment.mjs";
+import { formatNumber, titleCase } from "../core/utils.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -246,14 +247,4 @@ function defaultFilters() {
  */
 function optionsFrom(values, labeler) {
   return [...new Set(values)].sort((a, b) => String(a).localeCompare(String(b))).reduce((result, value) => ({ ...result, [value]: labeler(value) }), {});
-}
-
-/** Capitaliza tipos y biomas para los desplegables. */
-function titleCase(value) {
-  return String(value).split("-").map(part => part.charAt(0).toLocaleUpperCase() + part.slice(1)).join(" ");
-}
-
-/** Formatea las cifras de PX según el idioma de la interfaz. */
-function formatNumber(value) {
-  return new Intl.NumberFormat(game.i18n.lang || "es").format(Number(value) || 0);
 }

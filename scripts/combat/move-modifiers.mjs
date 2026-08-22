@@ -8,6 +8,7 @@ import { pokemonEffectIcon } from "../core/effect-icons.mjs";
 import { MOVE_MODIFIER_EFFECTS, modifierTriggerMatches, nextModifierStacks, scaledMoveModifiers } from "./move-modifier-rules.mjs";
 import { abilityAdjustedMoveModifiers, abilityGrantsDebuffImmunity, abilityGrantsMeleeAttackAdvantage, abilityGrantsSelfAttackAdvantage, abilityLowHpCombatModifiers, abilityProtectsAttackDamageBonuses, abilitySlowStartActive } from "../pokemon/pokemon-abilities.mjs";
 import { applyGruntSaveAdvantage, applyHobbyistSaveBoost, applyNurseStatusSaveAdvantage, applyTacticianDcBoost } from "../trainer/trainer-resources.mjs";
+import { escapeHtml, isResponsibleGm } from "../core/utils.mjs";
 
 const SOCKET_ACTION = "applyMoveModifiers";
 const KIND = "move-modifier";
@@ -573,10 +574,3 @@ async function removeModifierConcentration(sourceActorUuid) {
 }
 
 function worldActors() { return game.actors?.contents ?? [...game.actors]; }
-
-function isResponsibleGm() {
-  const active = game.users.filter(user => user.active && user.isGM).sort((a, b) => a.id.localeCompare(b.id));
-  return active[0]?.id === game.user.id;
-}
-
-function escapeHtml(value) { return foundry.utils.escapeHTML(String(value ?? "")); }

@@ -83,15 +83,38 @@ export const NPC_ARCHETYPES = Object.fromEntries([
 
 export const NPC_DEFAULT_ARCHETYPE = "ace-trainer";
 
-/** Ruta del sprite de arquetipo segÃºn el gÃ©nero ya resuelto. */
+/** Carpeta de los sprites de arquetipo, raíz de todas las rutas que genera este módulo. */
+export const NPC_SPRITE_DIRECTORY = `${MODULE_PATH}/assets/NPC trainers/`;
+
+/**
+ * Extensión actual de los sprites. Hasta ahora se distribuían en PNG:
+ * solo los retratos a tamaño completo sumaban 100 MB de los 107 del módulo, así
+ * que pasaron a WebP. migrateNpcTrainerSprites() (main.mjs) reescribe las rutas
+ * `.png` que quedaran guardadas en los mundos anteriores.
+ */
+export const NPC_SPRITE_EXTENSION = "webp";
+export const NPC_SPRITE_LEGACY_EXTENSION = "png";
+
+/** Ruta del sprite de arquetipo según el género ya resuelto. */
 export function npcTrainerSprite(archetypeId, gender, variant = "tokens") {
   const archetype = NPC_ARCHETYPES[archetypeId] ?? NPC_ARCHETYPES[NPC_DEFAULT_ARCHETYPE];
   const symbol = gender === "female" ? "\u2640" : "\u2642";
   const directory = variant === "portraits" ? "portraits" : "tokens";
-  return `${MODULE_PATH}/assets/NPC trainers/${directory}/${archetype.name} ${symbol}.png`;
+  return `${NPC_SPRITE_DIRECTORY}${directory}/${archetype.name} ${symbol}.${NPC_SPRITE_EXTENSION}`;
 }
 
-/** Normaliza valores antiguos y resuelve el gÃ©nero aleatorio una sola vez. */
+/**
+ * Reescribe una ruta de sprite antigua (`.png`) a la actual. Devuelve null si la
+ * ruta no pertenece a esta carpeta o ya está migrada, para que la migración solo
+ * escriba en los actores que lo necesitan.
+ */
+export function migratedNpcSpritePath(source) {
+  const path = String(source ?? "");
+  if (!path.startsWith(NPC_SPRITE_DIRECTORY) || !path.endsWith(`.${NPC_SPRITE_LEGACY_EXTENSION}`)) return null;
+  return `${path.slice(0, -NPC_SPRITE_LEGACY_EXTENSION.length)}${NPC_SPRITE_EXTENSION}`;
+}
+
+/** Normaliza valores antiguos y resuelve el género aleatorio una sola vez. */
 export function resolveNpcTrainerGender(value, random = Math.random) {
   const normalized = String(value ?? "random").trim().toLocaleLowerCase();
   if (["female", "femenino"].includes(normalized)) return "female";

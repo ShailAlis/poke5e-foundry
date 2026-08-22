@@ -15,6 +15,7 @@ import { loadPoke5eData } from "../core/data-service.mjs";
 import { removeDeployment } from "../world/deployment.mjs";
 import { MODULE_ID, displayPokemonName, getPokemonItems, trainerLevel, trainerPokeslotLimit } from "../core/model.mjs";
 import { experienceAtLevel, experienceAward } from "./progression.mjs";
+import { escapeHtml, formatNumber, isResponsibleGm } from "../core/utils.mjs";
 
 /** Canal de socket del módulo, compartido con status-effects.mjs. */
 const SOCKET = `module.${MODULE_ID}`;
@@ -416,24 +417,4 @@ async function removeWildCombatants(actor) {
     const ids = combat.combatants.filter(combatant => combatant.actorId === actor.id).map(combatant => combatant.id);
     if (ids.length) await combat.deleteEmbeddedDocuments("Combatant", ids);
   }
-}
-
-/**
- * Elige un único director responsable (el de id menor entre los conectados) para
- * que una captura no se complete varias veces si hay más de uno.
- * Copia local de la homónima de status-effects.mjs.
- */
-function isResponsibleGm() {
-  const active = game.users.filter(user => user.active && user.isGM).sort((a, b) => a.id.localeCompare(b.id));
-  return active[0]?.id === game.user.id;
-}
-
-/** Formatea los PX según el idioma de la interfaz. Auxiliar de completeCapture(). */
-function formatNumber(value) {
-  return new Intl.NumberFormat(game.i18n.lang || "es").format(Number(value) || 0);
-}
-
-/** Escapa el texto de los mensajes de chat y del diálogo de captura. */
-function escapeHtml(value) {
-  return foundry.utils.escapeHTML(String(value ?? ""));
 }

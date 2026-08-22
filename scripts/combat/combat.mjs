@@ -1,12 +1,14 @@
 /**
  * Reglas de tipos Pokémon: tabla de efectividad, etiquetas, colores y su
- * integración como tipos de daño de D&D 5e. Módulo de reglas puro, sin estado ni
- * dependencias internas, lo que permite a validate-combat.mjs probarlo en Node.
+ * integración como tipos de daño de D&D 5e. Módulo de reglas puro y sin estado,
+ * cuya única dependencia es utils.mjs —que a su vez no importa nada—, lo que
+ * permite a validate-combat.mjs probarlo en Node.
  *
  * Lo consumen model.mjs (afinidades en las descripciones), deployment.mjs y
  * wild-deployment.mjs (rasgos de los actores), pokemon-sheet.mjs (tiradas de
  * daño) y main.mjs (registro y migración).
  */
+import { titleCase } from "../core/utils.mjs";
 
 /** Los 18 tipos Pokémon canónicos, en el orden en que se muestran. */
 export const POKEMON_TYPES = [
@@ -126,12 +128,4 @@ export function damageTraitsForPokemonTypes(types) {
 export function normalizeMoveDamageTypes(value) {
   const types = Array.isArray(value) ? value : value ? [value] : [];
   return [...new Set(types.filter(type => [...POKEMON_TYPES, ...EXTRA_DAMAGE_TYPES, "healing"].includes(type)))];
-}
-
-/**
- * Capitaliza un identificador con guiones. Copia local de la utilidad homónima
- * de model.mjs para que este archivo siga sin dependencias internas.
- */
-function titleCase(value) {
-  return String(value ?? "").split("-").map(part => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
 }

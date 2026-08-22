@@ -21,6 +21,7 @@ import { ABILITIES, CLASS_SKILLS, NATURES, ORIGINS, POINT_BUY_COSTS, SKILLS, SPE
 import { pokedollarCurrency } from "../world/economy.mjs";
 import { withEggMoveChance } from "../world/encounter-generator.mjs";
 import { trainerFeatOptions } from "./feat-catalog.mjs";
+import { escapeHtml, titleCase } from "../core/utils.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 /**
@@ -578,7 +579,3 @@ function pointBuySpent(selection) {
     return total + (POINT_BUY_COSTS[Number(selection[inputName])] ?? 0);
   }, 0);
 }
-/** Capitaliza tipos y otros identificadores con guiones. */
-function titleCase(value) { return String(value).split("-").map(part => part.charAt(0).toLocaleUpperCase() + part.slice(1)).join(" "); }
-/** Escapa el texto que se inserta en la biografía y las descripciones. */
-function escapeHtml(value) { return foundry.utils.escapeHTML(String(value ?? "")); }

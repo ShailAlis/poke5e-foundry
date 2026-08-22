@@ -14,6 +14,7 @@ import { loadPoke5eData } from "../core/data-service.mjs";
 import { buildWildInstance } from "./encounter-generator.mjs";
 import { MODULE_ID, POKEMON_TOKEN_SCALE, portraitUrl, remoteAssetUrl } from "../core/model.mjs";
 import { pokemonStatusEffectSource } from "../combat/status-effects.mjs";
+import { escapeHtml } from "../core/utils.mjs";
 
 /**
  * Crea y coloca un Pokémon salvaje en la escena activa (solo director): genera
@@ -281,9 +282,4 @@ function moveDescription(move) {
 /** Intersección de dos rectángulos. Auxiliar geométrico de isFreePosition(). */
 function rectanglesOverlap(a, b) {
   return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
-}
-
-/** Escapa el texto de los JSON antes de insertarlo en las descripciones. */
-function escapeHtml(value) {
-  return foundry.utils.escapeHTML(String(value ?? ""));
 }

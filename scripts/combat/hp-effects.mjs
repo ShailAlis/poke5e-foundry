@@ -16,6 +16,7 @@
  * turno en que se activó el movimiento.
  */
 import { MODULE_ID } from "../core/model.mjs";
+import { escapeHtml, isResponsibleGm } from "../core/utils.mjs";
 
 const SOCKET_ACTION = "applyHpEffect";
 const FALSE_SWIPE_FLAG = "falseSwipeFloor";
@@ -162,10 +163,4 @@ function savingThrowModifier(actor, key) {
   const score = Number(ability.value) || 10;
   const modifier = Number.isFinite(Number(ability.mod)) ? Number(ability.mod) : Math.floor((score - 10) / 2);
   return modifier + ((Number(actor.system.attributes?.prof) || 2) * (Number(ability.proficient) || 0));
-}
-
-function escapeHtml(value) { return foundry.utils.escapeHTML(String(value ?? "")); }
-function isResponsibleGm() {
-  const active = game.users.filter(user => user.active && user.isGM).sort((a, b) => a.id.localeCompare(b.id));
-  return active[0]?.id === game.user.id;
 }

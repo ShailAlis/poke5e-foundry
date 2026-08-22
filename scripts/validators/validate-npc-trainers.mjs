@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { NPC_ARCHETYPES, NPC_FIRST_NAMES, filterNpcTrainerSpecies, generateNpcTrainerTeam, npcTrainerAbilities, npcTrainerHitPoints, npcTrainerSprite, randomNpcTrainerName, resolveNpcTrainerGender, trainerControlSr } from "../trainer/npc-trainer-rules.mjs";
+import { NPC_ARCHETYPES, NPC_FIRST_NAMES, NPC_SPRITE_DIRECTORY, filterNpcTrainerSpecies, generateNpcTrainerTeam, migratedNpcSpritePath, npcTrainerAbilities, npcTrainerHitPoints, npcTrainerSprite, randomNpcTrainerName, resolveNpcTrainerGender, trainerControlSr } from "../trainer/npc-trainer-rules.mjs";
 import { SKILLS } from "../trainer/trainer-creation-data.mjs";
 
 const pokemon = JSON.parse(fs.readFileSync(new URL("../../data/pokemon.json", import.meta.url))).items;
@@ -52,8 +52,8 @@ const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 const spriteDirectory = path.resolve(projectRoot, "assets", "NPC trainers");
 for (const variant of ["portraits", "tokens"]) {
   const spriteArchetypeNames = [...new Set(fs.readdirSync(path.resolve(spriteDirectory, variant))
-    .filter(file => / [\u2640\u2642]\.png$/u.test(file))
-    .map(file => file.replace(/ [\u2640\u2642]\.png$/u, "")))].sort();
+    .filter(file => / [\u2640\u2642]\.webp$/u.test(file))
+    .map(file => file.replace(/ [\u2640\u2642]\.webp$/u, "")))].sort();
   assert.deepEqual(Object.values(NPC_ARCHETYPES).map(entry => entry.name).sort(), spriteArchetypeNames);
 }
 for (const [id, archetype] of Object.entries(NPC_ARCHETYPES)) {
@@ -76,6 +76,12 @@ assert.equal(resolveNpcTrainerGender("Femenino"), "female");
 assert.equal(resolveNpcTrainerGender("male"), "male");
 assert.equal(resolveNpcTrainerGender("random", () => 0.25), "female");
 assert.equal(resolveNpcTrainerGender("random", () => 0.75), "male");
+
+// Migración de sprites PNG -> WebP: solo reescribe las rutas de esta carpeta.
+assert.equal(migratedNpcSpritePath(`${NPC_SPRITE_DIRECTORY}tokens/Ace Trainer ♀.png`), `${NPC_SPRITE_DIRECTORY}tokens/Ace Trainer ♀.webp`);
+assert.equal(migratedNpcSpritePath(npcTrainerSprite("ace-trainer", "female", "portraits")), null);
+assert.equal(migratedNpcSpritePath("modules/poke5e-foundry/assets/items/potion/sprite.png"), null);
+assert.equal(migratedNpcSpritePath(null), null);
 for (const gender of ["female", "male"]) {
   assert.ok(NPC_FIRST_NAMES[gender].length >= 70, `${gender} must provide at least 70 random names.`);
   assert.equal(new Set(NPC_FIRST_NAMES[gender]).size, NPC_FIRST_NAMES[gender].length, `${gender} names must be unique.`);

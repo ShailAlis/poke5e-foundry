@@ -385,6 +385,7 @@
 import { MODULE_ID, getPokemonItems } from "../core/model.mjs";
 import { damageTraitsForPokemonTypes, typeLabel } from "../combat/combat.mjs";
 import { requestFieldEffect } from "../combat/terrain-effects.mjs";
+import { escapeHtml } from "../core/utils.mjs";
 
 const POKEMON_DAMAGE_TYPES = Object.freeze(["bug", "dark", "dragon", "electric", "fairy", "fighting", "fire", "flying", "ghost", "grass", "ground", "ice", "normal", "poison", "psychic", "rock", "steel", "water"]);
 
@@ -684,9 +685,6 @@ export function abilityWeatherHeal(abilities = [], weatherId = null) {
   if (!weatherId) return false;
   return (abilities ?? []).some(id => WEATHER_HEAL_ABILITIES[id]?.includes(weatherId));
 }
-
-/** Escapa texto para los mensajes de chat que genera este archivo. */
-function escapeHtml(value) { return foundry.utils.escapeHTML(String(value ?? "")); }
 
 /**
  * Habilidad → reacción de contacto que aplica un estado del catálogo
