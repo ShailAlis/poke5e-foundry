@@ -367,10 +367,26 @@
  * lienzo igual que el resto de esa familia; se enganchan en recallPokemon()
  * (deployment.mjs) con el mismo guardián `!fainted && !forced` que ya usa
  * actorHasRecallLock() para los efectos de inmovilización propios.
+ *
+ * Lotes 44-50: familias que antes figuraban como límites del catálogo. Se
+ * etiquetan explícitamente los movimientos sonoros y climáticos para
+ * Insonorizar/Funda/Punk Rock/Voz Fluida; Humedad bloquea Explosión y
+ * Autodestrucción; Rompemoldes/Teravolt/Turbollama suprimen defensas de
+ * habilidad; Megadisparador, Garra Dura, Lente Teñida, Filtro, Peluche y
+ * Armadura Prisma comparten el flujo de fórmula/segunda tirada; Presión y
+ * Encadenado reutilizan PP y multigolpe; Aura Oscura/Aura Feérica/Rompeaura
+ * miden 100 pies; Superguarda y Papel Fino se aplican al actor temporal;
+ * Corrosión/Sincronía/Piel Milagro se resuelven en el motor de estados;
+ * Pies Enredados/Cortador Grande/Inicio Lento en modificadores; Gula en la
+ * reacción de bayas; Señor Supremo cuenta aliados debilitados del entrenador;
+ * y Protean/Libero/Cambio Color cambian solo el actor desplegado para no
+ * alterar permanentemente la ficha Pokédex.
  */
 import { MODULE_ID, getPokemonItems } from "../core/model.mjs";
-import { typeLabel } from "../combat/combat.mjs";
+import { damageTraitsForPokemonTypes, typeLabel } from "../combat/combat.mjs";
 import { requestFieldEffect } from "../combat/terrain-effects.mjs";
+
+const POKEMON_DAMAGE_TYPES = Object.freeze(["bug", "dark", "dragon", "electric", "fairy", "fighting", "fire", "flying", "ghost", "grass", "ground", "ice", "normal", "poison", "psychic", "rock", "steel", "water"]);
 
 /** Habilidad → tipo de daño al que da inmunidad total. */
 export const IMMUNITY_ABILITIES = Object.freeze({
@@ -479,6 +495,22 @@ export function applyAbilityDefenses(traits, abilities) {
     if (traits.di.value.includes(type) || traits.dr.value.includes(type)) continue;
     traits.dv.value = traits.dv.value.filter(entry => entry !== type);
     traits.dr.value.push(type);
+  }
+  // Superguarda: solo los tipos que ya figuran como vulnerabilidades pueden
+  // dañar a Shedinja. Se calcula sobre las afinidades finales de sus tipos.
+  if ((abilities ?? []).includes("wonder-guard")) {
+    for (const type of POKEMON_DAMAGE_TYPES) {
+      if (traits.dv.value.includes(type) || traits.di.value.includes(type)) continue;
+      traits.dr.value = traits.dr.value.filter(entry => entry !== type);
+      traits.di.value.push(type);
+    }
+  }
+  // Peluche combina vulnerabilidad fija a Fuego con reducción condicional a
+  // cuerpo a cuerpo, resuelta esta última en abilityTargetDamageDiceMultiplier().
+  if ((abilities ?? []).includes("fluffy")) {
+    traits.di.value = traits.di.value.filter(entry => entry !== "fire");
+    traits.dr.value = traits.dr.value.filter(entry => entry !== "fire");
+    if (!traits.dv.value.includes("fire")) traits.dv.value.push("fire");
   }
 }
 
@@ -1044,12 +1076,17 @@ export function abilityGrantsSelfAttackAdvantage(abilities = []) {
  * consulta con un único objetivo seleccionado, igual que el resto de
  * comprobaciones "por objetivo" de #rollMove().
  */
-export function abilityTargetAttackRollModifier(targetAbilities = [], isMelee = false) {
+export function abilityTargetAttackRollModifier(targetAbilities = [], isMelee = false, targetConditions = []) {
   const known = targetAbilities ?? [];
   return {
     advantage: known.includes("no-guard"),
-    disadvantage: isMelee && known.includes("dauntless-shield")
+    disadvantage: (isMelee && known.includes("dauntless-shield")) || (known.includes("tangled-feet") && (targetConditions ?? []).includes("confused"))
   };
+}
+
+/** Cortador Grande impide que los bonos de ataque o daño queden bajo cero. */
+export function abilityProtectsAttackDamageBonuses(abilities = []) {
+  return (abilities ?? []).includes("hyper-cutter");
 }
 
 /** True si el Pokémon conoce Cura Tóxica: el daño periódico de Envenenado/Gravemente envenenado cura en vez de dañar. */
@@ -1191,9 +1228,10 @@ export const NORMAL_MOVE_TYPE_OVERRIDE_ABILITIES = Object.freeze({
  * Iónico en #rollMove() (pokemon-sheet.mjs), porque `damageFormula()` no
  * recibe el tipo ya sustituido.
  */
-export function abilityMoveTypeOverride(abilities = [], moveType = null) {
+export function abilityMoveTypeOverride(abilities = [], moveType = null, { moveId = null, moveName = "" } = {}) {
   const known = abilities ?? [];
   if (known.includes("normalize")) return "normal";
+  if (known.includes("liquid-voice") && isSoundMove(moveId, moveName)) return "water";
   if (moveType !== "normal") return null;
   const match = known.find(id => NORMAL_MOVE_TYPE_OVERRIDE_ABILITIES[id]);
   return match ? NORMAL_MOVE_TYPE_OVERRIDE_ABILITIES[match] : null;
@@ -1428,4 +1466,242 @@ export async function resetAbilityRestResourcesAfterRest(actor, config = {}) {
     restored += 1;
   }
   return restored;
+}
+
+/**
+ * Lotes 44-49: familias de movimientos que el catálogo no etiqueta de forma
+ * estructurada. Se mantienen como listas explícitas de ids, igual que
+ * STRONG_JAW_MOVE_IDS, para no inferir reglas de palabras accidentales en la
+ * descripción. Los nombres solo se usan para familias cuyo texto oficial sí
+ * define literalmente Aura/Pulse.
+ */
+export const SOUND_MOVE_IDS = Object.freeze(new Set([
+  "alluring-voice", "boomburst", "bug-buzz", "chatter", "clanging-scales",
+  "clangorous-soul", "disarming-voice", "echoed-voice", "grass-whistle", "growl",
+  "heal-bell", "howl", "hyper-voice", "metal-sound", "noble-roar", "overdrive",
+  "parting-shot", "perish-song", "psychic-noise", "relic-song", "roar", "round",
+  "screech", "sing", "snarl", "snore", "sonic-boom", "sparkling-aria",
+  "supersonic", "torch-song", "uproar"
+]));
+
+export const WEATHER_DAMAGE_MOVE_IDS = Object.freeze(new Set([
+  "blizzard", "hail", "sandstorm", "weather-ball"
+]));
+
+export const ABILITY_BREAKER_IDS = Object.freeze(new Set(["mold-breaker", "teravolt", "turboblaze"]));
+
+/** True si el movimiento pertenece a la familia sonora compartida. */
+export function isSoundMove(moveId, moveName = "") {
+  return SOUND_MOVE_IDS.has(String(moveId ?? "").toLocaleLowerCase()) || /\b(sound|voice|song|roar)\b/i.test(moveName ?? "");
+}
+
+/** Rompemoldes/Teravolt/Turbollama ignoran habilidades defensivas del objetivo. */
+export function abilitySuppressesTargetAbilities(abilities = []) {
+  return (abilities ?? []).some(id => ABILITY_BREAKER_IDS.has(id));
+}
+
+/**
+ * Inmunidades que dependen del movimiento completo y no de un tipo de daño:
+ * Insonorizar, Humedad y Funda. Devuelve el id que bloquea para poder anunciarlo.
+ */
+export function abilityBlocksIncomingMove(abilities = [], { moveId = null, moveName = "" } = {}) {
+  const known = abilities ?? [];
+  const id = String(moveId ?? "").toLocaleLowerCase();
+  if (known.includes("soundproof") && isSoundMove(id, moveName)) return "soundproof";
+  if (known.includes("damp") && (id === "explosion" || id === "self-destruct")) return "damp";
+  if (known.includes("overcoat") && WEATHER_DAMAGE_MOVE_IDS.has(id)) return "overcoat";
+  return null;
+}
+
+/** Megadisparador: Aura/Pulse suma la competencia al daño. */
+export function abilityMoveDamageBonus(abilities = [], { moveName = "", proficiency = 0 } = {}) {
+  if (!(abilities ?? []).includes("mega-launcher")) return 0;
+  return /\b(aura|pulse)\b/i.test(moveName ?? "") ? Number(proficiency) || 0 : 0;
+}
+
+/** Garra Dura concede STAB a cualquier ataque cuerpo a cuerpo. */
+export function abilityForcesMoveStab(abilities = [], isMelee = false) {
+  return Boolean(isMelee && (abilities ?? []).includes("tough-claws"));
+}
+
+/**
+ * Bonos adicionales de STAB: Garra Dura lo duplica si ya era natural y Punk
+ * Rock concede STAB a movimientos sonoros.
+ */
+export function abilityMoveStabBonus(abilities = [], { moveId = null, moveName = "", moveType = null, speciesTypes = [], isMelee = false } = {}) {
+  const known = abilities ?? [];
+  let bonus = 0;
+  if (known.includes("tough-claws") && isMelee && (speciesTypes ?? []).includes(moveType)) bonus += 2;
+  if (known.includes("punk-rock") && isSoundMove(moveId, moveName) && !(speciesTypes ?? []).includes(moveType)) bonus += 2;
+  return bonus;
+}
+
+/**
+ * Multiplicador previo a resistencias del objetivo. Lente Teñida compensa la
+ * resistencia (x2 antes del x0.5 de D&D); Peluche y Punk Rock reducen a la
+ * mitad las familias que describen.
+ */
+export function abilityTargetDamageDiceMultiplier(sourceAbilities = [], targetAbilities = [], {
+  moveId = null, moveName = "", moveType = null, isMelee = false, targetResists = false
+} = {}) {
+  const source = sourceAbilities ?? [];
+  const target = targetAbilities ?? [];
+  let multiplier = 1;
+  if (source.includes("tinted-lens") && targetResists) multiplier *= 2;
+  if (target.includes("fluffy") && isMelee && moveType !== "fire") multiplier *= 0.5;
+  if (target.includes("punk-rock") && isSoundMove(moveId, moveName)) multiplier *= 0.5;
+  return multiplier;
+}
+
+/** Armadura Prisma tira dos veces y usa el menor al sufrir daño vulnerable. */
+export function abilityRollsVulnerableDamageTwiceLower(abilities = [], vulnerable = false) {
+  return Boolean(vulnerable && (abilities ?? []).includes("prism-armor"));
+}
+
+/** Presión hace gastar 2 PP a un movimiento dirigido directamente contra ella. */
+export function abilityMovePpCost(targetAbilities = [], directlyTargeted = false) {
+  return directlyTargeted && (targetAbilities ?? []).includes("pressure") ? 2 : 1;
+}
+
+/** Encadenado garantiza al menos un golpe adicional en las cadenas compatibles. */
+export function abilityMinimumChainExtraHits(abilities = [], moveId = null) {
+  return (abilities ?? []).includes("skill-link") && moveId ? 1 : 0;
+}
+
+/** Papel Fino fija los PG máximos y actuales a 1 (regla exclusiva de Shedinja). */
+export function abilityMaximumHp(abilities = [], normalMaximum = 1) {
+  return (abilities ?? []).includes("paper-thin") ? 1 : Math.max(1, Number(normalMaximum) || 1);
+}
+
+/** Corrosión ignora la inmunidad por tipo Veneno/Acero al envenenar. */
+export function abilityIgnoresPoisonStatusTypeImmunity(abilities = [], statusId = null) {
+  return (abilities ?? []).includes("corrosion") && ["poisoned", "badly-poisoned"].includes(statusId);
+}
+
+/** Piel Milagro da ventaja contra las cuatro familias de estado indicadas. */
+export function abilityGrantsStatusSaveAdvantage(abilities = [], statusIds = []) {
+  const known = abilities ?? [];
+  const ids = statusIds ?? [];
+  if (!known.includes("wonder-skin")) return false;
+  return ids.some(id => ["burned", "frozen", "poisoned", "badly-poisoned", "paralyzed"].includes(id));
+}
+
+/** Gula obliga a consumir la baya curativa al cruzar la mitad de PG. */
+export function abilityAutoConsumesHealingBerry(abilities = []) {
+  return (abilities ?? []).includes("gluttony");
+}
+
+/** Filtro puede neutralizar el multiplicador de una vulnerabilidad con 4 en 1d4. */
+export function abilityVulnerabilityFilter(abilities = [], vulnerable = false) {
+  return vulnerable && (abilities ?? []).includes("filter") ? { die: 4, on: 4, multiplier: 0.5 } : null;
+}
+
+/** Intrépido/Mente aguda permiten que Normal y Lucha atraviesen inmunidad. */
+export function abilityIgnoresNormalFightingImmunity(abilities = [], moveType = null) {
+  return ["normal", "fighting"].includes(moveType) && (abilities ?? []).some(id => id === "scrappy" || id === "minds-eye");
+}
+
+/** Rompemoldes y equivalentes atraviesan una inmunidad aportada por habilidad. */
+export function abilityIgnoresAbilityDamageImmunity(sourceAbilities = [], targetAbilities = [], moveType = null) {
+  if (!abilitySuppressesTargetAbilities(sourceAbilities)) return false;
+  return (targetAbilities ?? []).some(id => IMMUNITY_ABILITIES[id] === moveType);
+}
+
+/** Señor Supremo: +1 a impactar por aliado debilitado, hasta +5. */
+export function abilityFaintedAllyAttackBonus(abilities = [], faintedAllies = 0) {
+  return (abilities ?? []).includes("supreme-overlord") ? Math.min(5, Math.max(0, Number(faintedAllies) || 0)) : 0;
+}
+
+/** Inicio Lento permanece activo durante las dos primeras rondas desde despliegue. */
+export function abilitySlowStartActive(abilities = [], deployedRound = 0, currentRound = 0) {
+  return (abilities ?? []).includes("slow-start") && Math.max(0, Number(currentRound) - Number(deployedRound)) < 2;
+}
+
+/** Tipo temporal que adopta el usuario al ejecutar un movimiento. */
+export function abilityMoveUserTypeChange(abilities = [], moveType = null) {
+  return moveType && (abilities ?? []).some(id => id === "protean" || id === "libero") ? moveType : null;
+}
+
+/** Tipo temporal que adopta el defensor tras recibir daño (Cambio Color). */
+export function abilityReceivedDamageTypeChange(abilities = [], damageType = null) {
+  return damageType && damageType !== "typeless" && (abilities ?? []).includes("color-change") ? damageType : null;
+}
+
+/**
+ * Respondón invierte cambios numéricos de estadísticas y Sacapecho impide
+ * que una reducción alcance la CA. Se aplica al objeto de modificadores antes
+ * de construir el ActiveEffect, por lo que cubre todo el catálogo presente y
+ * cualquier movimiento futuro que use el mismo motor.
+ */
+export function abilityAdjustedMoveModifiers(abilities = [], modifiers = {}) {
+  const known = abilities ?? [];
+  const adjusted = globalThis.foundry?.utils?.deepClone
+    ? foundry.utils.deepClone(modifiers ?? {})
+    : structuredClone(modifiers ?? {});
+  if (known.includes("contrary")) {
+    for (const key of ["ac", "attack", "damage", "speed"]) {
+      if (typeof adjusted[key] === "number") adjusted[key] *= -1;
+    }
+    for (const group of ["abilities", "saves"]) {
+      if (!adjusted[group]) continue;
+      adjusted[group] = Object.fromEntries(Object.entries(adjusted[group]).map(([key, value]) => [key, -Number(value)]));
+    }
+  }
+  if (known.includes("big-pecks") && Number(adjusted.ac) < 0) adjusted.ac = 0;
+  return adjusted;
+}
+
+/** Potencia Bruta dobla MOVE y suprime el efecto secundario del golpe. */
+export function abilitySheerForceProfile(abilities = [], { damaging = false, hasSecondaryEffect = false } = {}) {
+  const active = Boolean(damaging && hasSecondaryEffect && (abilities ?? []).includes("sheer-force"));
+  return { moveModifierMultiplier: active ? 2 : 1, suppressSecondaryEffect: active };
+}
+
+/** Francotirador convierte cada término de dados del crítico en tres veces sus dados. */
+export function abilityCriticalDamageProfile(abilities = [], formula = "", critical = false, systemHandlesCritical = true) {
+  if (!critical) return { formula, systemCritical: false, multiplier: 1 };
+  const multiplier = (abilities ?? []).includes("sniper") ? 3 : 2;
+  if (systemHandlesCritical && multiplier === 2) return { formula, systemCritical: true, multiplier };
+  const multiplied = String(formula).replace(/\b(\d*)d(\d+)\b/gi, (_match, count, faces) => `${(Number(count) || 1) * multiplier}d${faces}`);
+  return { formula: multiplied, systemCritical: false, multiplier };
+}
+
+const SURGE_BONUS_ACTION_MOVES = Object.freeze({
+  "electric-surge": "electric-terrain", "grassy-surge": "grassy-terrain",
+  "misty-surge": "misty-terrain", "psychic-surge": "psychic-terrain"
+});
+
+/** Cambia el tiempo mostrado/empleado por habilidades que aceleran movimientos. */
+export function abilityMoveActivationTime(abilities = [], { moveId = null, time = null, healing = false } = {}) {
+  const known = abilities ?? [];
+  if (known.includes("triage") && healing) return "1 bonus action";
+  if (known.some(id => SURGE_BONUS_ACTION_MOVES[id] === moveId)) return "1 bonus action";
+  return time;
+}
+
+/** Dinamo duplica el modificador MOVE de la siguiente fuente Eléctrica cargada. */
+export function abilityTriggeredMoveModifierMultiplier(abilities = [], triggers = {}, moveType = null) {
+  return moveType === "electric" && (abilities ?? []).includes("electromorphosis") && triggers?.electromorphosis ? 2 : 1;
+}
+
+/**
+ * Cambia solo el actor temporal de combate: tipos, afinidades y rótulo. El
+ * Item Pokémon no se modifica, por lo que retirar al Pokémon revierte el cambio.
+ */
+export async function applyCombatAbilityTypeChange(actor, abilities = [], type = null, sourceName = "") {
+  if (!actor || !POKEMON_DAMAGE_TYPES.includes(type)) return false;
+  const traits = damageTraitsForPokemonTypes([type]);
+  applyAbilityDefenses(traits, abilities);
+  await actor.update({
+    "system.traits.dr": traits.dr,
+    "system.traits.dv": traits.dv,
+    "system.traits.di": traits.di,
+    "system.details.type.custom": `Pokémon (${typeLabel(type)})`,
+    [`flags.${MODULE_ID}.pokemonTypes`]: [type]
+  });
+  await ChatMessage.create({
+    speaker: ChatMessage.getSpeaker({ actor }),
+    content: `<div class="dnd5e chat-card poke5e-status-card"><p><strong>${actor.name}</strong> cambia temporalmente a tipo <strong>${typeLabel(type)}</strong>${sourceName ? ` por ${sourceName}` : ""}.</p></div>`
+  });
+  return true;
 }

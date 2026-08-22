@@ -6,7 +6,7 @@
 import { MODULE_ID } from "../core/model.mjs";
 import { pokemonEffectIcon } from "../core/effect-icons.mjs";
 import { MOVE_MODIFIER_EFFECTS, modifierTriggerMatches, nextModifierStacks, scaledMoveModifiers } from "./move-modifier-rules.mjs";
-import { abilityGrantsDebuffImmunity, abilityGrantsMeleeAttackAdvantage, abilityGrantsSelfAttackAdvantage, abilityLowHpCombatModifiers } from "../pokemon/pokemon-abilities.mjs";
+import { abilityAdjustedMoveModifiers, abilityGrantsDebuffImmunity, abilityGrantsMeleeAttackAdvantage, abilityGrantsSelfAttackAdvantage, abilityLowHpCombatModifiers, abilityProtectsAttackDamageBonuses, abilitySlowStartActive } from "../pokemon/pokemon-abilities.mjs";
 import { applyGruntSaveAdvantage, applyHobbyistSaveBoost, applyNurseStatusSaveAdvantage, applyTacticianDcBoost } from "../trainer/trainer-resources.mjs";
 
 const SOCKET_ACTION = "applyMoveModifiers";
@@ -138,6 +138,7 @@ export function pokemonCombatModifiers(actor, { targetUuids = [] } = {}) {
   const ownAbilities = actor?.getFlag?.(MODULE_ID, "pokemonAbilities");
   total.meleeAttackAdvantage ||= abilityGrantsMeleeAttackAdvantage(ownAbilities);
   total.attackAdvantage ||= abilityGrantsSelfAttackAdvantage(ownAbilities);
+  total.attackDisadvantage ||= abilitySlowStartActive(ownAbilities, actor?.getFlag?.(MODULE_ID, "deployedRound"), globalThis.game?.combat?.round ?? 0);
   // Desafiante (lote 41): +2 a los propios ataques mientras el Pokémon sufra
   // cualquier estado alterado activo. El texto original también cubre una
   // reducción de característica impuesta por el rival, pero este proyecto no
@@ -157,6 +158,10 @@ export function pokemonCombatModifiers(actor, { targetUuids = [] } = {}) {
     const state = effect.getFlag(MODULE_ID, "modifier") ?? {};
     if (state.sourceOnly && !targetUuids.includes(state.sourceCombatActorUuid)) continue;
     mergeCombatModifiers(total, state.modifiers ?? {});
+  }
+  if (abilityProtectsAttackDamageBonuses(ownAbilities)) {
+    total.attack = Math.max(0, total.attack);
+    total.damage = Math.max(0, total.damage);
   }
   return total;
 }
@@ -364,7 +369,7 @@ async function applyModifierToActor(actor, rule, payload) {
   const existing = actor.effects.find(effect => effect.getFlag(MODULE_ID, "modifier")?.moveId === payload.moveId);
   const current = existing?.getFlag(MODULE_ID, "modifier")?.stacks ?? 0;
   const stacks = nextModifierStacks(current, rule.stackMax);
-  const source = modifierEffectSource(rule, payload, stacks);
+  const source = modifierEffectSource(rule, { ...payload, targetAbilities: actor.getFlag(MODULE_ID, "pokemonAbilities") ?? [] }, stacks);
   if (existing) await actor.updateEmbeddedDocuments("ActiveEffect", [{ _id: existing.id, ...source }]);
   else await actor.createEmbeddedDocuments("ActiveEffect", [source]);
   await ChatMessage.create({
@@ -392,7 +397,7 @@ async function actorMatchesModifierRule(actor, rule) {
  * los modificadores genéricos (sin movimiento) del compendio de estados.
  */
 export function modifierEffectSource(rule, payload, stacks) {
-  const modifiers = scaledMoveModifiers(rule.modifiers, stacks);
+  const modifiers = abilityAdjustedMoveModifiers(payload.targetAbilities, scaledMoveModifiers(rule.modifiers, stacks));
   if (modifiers.acProficiency) modifiers.ac = (Number(modifiers.ac) || 0) + (Number(payload.proficiency) || 2);
   const icon = pokemonEffectIcon(rule.category, payload.moveId, rule.category === "buffs" ? "icons/svg/upgrade.svg" : "icons/svg/downgrade.svg");
   return {

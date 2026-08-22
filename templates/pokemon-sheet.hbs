@@ -256,7 +256,7 @@
     <div class="poke5e-ability-grid">
       {{#each abilities}}
         <article class="poke5e-ability">
-          <h3>{{name}}{{#if hidden}} <span>{{localize "POKE5E.PokemonSheet.Hidden"}}</span>{{/if}} {{#if ../canEdit}}<button type="button" data-action="remove-ability" data-ability-id="{{id}}" title="{{localize "POKE5E.PokemonSheet.RemoveAbility"}}"><i class="fa-solid fa-xmark"></i></button>{{/if}}</h3>
+          <h3>{{name}}{{#if hidden}} <span>{{localize "POKE5E.PokemonSheet.Hidden"}}</span>{{/if}} <small title="{{localize "POKE5E.Abilities.AutomationTitle"}}">{{#if automatic}}{{localize "POKE5E.Abilities.Automatic"}}{{else}}{{localize "POKE5E.Abilities.Assisted"}}{{/if}}</small> {{#unless automatic}}<button type="button" data-action="use-ability" data-ability-id="{{id}}" title="{{localize "POKE5E.Abilities.Use"}}"><i class="fa-solid fa-comment-dots"></i></button>{{/unless}} {{#if ../canEdit}}<button type="button" data-action="remove-ability" data-ability-id="{{id}}" title="{{localize "POKE5E.PokemonSheet.RemoveAbility"}}"><i class="fa-solid fa-xmark"></i></button>{{/if}}</h3>
           <div>{{{description}}}</div>
         </article>
       {{/each}}

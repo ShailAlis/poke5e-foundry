@@ -8,7 +8,7 @@
  * capture.mjs es quien después convierte al salvaje en Pokémon del entrenador.
  */
 import { damageTraitsForPokemonTypes } from "../combat/combat.mjs";
-import { abilityGrantsUnburdenSpeed, applyAbilityDefenses } from "../pokemon/pokemon-abilities.mjs";
+import { abilityGrantsUnburdenSpeed, abilityMaximumHp, applyAbilityDefenses } from "../pokemon/pokemon-abilities.mjs";
 import { speciesSkillKey } from "../trainer/trainer-creation-data.mjs";
 import { loadPoke5eData } from "../core/data-service.mjs";
 import { buildWildInstance } from "./encounter-generator.mjs";
@@ -96,6 +96,7 @@ export function wildActorSource(species, instance, movesById, encounterId = "") 
     system: { description: { value: moveDescription(move), chat: "" } },
     flags: { [MODULE_ID]: { kind: "move", sourceId: move.id, move } }
   }));
+  const maximumHp = abilityMaximumHp(instance.abilities, instance.hp?.max);
   return {
     name: `${species.name} [Salvaje]`,
     type: "npc",
@@ -122,7 +123,7 @@ export function wildActorSource(species, instance, movesById, encounterId = "") 
       skills,
       attributes: {
         ac: { calc: "flat", flat: Number(instance.ac) || Number(species.ac) || 10 },
-        hp: { value: Number(instance.hp?.value) || 1, max: Number(instance.hp?.max) || 1 },
+        hp: { value: Math.min(maximumHp, Number(instance.hp?.value) || 1), max: maximumHp },
         movement,
         senses: { ranges: senses, units: "ft", special: "" }
       },
@@ -134,7 +135,10 @@ export function wildActorSource(species, instance, movesById, encounterId = "") 
       traits: { size, ...damageTraits }
     },
     items: [pokemonItem, ...moveItems],
-    effects: (instance.conditions ?? []).map(id => pokemonStatusEffectSource(id)).filter(Boolean),
+    effects: [
+      ...(instance.conditions ?? []).map(id => pokemonStatusEffectSource(id)).filter(Boolean),
+      ...((instance.abilities ?? []).includes("slow-start") ? [slowStartEffectSource()] : [])
+    ],
     flags: {
       core: { sheetClass: `${MODULE_ID}.Poke5eCombatPokemonActorSheet` },
       [MODULE_ID]: {
@@ -143,12 +147,25 @@ export function wildActorSource(species, instance, movesById, encounterId = "") 
         encounterId,
         speciesId: species.id,
         pokemonTypes: species.type ?? [],
+        deployedRound: game.combat?.round ?? 0,
         // Copia de instance.abilities para que el hook síncrono de damage-shields.mjs
         // (Multiescama/Escudo Sombra/Robustez, lote 9) pueda leerlas sin await, igual
         // que el mismo flag en deployedActorSource() (deployment.mjs).
         pokemonAbilities: instance.abilities ?? []
       }
     }
+  };
+}
+
+function slowStartEffectSource() {
+  return {
+    name: "Inicio Lento", icon: "icons/svg/downgrade.svg", img: "icons/svg/downgrade.svg",
+    description: "Velocidad reducida a la mitad durante las dos primeras rondas en combate.",
+    changes: ["walk", "fly", "swim", "burrow", "climb"].map(type => ({
+      key: `system.attributes.movement.${type}`, mode: CONST.ACTIVE_EFFECT_MODES.MULTIPLY, value: 0.5, priority: 20
+    })),
+    duration: { rounds: 2, startRound: game.combat?.round ?? 0, startTurn: game.combat?.turn ?? 0 },
+    flags: { [MODULE_ID]: { kind: "ability-slow-start" } }
   };
 }
 

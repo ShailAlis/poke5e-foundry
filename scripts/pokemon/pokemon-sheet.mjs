@@ -17,7 +17,7 @@ import { MAX_KNOWN_MOVES, applyLearnedMove, filterMoveCatalog, moveEligibility }
 import { normalizeMoveDamageTypes, pokemonDefenses, typeLabel } from "../combat/combat.mjs";
 import { deployedActorFor, recallPokemon, syncPokemonHeldItemToDeployment, syncPokemonIdentityToDeployment } from "../world/deployment.mjs";
 import { CONTEST_TYPES, contestAppealOutcome, contestCompatibility, contestDetailsForMove, contestTypeOptions } from "../world/contests.mjs";
-import { POKEMON_STATUS_EFFECTS, applyMoveStatuses, applyPokemonStatus, pokemonIncapacitatingStatus, pokemonStatusEntries, pokemonStatusId, removePokemonStatus } from "../combat/status-effects.mjs";
+import { POKEMON_STATUS_EFFECTS, applyMoveStatuses, applyPokemonStatus, inferMoveStatusEffects, pokemonIncapacitatingStatus, pokemonStatusEntries, pokemonStatusId, removePokemonStatus } from "../combat/status-effects.mjs";
 import { applyMoveOngoingEffects, moveHasImmediateDamage, ongoingEffectEntries, removeOngoingEffect } from "../combat/ongoing-effects.mjs";
 import { applyDynamicModifier, applyMoveLock, applyMoveModifierEffects, attackHitsPokemonTarget, consecutiveStrikeStacks, consumeCapturedMoveModifiers, isMoveRecharging, moveModifierEntries, moveModifierIdsToConsume, pokemonCombatModifiers, removeAllMoveModifiers, removeMoveModifier, resetConsecutiveStrike, targetedPokemonModifiers } from "../combat/move-modifiers.mjs";
 import { CHAIN_MULTI_HIT_MOVES, CONSECUTIVE_ESCALATION_MOVES, FIXED_MULTI_ATTACK_MOVES, STOP_ON_MISS_MOVES, addExtraDie, diceMultiplierForStacks, resolveChainHits, scaleDiceCount, swiftProjectileCount } from "../combat/multi-hit.mjs";
@@ -26,14 +26,17 @@ import { markFalseSwipeTarget, requestFaintTargets, requestHpEffect, rollFailedS
 import { releaseBideDamage } from "../combat/bide.mjs";
 import { isBerryHeldItem, requestHeldItemDestroy, requestHeldItemSwap } from "../combat/item-swap.mjs";
 import { acupressureEffect, hiddenPowerType, magnitudeDice } from "../combat/random-tables.mjs";
+import { MOVE_MODIFIER_EFFECTS } from "../combat/move-modifier-rules.mjs";
 import { requestForcedSwitch, selfForcedSwitch } from "../combat/forced-switch.mjs";
 import { FULL_NEGATION_MOVES, HALF_NEGATION_MOVES, SURVIVE_MOVES, armDamageShield } from "../combat/damage-shields.mjs";
 import { FIELD_PULSE_MOVES, FIELD_RULE_MOVES, TERRAIN_MOVES, WEATHER_BALL_TYPES, WEATHER_MOVES, clearField, currentField, requestFieldEffect } from "../combat/terrain-effects.mjs";
-import { ABILITY_REST_RESOURCES, abilityBlocksBulletproofMove, abilityBlocksRepeatingMove, abilityDoublesDiceAgainstPoisoned, abilityDoublesRecoilStab, abilityGrantsAnalyticAdvantage, abilityHealsFromPoisonTick, abilityIceScalesDiceMultiplier, abilityIgnoresCriticalDamage, abilityIgnoresRecoil, abilityIgnoresStatusPenalty, abilityLowHpDamageDiceMultiplier, abilityLowHpStabBonus, abilityMoveProfile, abilityMoveTypeOverride, abilityPreventsHoldingItem, abilityProtectsHeldItem, abilityRestUseAvailable, abilityRollsDamageTwiceHigher, abilityRollsSuperEffectiveTwice, abilitySaveDcBonus, abilitySelfStatusDamageBonus, abilitySharpnessDoublesModifier, abilityTargetAttackRollModifier, abilityTypeTriggeredAdvantage, abilityWeatherDamageBonus, abilityWeatherStabBonus, absorbHealType, applyContactDamageReaction, applyContactStatusReaction, applyCursedBodyReaction, applyDamageTypeSelfReaction, applyGooeyReaction, damageTypeSelfReactionTrigger, markAbilityRestUseSpent, ownMeleeHitStatusTrigger } from "./pokemon-abilities.mjs";
-import { batteryDiceMultiplier, costarAdvantage, flowerGiftDamageBonus, nearbyAllyActors, plusMinusAttackDamageBonus, powerSpotExtraDie, steelySpiritDamageBonus, victoryStarAttackBonus } from "../combat/aura-abilities.mjs";
+import { ABILITY_REST_RESOURCES, abilityBlocksBulletproofMove, abilityBlocksIncomingMove, abilityBlocksRepeatingMove, abilityCriticalDamageProfile, abilityDoublesDiceAgainstPoisoned, abilityDoublesRecoilStab, abilityFaintedAllyAttackBonus, abilityForcesMoveStab, abilityGrantsAnalyticAdvantage, abilityHealsFromPoisonTick, abilityIceScalesDiceMultiplier, abilityIgnoresAbilityDamageImmunity, abilityIgnoresCriticalDamage, abilityIgnoresNormalFightingImmunity, abilityIgnoresRecoil, abilityIgnoresStatusPenalty, abilityLowHpDamageDiceMultiplier, abilityLowHpStabBonus, abilityMinimumChainExtraHits, abilityMoveActivationTime, abilityMoveDamageBonus, abilityMovePpCost, abilityMoveProfile, abilityMoveStabBonus, abilityMoveTypeOverride, abilityMoveUserTypeChange, abilityPreventsHoldingItem, abilityProtectsHeldItem, abilityReceivedDamageTypeChange, abilityRestUseAvailable, abilityRollsDamageTwiceHigher, abilityRollsSuperEffectiveTwice, abilityRollsVulnerableDamageTwiceLower, abilitySaveDcBonus, abilitySelfStatusDamageBonus, abilitySharpnessDoublesModifier, abilitySheerForceProfile, abilitySuppressesTargetAbilities, abilityTargetAttackRollModifier, abilityTargetDamageDiceMultiplier, abilityTypeTriggeredAdvantage, abilityVulnerabilityFilter, abilityWeatherDamageBonus, abilityWeatherStabBonus, absorbHealType, applyCombatAbilityTypeChange, applyContactDamageReaction, applyContactStatusReaction, applyCursedBodyReaction, applyDamageTypeSelfReaction, applyGooeyReaction, damageTypeSelfReactionTrigger, markAbilityRestUseSpent, ownMeleeHitStatusTrigger } from "./pokemon-abilities.mjs";
+import { batteryDiceMultiplier, costarAdvantage, flowerGiftDamageBonus, nearbyAllyActors, nearbyPokemonActors, plusMinusAttackDamageBonus, powerSpotExtraDie, steelySpiritDamageBonus, supersweetSyrupExtraDie, typeAuraDiceMultiplier, victoryStarAttackBonus, weatherAbilitiesSuppressed } from "../combat/aura-abilities.mjs";
 import { promptSpendTrainerResource, trainerResourceState } from "../trainer/trainer-resources.mjs";
 import { pokemonFeatOptions } from "../trainer/feat-catalog.mjs";
 import { SKILLS } from "../trainer/trainer-creation-data.mjs";
+import { abilityAutomationMode } from "./ability-coverage.mjs";
+import { abilityTriggeredMoveModifierMultiplier } from "./pokemon-abilities.mjs";
 
 const DAMAGE_SHIELD_MOVES = new Set([...FULL_NEGATION_MOVES, ...HALF_NEGATION_MOVES, ...SURVIVE_MOVES]);
 
@@ -253,7 +256,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const level = Number(instance.level) || 1;
     const moves = (instance.moves ?? []).map(entry => {
       const move = data.movesById.get(entry.moveId);
-      return move ? prepareMove(entry, move, combatSpecies, level, data.contestEffectsById, this.contestType, heldItem, this.pokemonItem.parent) : null;
+      return move ? prepareMove(entry, move, combatSpecies, level, data.contestEffectsById, this.contestType, heldItem, this.pokemonItem.parent, instance.abilities) : null;
     }).filter(Boolean);
     const knownMoveIds = new Set((instance.moves ?? []).map(entry => entry.moveId));
     const machineIds = trainerMoveMachineIds(this.pokemonItem.parent);
@@ -263,7 +266,9 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const abilities = (instance.abilities ?? []).map(id => data.abilitiesById.get(id)).filter(Boolean).map(ability => ({
       id: ability.id,
       name: ability.name,
-      description: `<p>${foundry.utils.escapeHTML(ability.description ?? "")}</p>`
+      description: `<p>${foundry.utils.escapeHTML(ability.description ?? "")}</p>`,
+      automation: abilityAutomationMode(ability.id),
+      automatic: abilityAutomationMode(ability.id) === "automatic"
     }));
     const abilityScores = Object.entries(combatSpecies.attributes).map(([key, score]) => ({
       key: key.toUpperCase(), score, modifier: signed(Math.floor((Number(score) - 10) / 2))
@@ -380,6 +385,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     this.element.querySelectorAll("[data-action='restore-pp']").forEach(button => button.addEventListener("click", event => this.#restorePp(event)));
     this.element.querySelectorAll("[data-action='remove-move']").forEach(button => button.addEventListener("click", event => this.#removeMove(event)));
     this.element.querySelectorAll("[data-action='remove-ability']").forEach(button => button.addEventListener("click", event => this.#removeAbility(event)));
+    this.element.querySelectorAll("[data-action='use-ability']").forEach(button => button.addEventListener("click", event => this.#useAbility(event)));
     this.element.querySelectorAll("[data-action='remove-ongoing-effect']").forEach(button => button.addEventListener("click", event => this.#removeOngoingEffect(event)));
     this.element.querySelectorAll("[data-action='learn-move']").forEach(button => button.addEventListener("click", event => this.#learnMove(event)));
     this.element.querySelector("[data-action='toggle-move-manager']")?.addEventListener("click", () => {
@@ -694,6 +700,18 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     this.render({ force: true });
   }
 
+  /** Publica una habilidad asistida con su texto exacto para resolverla en mesa. */
+  async #useAbility(event) {
+    const data = await loadPoke5eData();
+    const ability = data.abilitiesById.get(event.currentTarget.dataset.abilityId);
+    if (!ability) return;
+    const name = displayPokemonName(this.pokemonItem);
+    await ChatMessage.create({
+      speaker: ChatMessage.getSpeaker({ actor: this.pokemonItem.parent, alias: name }),
+      content: `<div class="dnd5e chat-card poke5e-status-card"><header class="card-header"><h3>${escapeHtml(name)} — ${escapeHtml(ability.name)}</h3></header><p>${escapeHtml(ability.description ?? "")}</p><p><em>${game.i18n.localize("POKE5E.Abilities.AssistedHint")}</em></p></div>`
+    });
+  }
+
   /**
    * Aprende un movimiento desde el gestor: comprueba con moveEligibility() que
    * la especie pueda aprenderlo ya —si no, lo explica con notifyMoveUnavailable()—,
@@ -821,7 +839,13 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       baseTypes: storedSpecies.type ?? [], abilities: instance.abilities ?? []
     });
     const species = { ...storedSpecies, type: effectiveTypes, attributes: instance.attributes ?? storedSpecies.attributes ?? {} };
-    const move = heldItemEffectiveMove(catalogMove, { sourceId: instance.heldItem?.sourceId, speciesId: storedSpecies.id });
+    const heldMove = heldItemEffectiveMove(catalogMove, { sourceId: instance.heldItem?.sourceId, speciesId: storedSpecies.id });
+    const move = { ...heldMove, time: abilityMoveActivationTime(instance.abilities, { moveId: heldMove.id, time: heldMove.time, healing: moveIsHealing(heldMove) }) };
+    const temporaryUserType = abilityMoveUserTypeChange(instance.abilities, move.type);
+    if (temporaryUserType) {
+      species.type = [temporaryUserType];
+      if (combatActor) await applyCombatAbilityTypeChange(combatActor, instance.abilities, temporaryUserType, instance.abilities.includes("protean") ? "Protean" : "Libero");
+    }
     const level = Number(instance.level) || 1;
     const proficiency = 2 + Math.floor((level - 1) / 4);
     const heldProfile = heldItemMoveModifiers({
@@ -840,6 +864,8 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const flavor = `${name} — ${move.name}`;
     const speaker = ChatMessage.getSpeaker({ actor: this.pokemonItem.parent, alias: name });
     const trainer = this.pokemonItem.parent?.type === "character" ? this.pokemonItem.parent : null;
+    const faintedAllies = trainer?.items?.filter(item => item !== this.pokemonItem && item.getFlag?.(MODULE_ID, "kind") === "pokemon" && Number(item.getFlag(MODULE_ID, "instance")?.hp?.value) <= 0).length ?? 0;
+    const supremeOverlordBonus = abilityFaintedAllyAttackBonus(instance.abilities, faintedAllies);
     if (isMoveRecharging(combatActor, move.id)) return ui.notifications.warn(game.i18n.format("POKE5E.Notifications.Recharging", { name, move: move.name }));
     if (pokemonCombatModifiers(combatActor).moveLockAll) return ui.notifications.warn(game.i18n.format("POKE5E.Notifications.MoveLocked", { name, move: move.name }));
     // Constancia (lote 30): no puede repetir el mismo movimiento en rondas consecutivas.
@@ -847,6 +873,10 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       return ui.notifications.warn(game.i18n.format("POKE5E.Notifications.TruantRepeat", { name, move: move.name }));
     }
     const selectedTokens = [...(game.user.targets ?? [])];
+    const singleTargetPokemonItem = selectedTokens.length === 1 ? await pokemonItemForActor(selectedTokens[0].actor) : null;
+    const singleTargetInstance = singleTargetPokemonItem?.getFlag(MODULE_ID, "instance") ?? null;
+    const sourceSuppressesTargetAbilities = abilitySuppressesTargetAbilities(instance.abilities);
+    const effectiveTargetAbilities = sourceSuppressesTargetAbilities ? [] : (singleTargetInstance?.abilities ?? []);
     const combatModifiers = pokemonCombatModifiers(combatActor, { targetUuids: selectedTokens.map(token => token.actor?.uuid).filter(Boolean) });
     const targetedModifiers = targetedPokemonModifiers(selectedTokens);
     const consumedModifierIds = moveModifierIdsToConsume(combatActor, "move");
@@ -890,7 +920,12 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
         }
       }
     }
-    const damageMoveModifier = moveModifier * (targetAsleep ? 2 : 1) * weatherModifierMultiplier * targetStatusModifierMultiplier * targetHpModifierMultiplier * targetLastMoveNotAttackMultiplier * heldProfile.damageMoveMultiplier * combatModifiers.moveModifierMultiplier * sharpnessMultiplier * restResourceModifierMultiplier;
+    const sheerForce = abilitySheerForceProfile(instance.abilities, {
+      damaging: Boolean(move.damage?.dice) && moveHasImmediateDamage(move),
+      hasSecondaryEffect: inferMoveStatusEffects(move).length > 0 || MOVE_MODIFIER_EFFECTS[move.id]?.category === "debuffs"
+    });
+    const triggeredMoveMultiplier = abilityTriggeredMoveModifierMultiplier(instance.abilities, instance.abilityTriggers, move.type);
+    const damageMoveModifier = moveModifier * (targetAsleep ? 2 : 1) * weatherModifierMultiplier * targetStatusModifierMultiplier * targetHpModifierMultiplier * targetLastMoveNotAttackMultiplier * heldProfile.damageMoveMultiplier * combatModifiers.moveModifierMultiplier * sharpnessMultiplier * restResourceModifierMultiplier * sheerForce.moveModifierMultiplier * triggeredMoveMultiplier;
     const escalation = CONSECUTIVE_ESCALATION_MOVES[move.id];
     const escalationMultiplier = escalation ? diceMultiplierForStacks(consecutiveStrikeStacks(combatActor, move.id)) : 1;
     const weatherDiceMultiplier = (WEATHER_DICE_DOUBLE_MOVES[move.id] && WEATHER_DICE_DOUBLE_MOVES[move.id] === activeWeather) || (move.id === "weather-ball" && activeWeather) ? 2 : 1;
@@ -904,7 +939,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       const targetPokemonItem = await pokemonItemForActor(selectedTokens[0].actor);
       if (targetPokemonItem?.getFlag(MODULE_ID, "instance")?.damagedThisRound) targetDamagedThisRoundMultiplier = 2;
     }
-    const forceStab = trainer ? typeMasteryForcesStab(trainer, species.type) : false;
+    const forceStab = (trainer ? typeMasteryForcesStab(trainer, species.type) : false) || abilityForcesMoveStab(instance.abilities, move.attack?.scope === "melee");
     // Blaze/Overgrow/Swarm/Torrent: duplican el bono de STAB al 25% o menos
     // de PG máximos. abilityLowHpStabBonus() ya solo devuelve algo cuando
     // corresponde, así que se suma al mismo hueco que el STAB de un objeto
@@ -918,6 +953,11 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const abilityProfile = abilityMoveProfile(instance.abilities, {
       moveType: move.type, hasDamage: moveHasImmediateDamage(move), proficiency, sourceTypes: species.type ?? [], targetTypes
     });
+    const abilityDamageBonus = abilityMoveDamageBonus(instance.abilities, { moveName: move.name, proficiency });
+    const abilityStabBonus = abilityMoveStabBonus(instance.abilities, {
+      moveId: move.id, moveName: move.name, moveType: move.type,
+      speciesTypes: species.type ?? [], isMelee: move.attack?.scope === "melee"
+    });
     // Batería/Punto de Poder/Espíritu Metálico/Costar/Regalo Flor/Estrella
     // Victoria (lote 38): bonos de proximidad entre tokens del lienzo
     // (aura-abilities.mjs). Cada habilidad exige un alcance distinto, así que
@@ -929,6 +969,9 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const nearbyAllies30 = nearbyAllyActors(combatActor, 30);
     const nearbyAllies5 = nearbyAllyActors(combatActor, 5);
     const nearbyAlliesUnlimited = nearbyAllyActors(combatActor, 9999);
+    const nearbyActors100 = nearbyPokemonActors(combatActor, 100);
+    const nearbyActors30 = nearbyPokemonActors(combatActor, 30);
+    const abilityWeather = weatherAbilitiesSuppressed(instance.abilities, nearbyActors100) ? null : activeWeather;
     const batteryMultiplier = batteryDiceMultiplier(nearbyAllies20, move.type);
     const powerSpotDie = powerSpotExtraDie(nearbyAllies15, level);
     const steelySpiritBonus = steelySpiritDamageBonus({
@@ -936,11 +979,13 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       nearbyAllies: nearbyAllies30, moveType: move.type
     });
     const costarAttackAdvantage = costarAdvantage(instance.abilities, nearbyAllies5);
-    const flowerGiftBonus = flowerGiftDamageBonus(nearbyAllies30, activeWeather, proficiency);
+    const flowerGiftBonus = flowerGiftDamageBonus(nearbyAllies30, abilityWeather, proficiency);
     const victoryStarBonus = victoryStarAttackBonus(nearbyAlliesUnlimited);
     // Más/Menos (lote 41): mismo alcance amplio que Estrella Victoria; se
     // suma tanto al ataque como al daño (ver damageMoveModifier más abajo).
     const plusMinusBonus = plusMinusAttackDamageBonus(instance.abilities, nearbyAlliesUnlimited);
+    const auraDiceMultiplier = typeAuraDiceMultiplier({ selfAbilities: instance.abilities, nearbyActors: nearbyActors100, moveType: move.type });
+    const supersweetDie = moveIsHealing(move) ? null : supersweetSyrupExtraDie(instance.abilities, nearbyActors30);
     const finalGambitFormula = move.id === "final-gambit" ? appendModifier(String(Math.max(0, Number(combatActor?.system?.attributes?.hp?.value) || 0)), (species.type ?? []).includes(move.type) || forceStab ? 2 + heldProfile.stab + lowHpStabBonus : 0) : null;
     const trumpCardBonus = move.id === "trump-card" ? moveModifier * Math.max(0, Number(entry.pp.max) - Number(entry.pp.value)) : 0;
     let magnitudeFormula = null;
@@ -952,8 +997,8 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     // Poder Solar (+2 daño con sol) y Fuerza de Arena (STAB×2 con tormenta de
     // arena): mismos huecos que el bono por estado propio y el STAB por poca
     // vida, condicionados al clima activo en vez de al estado o la vida.
-    const weatherDamageBonus = abilityWeatherDamageBonus(instance.abilities, activeWeather);
-    const weatherStabBonus = abilityWeatherStabBonus(instance.abilities, activeWeather);
+    const weatherDamageBonus = abilityWeatherDamageBonus(instance.abilities, abilityWeather);
+    const weatherStabBonus = abilityWeatherStabBonus(instance.abilities, abilityWeather);
     // Alocado (lote 40): dobla el STAB con movimientos que tienen retroceso.
     const recklessStabBonus = abilityDoublesRecoilStab(instance.abilities) && RECOIL_FRACTION_MOVES[move.id] ? 2 : 0;
     // Descontrol (lote 24): dobla los dados de daño al 25% o menos de PG máximos.
@@ -963,21 +1008,46 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     // que Armadura Bélica (lote 11); se consulta una sola vez el Item del
     // objetivo para las tres.
     let targetBulletproofImmune = false;
+    let targetAbilityBlock = null;
     let iceScalesDiceMultiplier = 1;
     let mercilessDiceMultiplier = 1;
+    let targetAbilityDiceMultiplier = 1;
+    let vulnerableDamageTwiceLower = false;
+    let ignoreTargetDamageImmunity = false;
     if (selectedTokens.length === 1) {
-      const targetPokemonItem = await pokemonItemForActor(selectedTokens[0].actor);
-      const targetInstance = targetPokemonItem?.getFlag(MODULE_ID, "instance");
-      targetBulletproofImmune = abilityBlocksBulletproofMove(targetInstance?.abilities, move.name);
-      iceScalesDiceMultiplier = abilityIceScalesDiceMultiplier(targetInstance?.abilities, move.power);
-      mercilessDiceMultiplier = abilityDoublesDiceAgainstPoisoned(instance.abilities, targetInstance?.conditions) ? 2 : 1;
+      const targetTypesSingle = selectedTokens[0].actor?.getFlag?.(MODULE_ID, "pokemonTypes") ?? [];
+      const targetDefenses = pokemonDefenses(targetTypesSingle);
+      const vulnerable = targetDefenses.vulnerabilities.includes(move.type);
+      const resistant = targetDefenses.resistances.includes(move.type);
+      targetBulletproofImmune = !sourceSuppressesTargetAbilities && abilityBlocksBulletproofMove(effectiveTargetAbilities, move.name);
+      targetAbilityBlock = sourceSuppressesTargetAbilities ? null : abilityBlocksIncomingMove(effectiveTargetAbilities, { moveId: move.id, moveName: move.name });
+      iceScalesDiceMultiplier = abilityIceScalesDiceMultiplier(effectiveTargetAbilities, move.power);
+      mercilessDiceMultiplier = abilityDoublesDiceAgainstPoisoned(instance.abilities, singleTargetInstance?.conditions) ? 2 : 1;
+      targetAbilityDiceMultiplier = abilityTargetDamageDiceMultiplier(instance.abilities, effectiveTargetAbilities, {
+        moveId: move.id, moveName: move.name, moveType: move.type,
+        isMelee: move.attack?.scope === "melee", targetResists: resistant
+      });
+      vulnerableDamageTwiceLower = abilityRollsVulnerableDamageTwiceLower(effectiveTargetAbilities, vulnerable);
+      const filterRule = abilityVulnerabilityFilter(effectiveTargetAbilities, vulnerable);
+      if (filterRule) {
+        const filterRoll = await new Roll(`1d${filterRule.die}`).evaluate();
+        await filterRoll.toMessage({ speaker: ChatMessage.getSpeaker({ actor: selectedTokens[0].actor }), flavor: `${selectedTokens[0].name} — Filtro` });
+        if (Number(filterRoll.total) === filterRule.on) targetAbilityDiceMultiplier *= filterRule.multiplier;
+      }
+      ignoreTargetDamageImmunity = abilityIgnoresNormalFightingImmunity(instance.abilities, move.type)
+        || abilityIgnoresAbilityDamageImmunity(instance.abilities, singleTargetInstance?.abilities, move.type);
     }
-    const baseFormula = targetBulletproofImmune ? null : finalGambitFormula ?? magnitudeFormula ?? (moveHasImmediateDamage(move) ? damageFormula(move, level, damageMoveModifier, species, combatModifiers.damage + heldProfile.damage + pathProfile.damage + trumpCardBonus + abilityProfile.damage + abilitySelfStatusDamageBonus(instance.abilities, instance.conditions ?? [], proficiency) + weatherDamageBonus + steelySpiritBonus + flowerGiftBonus + plusMinusBonus, heldProfile.stab + pathProfile.stab + lowHpStabBonus + weatherStabBonus + recklessStabBonus, escalationMultiplier * weatherDiceMultiplier * targetStatusDiceMultiplier * selfHpDiceMultiplier * ownDamagedDiceMultiplier * ownMissedDiceMultiplier * targetDamagedThisRoundMultiplier * berserkDiceMultiplier * iceScalesDiceMultiplier * mercilessDiceMultiplier * batteryMultiplier * restResourceDiceMultiplier, ownMissedExtraDie, forceStab) : null);
+    const baseFormula = targetBulletproofImmune || targetAbilityBlock ? null : finalGambitFormula ?? magnitudeFormula ?? (moveHasImmediateDamage(move) ? damageFormula(move, level, damageMoveModifier, species, combatModifiers.damage + heldProfile.damage + pathProfile.damage + trumpCardBonus + abilityProfile.damage + abilityDamageBonus + abilitySelfStatusDamageBonus(instance.abilities, instance.conditions ?? [], proficiency) + weatherDamageBonus + steelySpiritBonus + flowerGiftBonus + plusMinusBonus, heldProfile.stab + pathProfile.stab + abilityStabBonus + lowHpStabBonus + weatherStabBonus + recklessStabBonus, escalationMultiplier * weatherDiceMultiplier * targetStatusDiceMultiplier * selfHpDiceMultiplier * ownDamagedDiceMultiplier * ownMissedDiceMultiplier * targetDamagedThisRoundMultiplier * berserkDiceMultiplier * iceScalesDiceMultiplier * mercilessDiceMultiplier * batteryMultiplier * auraDiceMultiplier * targetAbilityDiceMultiplier * restResourceDiceMultiplier, ownMissedExtraDie, forceStab) : null);
     // Punto de Poder (lote 38): dado extra fijo (no escala con el resto de
     // multiplicadores), se añade tras construir la fórmula normal.
-    const formula = baseFormula && powerSpotDie ? `${baseFormula} + ${powerSpotDie}` : baseFormula;
+    const extraAuraDice = [powerSpotDie, supersweetDie].filter(Boolean);
+    const formula = baseFormula && extraAuraDice.length ? `${baseFormula} + ${extraAuraDice.join(" + ")}` : baseFormula;
     if (targetBulletproofImmune) {
       await ChatMessage.create({ speaker, content: `<div class="dnd5e chat-card poke5e-status-card"><p><strong>${escapeHtml(selectedTokens[0].name)}</strong> es inmune a ${escapeHtml(move.name)} gracias a Antibalas.</p></div>` });
+    }
+    if (targetAbilityBlock) {
+      const labels = { soundproof: "Insonorizar", damp: "Humedad", overcoat: "Funda" };
+      await ChatMessage.create({ speaker, content: `<div class="dnd5e chat-card poke5e-status-card"><p><strong>${escapeHtml(selectedTokens[0].name)}</strong> es inmune a ${escapeHtml(move.name)} gracias a ${labels[targetAbilityBlock] ?? targetAbilityBlock}.</p></div>` });
     }
     let hiddenPowerRoll = null;
     if (formula && move.id === "hidden-power") {
@@ -990,15 +1060,21 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     // Galvanismo/Pixelado/Refrigerar/Normalizar (lote 19): cambian el tipo de
     // daño final, no el STAB (que sigue mirando el tipo original del
     // movimiento, la misma simplificación que ya usaba Diluvio Iónico arriba).
-    const abilityMoveType = abilityMoveTypeOverride(instance.abilities, damageType);
+    const abilityMoveType = abilityMoveTypeOverride(instance.abilities, damageType, { moveId: move.id, moveName: move.name });
     if (abilityMoveType) damageType = abilityMoveType;
+    if (ignoreTargetDamageImmunity && damageType === move.type) damageType = "typeless";
     if (move.id === "weather-ball" && activeWeather && WEATHER_BALL_TYPES[activeWeather]) damageType = WEATHER_BALL_TYPES[activeWeather];
     if (move.id === "final-gambit") damageType = "fighting";
 
     instance.lastMoveId = move.id;
-    if (Number(entry.pp.max) > 0) entry.pp.value = Math.max(0, Number(entry.pp.value) - 1);
+    const ppCost = abilityMovePpCost(effectiveTargetAbilities, selectedTokens.length === 1);
+    if (Number(entry.pp.max) > 0) entry.pp.value = Math.max(0, Number(entry.pp.value) - ppCost);
     await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
     if (Number(entry.pp.max) > 0 && Number(entry.pp.value) === 0) await tryLeppaBerryReaction(this.pokemonItem, entry.id);
+    if (targetAbilityBlock) {
+      this.render({ force: true });
+      return;
+    }
 
     let attackResult = null;
     if (move.attack?.scope) {
@@ -1023,7 +1099,8 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       let targetAttackRollModifier = { advantage: false, disadvantage: false };
       if (selectedTokens.length === 1) {
         const targetPokemonItem = await pokemonItemForActor(selectedTokens[0].actor);
-        targetAttackRollModifier = abilityTargetAttackRollModifier(targetPokemonItem?.getFlag(MODULE_ID, "instance")?.abilities, move.attack.scope === "melee");
+        const targetInstance = targetPokemonItem?.getFlag(MODULE_ID, "instance");
+        targetAttackRollModifier = abilityTargetAttackRollModifier(targetInstance?.abilities, move.attack.scope === "melee", targetInstance?.conditions);
       }
       const advantage = combatModifiers.attackAdvantage || abilityAdvantage || meleeAdvantage || targetedModifiers.incomingAttackAdvantage || terrainAdvantage || weatherAdvantage || darkAdvantage || assistAdvantage || targetAttackRollModifier.advantage || costarAttackAdvantage;
       const disadvantage = statusDisadvantage || combatModifiers.attackDisadvantage || targetAttackRollModifier.disadvantage;
@@ -1032,7 +1109,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       const effectProficiency = combatModifiers.suppressAttackProficiency ? 0 : proficiency;
       const targetsAreWild = Boolean(selectedTokens.length) && selectedTokens.every(token => token.actor?.getFlag?.(MODULE_ID, "kind") === "wild");
       const companionBonus = trainer ? rangerCompanionAttackBonus(trainer, this.pokemonItem, targetsAreWild) : 0;
-      const attack = await new Roll(`${die} + @mod + @prof + @effect${effectDice}`, { mod: attackMoveModifier, prof: effectProficiency, effect: combatModifiers.attack + heldProfile.attack + pathProfile.attack + companionBonus + abilityProfile.attack + victoryStarBonus + plusMinusBonus }).evaluate();
+      const attack = await new Roll(`${die} + @mod + @prof + @effect${effectDice}`, { mod: attackMoveModifier, prof: effectProficiency, effect: combatModifiers.attack + heldProfile.attack + pathProfile.attack + companionBonus + abilityProfile.attack + victoryStarBonus + plusMinusBonus + supremeOverlordBonus }).evaluate();
       await attack.toMessage({ speaker, flavor: `${flavor} (${titleCase(move.attack.scope)})` });
       const rolledNatural = Number(attack.dice?.[0]?.results?.find(result => result.active)?.result ?? attack.dice?.[0]?.total) || 0;
       const guaranteed = combatModifiers.guaranteedHit || combatModifiers.guaranteedCritical;
@@ -1189,11 +1266,13 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       if (DamageRoll) {
         // Vigor (guts) ignora la tirada doble-quedarse-con-la-menor de Quemado.
         const burned = damageType !== "healing" && (instance.conditions ?? []).includes("burned") && !abilityIgnoresStatusPenalty(instance.abilities);
-        const damageOptions = { type: damageType, critical: Boolean(attackResult?.critical) && !targetIgnoresCritical };
-        const damageRolls = [await new DamageRoll(formula, {}, damageOptions).evaluate()];
-        if (burned || rollsTwiceHigher) damageRolls.push(await new DamageRoll(formula, {}, damageOptions).evaluate());
+        const rollsTwiceLower = burned || vulnerableDamageTwiceLower;
+        const criticalProfile = abilityCriticalDamageProfile(instance.abilities, formula, Boolean(attackResult?.critical) && !targetIgnoresCritical, true);
+        const damageOptions = { type: damageType, critical: criticalProfile.systemCritical };
+        const damageRolls = [await new DamageRoll(criticalProfile.formula, {}, damageOptions).evaluate()];
+        if (rollsTwiceLower || rollsTwiceHigher) damageRolls.push(await new DamageRoll(criticalProfile.formula, {}, damageOptions).evaluate());
         const damage = damageRolls.reduce((chosen, candidate) => {
-          if (burned) return Number(candidate.total) < Number(chosen.total) ? candidate : chosen;
+          if (rollsTwiceLower) return Number(candidate.total) < Number(chosen.total) ? candidate : chosen;
           if (rollsTwiceHigher) return Number(candidate.total) > Number(chosen.total) ? candidate : chosen;
           return chosen;
         });
@@ -1201,16 +1280,18 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
         const rollType = damageType === "healing" ? "healing" : "damage";
         await damage.toMessage({
           speaker,
-          flavor: `${flavor} — ${typeLabel(damageType)}${burned ? ` · Quemado: menor de ${damageRolls.map(roll => roll.total).join("/")}` : ""}${rollsTwiceHigher ? ` · Mayor de ${damageRolls.map(roll => roll.total).join("/")}` : ""}${targetIgnoresCritical ? " · Sin extra de crítico" : ""}`,
+          flavor: `${flavor} — ${typeLabel(damageType)}${burned ? ` · Quemado: menor de ${damageRolls.map(roll => roll.total).join("/")}` : ""}${vulnerableDamageTwiceLower ? ` · Armadura Prisma: menor de ${damageRolls.map(roll => roll.total).join("/")}` : ""}${rollsTwiceHigher ? ` · Mayor de ${damageRolls.map(roll => roll.total).join("/")}` : ""}${targetIgnoresCritical ? " · Sin extra de crítico" : ""}`,
           flags: { dnd5e: { messageType: "roll", roll: { type: rollType }, targets: targetDescriptors() } }
         });
       } else {
         // Vigor (guts) ignora la tirada doble-quedarse-con-la-menor de Quemado.
         const burned = damageType !== "healing" && (instance.conditions ?? []).includes("burned") && !abilityIgnoresStatusPenalty(instance.abilities);
-        const damageRolls = [await new Roll(formula).evaluate()];
-        if (burned || rollsTwiceHigher) damageRolls.push(await new Roll(formula).evaluate());
+        const rollsTwiceLower = burned || vulnerableDamageTwiceLower;
+        const criticalProfile = abilityCriticalDamageProfile(instance.abilities, formula, Boolean(attackResult?.critical) && !targetIgnoresCritical, false);
+        const damageRolls = [await new Roll(criticalProfile.formula).evaluate()];
+        if (rollsTwiceLower || rollsTwiceHigher) damageRolls.push(await new Roll(criticalProfile.formula).evaluate());
         const damage = damageRolls.reduce((chosen, candidate) => {
-          if (burned) return Number(candidate.total) < Number(chosen.total) ? candidate : chosen;
+          if (rollsTwiceLower) return Number(candidate.total) < Number(chosen.total) ? candidate : chosen;
           if (rollsTwiceHigher) return Number(candidate.total) > Number(chosen.total) ? candidate : chosen;
           return chosen;
         });
@@ -1218,12 +1299,16 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
         const rollType = damageType === "healing" ? "healing" : "damage";
         await damage.toMessage({
           speaker,
-          flavor: `${flavor} — ${typeLabel(damageType)}${burned ? ` · Quemado: menor de ${damageRolls.map(roll => roll.total).join("/")}` : ""}${rollsTwiceHigher ? ` · Mayor de ${damageRolls.map(roll => roll.total).join("/")}` : ""}`,
+          flavor: `${flavor} — ${typeLabel(damageType)}${burned ? ` · Quemado: menor de ${damageRolls.map(roll => roll.total).join("/")}` : ""}${vulnerableDamageTwiceLower ? ` · Armadura Prisma: menor de ${damageRolls.map(roll => roll.total).join("/")}` : ""}${rollsTwiceHigher ? ` · Mayor de ${damageRolls.map(roll => roll.total).join("/")}` : ""}`,
           flags: { dnd5e: { messageType: "roll", roll: { type: rollType }, targets: targetDescriptors() } }
         });
       }
     }
     if (dealtDamageTotal != null) dealtDamageTotal = await this.#offerTrainerRollBoosts({ damageType, dealtDamageTotal, formula, speaker, flavor });
+    if (formula && triggeredMoveMultiplier > 1) {
+      delete instance.abilityTriggers?.electromorphosis;
+      await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
+    }
     if (damageType === "fire" && dealtDamageTotal != null) {
       // El daño de Fuego descongela de verdad a quien lo recibe (Congelado
       // ya no depende de que la mesa se acuerde de quitarlo), sea el
@@ -1274,6 +1359,14 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
         const targetAbilities = targetPokemonItem?.getFlag(MODULE_ID, "instance")?.abilities;
         const reaction = damageTypeSelfReactionTrigger(targetAbilities, damageType);
         if (reaction) await applyDamageTypeSelfReaction(token.actor, reaction);
+      }
+      // Cambio Color: el tipo del actor defensor cambia después de recibir el
+      // golpe; no se escribe en el Item y desaparece al retirarlo.
+      for (const token of absorbingTargets) {
+        const targetPokemonItem = await pokemonItemForActor(token.actor);
+        const targetAbilities = targetPokemonItem?.getFlag(MODULE_ID, "instance")?.abilities ?? [];
+        const nextType = abilityReceivedDamageTypeChange(targetAbilities, damageType);
+        if (nextType) await applyCombatAbilityTypeChange(token.actor, targetAbilities, nextType, "Cambio Color");
       }
     }
     const selectedHit = Boolean(attackResult) && selectedTokens.some(token => attackHitsPokemonTarget(attackResult, token.actor));
@@ -1442,7 +1535,9 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     if (move.id === "take-heart") {
       for (const id of [...(instance.conditions ?? [])]) await removePokemonStatus(this.pokemonItem, id);
     }
-    if (formula && selectedHit && CHAIN_MULTI_HIT_MOVES[move.id]) await rollChainMultiHit(move, level, damageType, flavor, speaker, CHAIN_MULTI_HIT_MOVES[move.id]);
+    if (formula && selectedHit && CHAIN_MULTI_HIT_MOVES[move.id]) {
+      await rollChainMultiHit(move, level, damageType, flavor, speaker, CHAIN_MULTI_HIT_MOVES[move.id], abilityMinimumChainExtraHits(instance.abilities, move.id));
+    }
     if (escalation && !escalation.automatic && attackResult && !selectedHit) await resetConsecutiveStrike(combatActor, move.id);
     let statusMove = move;
     if (RANDOM_STATUS_TABLE_MOVES[move.id]) {
@@ -1452,14 +1547,14 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       const chosenStatus = table.resolve(tableRoll.total);
       statusMove = { ...move, statusEffects: [{ id: chosenStatus, trigger: table.trigger, minimum: table.minimum ?? null, margin: table.margin ?? 0, requiresHit: false, target: "selected" }] };
     }
-    const statusResolution = await applyMoveStatuses({ move: statusMove, attack: attackResult, saveDc: 8 + attackMoveModifier + proficiency + serenegraceBonus, sourceActor: this.pokemonItem.parent, sourceCombatActor: combatActor, sourceName: name });
-    await applyMoveOngoingEffects({
+    const statusResolution = sheerForce.suppressSecondaryEffect ? { saveResults: new Map() } : await applyMoveStatuses({ move: statusMove, attack: attackResult, saveDc: 8 + attackMoveModifier + proficiency + serenegraceBonus, sourceActor: this.pokemonItem.parent, sourceCombatActor: combatActor, sourceName: name });
+    if (!sheerForce.suppressSecondaryEffect) await applyMoveOngoingEffects({
       move, attack: attackResult, saveDc: 8 + attackMoveModifier + proficiency + serenegraceBonus,
       sourceOwnerActor: this.pokemonItem.parent, sourceCombatActor: combatActor,
       sourcePokemonItem: this.pokemonItem, sourceName: name, level, moveModifier,
       proficiency, sourceTypes: species.type ?? []
     });
-    await applyMoveModifierEffects({
+    if (!sheerForce.suppressSecondaryEffect) await applyMoveModifierEffects({
       move, attack: attackResult, saveDc: 8 + attackMoveModifier + proficiency + serenegraceBonus,
       saveResults: statusResolution?.saveResults,
       sourceOwnerActor: this.pokemonItem.parent, sourceCombatActor: combatActor, sourceName: name, proficiency
@@ -1841,7 +1936,16 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const roll = await new Roll("1d20").evaluate();
     await roll.toMessage({ speaker, flavor: `${name} — ${move.name}` });
     if (Number(roll.total) === 20) {
-      await requestFaintTargets(selectedTokens, name);
+      const ignoresAbilities = abilitySuppressesTargetAbilities(instance.abilities);
+      const affected = [];
+      for (const token of selectedTokens) {
+        const targetItem = await pokemonItemForActor(token.actor);
+        const targetAbilities = targetItem?.getFlag(MODULE_ID, "instance")?.abilities ?? [];
+        if (!ignoresAbilities && abilityBlocksIncomingMove(targetAbilities, { moveId: move.id, moveName: move.name }) === "damp") {
+          await ChatMessage.create({ speaker, content: `<div class="dnd5e chat-card poke5e-status-card"><p><strong>${escapeHtml(token.name)}</strong> no queda fuera de combate gracias a Humedad.</p></div>` });
+        } else affected.push(token);
+      }
+      if (affected.length) await requestFaintTargets(affected, name);
     } else {
       await ChatMessage.create({ speaker, content: `<div class="dnd5e chat-card poke5e-status-card"><p>La explosión no llega a activarse.</p></div>` });
     }
@@ -2198,9 +2302,10 @@ function evolutionConditionLabel(condition, data) {
  * datos de concurso y un aviso si dejó de ser compatible con la especie.
  * Auxiliar de _prepareContext(); su gemela para el catálogo es prepareCatalogMove().
  */
-function prepareMove(entry, move, species, level, effectsById, contestType, heldItem = null, trainer = null) {
+function prepareMove(entry, move, species, level, effectsById, contestType, heldItem = null, trainer = null, abilities = []) {
   const proficiency = 2 + Math.floor((level - 1) / 4);
-  const effectiveMove = heldItemEffectiveMove(move, { sourceId: heldItem?.sourceId, speciesId: species.id });
+  const heldMove = heldItemEffectiveMove(move, { sourceId: heldItem?.sourceId, speciesId: species.id });
+  const effectiveMove = { ...heldMove, time: abilityMoveActivationTime(abilities, { moveId: heldMove.id, time: heldMove.time, healing: moveIsHealing(heldMove) }) };
   const profile = heldItemMoveModifiers({
     sourceId: heldItem?.sourceId, speciesId: species.id, speciesTypes: species.type ?? [],
     move: effectiveMove, proficiency, hasDamage: moveHasImmediateDamage(effectiveMove)
@@ -2431,14 +2536,14 @@ function resolveDamageDice(move, level) {
  * dados del movimiento, sin repetir el modificador MOVE, tal como describe el
  * texto original. Auxiliar de #rollMove().
  */
-async function rollChainMultiHit(move, level, damageType, flavor, speaker, maxExtra = 4) {
+async function rollChainMultiHit(move, level, damageType, flavor, speaker, maxExtra = 4, minimumExtra = 0) {
   const chainRolls = [];
   for (let i = 0; i < maxExtra; i++) {
     const roll = await new Roll("1d4").evaluate();
     chainRolls.push(Number(roll.total));
     if (Number(roll.total) < 3) break;
   }
-  const extraHits = resolveChainHits(chainRolls, maxExtra);
+  const extraHits = Math.max(Number(minimumExtra) || 0, resolveChainHits(chainRolls, maxExtra));
   if (!extraHits) return;
   const baseDice = resolveDamageDice(move, level);
   if (!baseDice) return;

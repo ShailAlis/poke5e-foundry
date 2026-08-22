@@ -14,7 +14,7 @@ import { loadPoke5eData } from "../core/data-service.mjs";
 import { damageTraitsForPokemonTypes } from "../combat/combat.mjs";
 import { aceTrainerAbilityBonus, applyTypeMasteryDefense, hasTrainerPath } from "../trainer/trainer-path-rules.mjs";
 import { speciesSkillKey } from "../trainer/trainer-creation-data.mjs";
-import { abilityBerryHealBonus, abilityGrantsUnburdenSpeed, applyAbilityDefenses, applyAbilityDeployWeather, hpThresholdSwitchTrigger, recallAbilityAdjustment } from "../pokemon/pokemon-abilities.mjs";
+import { abilityAutoConsumesHealingBerry, abilityBerryHealBonus, abilityGrantsUnburdenSpeed, abilityMaximumHp, applyAbilityDefenses, applyAbilityDeployWeather, hpThresholdSwitchTrigger, recallAbilityAdjustment } from "../pokemon/pokemon-abilities.mjs";
 import { opponentBlocksBerryEating, opponentBlocksVoluntarySwitch } from "../combat/aura-abilities.mjs";
 import { pokemonStatusEffectSource } from "../combat/status-effects.mjs";
 import { actorHasRecallLock } from "../combat/ongoing-effects.mjs";
@@ -211,6 +211,7 @@ export async function syncDeploymentHp(actor) {
   const item = uuid ? await fromUuid(uuid) : actor.items.find(entry => entry.getFlag(MODULE_ID, "kind") === "pokemon");
   if (!item) return;
   const instance = foundry.utils.deepClone(item.getFlag(MODULE_ID, "instance"));
+  const previousStoredHp = Number(instance.hp?.value) || 0;
   const actorHp = Number(actor.system.attributes.hp.value) || 0;
   const maximumHp = Number(actor.system.attributes.hp.max) || instance.hp.max;
   const species = item.getFlag(MODULE_ID, "species") ?? {};
@@ -240,7 +241,7 @@ export async function syncDeploymentHp(actor) {
   if (held && resolution.reaction && opponentBlocksBerryEating(actor)) {
     await postHeldItemMessage(item, held, "No puede comerla: un oponente cercano tiene Prepotencia o Compañero del Alma.");
   } else if (held && resolution.reaction) {
-    const confirmed = await confirmHeldItemReaction(held.name, `<p>${foundry.utils.escapeHTML(displayPokemonName(item))} ha bajado de la mitad de sus PG. ¿Consumir ${foundry.utils.escapeHTML(held.name)}?</p>`);
+    const confirmed = abilityAutoConsumesHealingBerry(instance.abilities) || await confirmHeldItemReaction(held.name, `<p>${foundry.utils.escapeHTML(displayPokemonName(item))} ha bajado de la mitad de sus PG. ¿Consumir ${foundry.utils.escapeHTML(held.name)}?</p>`);
     if (confirmed) {
       const rolled = resolution.reaction.formula
         ? await rollHeldItemFormula(item, resolution.reaction.formula, `${held.name} · Reacción de curación`)
@@ -256,6 +257,9 @@ export async function syncDeploymentHp(actor) {
     value: resolvedHp,
     max: maximumHp
   };
+  if (resolvedHp < previousStoredHp && (instance.abilities ?? []).includes("electromorphosis")) {
+    instance.abilityTriggers = { ...(instance.abilityTriggers ?? {}), electromorphosis: true };
+  }
   await item.setFlag(MODULE_ID, "instance", instance);
   if (resolvedHp !== actorHp) await actor.update({ "system.attributes.hp.value": resolvedHp });
   for (const event of resolution.events) {
@@ -273,7 +277,7 @@ export async function syncDeploymentHp(actor) {
   // fuerza (Rendirse) la retirada. Solo para Pokémon de entrenador: un
   // salvaje no tiene a quién retirarse.
   if (kind === "deployed" && resolution.damage > 0 && maximumHp > 0) {
-    const previousFraction = Number(instance.hp?.value ?? actorHp) / maximumHp;
+    const previousFraction = previousStoredHp / maximumHp;
     const nextFraction = resolvedHp / maximumHp;
     const hpSwitchTrigger = hpThresholdSwitchTrigger(instance.abilities, previousFraction, nextFraction);
     if (hpSwitchTrigger) {
@@ -303,10 +307,12 @@ export async function syncPokemonHpToDeployment(item) {
   const instance = item.getFlag(MODULE_ID, "instance") ?? {};
   const hp = instance.hp;
   if (!hp) return;
+  const abilityMax = abilityMaximumHp(instance.abilities, hp.max);
   const updates = {};
   const current = actor.system.attributes.hp;
-  if (Number(current.value) !== Number(hp.value)) updates["system.attributes.hp.value"] = Number(hp.value) || 0;
-  if (Number(current.max) !== Number(hp.max)) updates["system.attributes.hp.max"] = Number(hp.max) || 1;
+  const abilityValue = Math.min(abilityMax, Number(hp.value) || 0);
+  if (Number(current.value) !== abilityValue) updates["system.attributes.hp.value"] = abilityValue;
+  if (Number(current.max) !== abilityMax) updates["system.attributes.hp.max"] = abilityMax;
   for (const key of ["str", "dex", "con", "int", "wis", "cha"]) {
     const value = Number(instance.attributes?.[key]);
     if (Number.isFinite(value) && Number(actor.system.abilities?.[key]?.value) !== value) updates[`system.abilities.${key}.value`] = value;
@@ -660,6 +666,8 @@ async function deployedActorSource(pokemonItem) {
     flags: { [MODULE_ID]: { kind: "held-item", sourceId: instance.heldItem.sourceId } }
   } : null;
   const statusEffects = (instance.conditions ?? []).map(id => pokemonStatusEffectSource(id)).filter(Boolean);
+  if ((instance.abilities ?? []).includes("slow-start")) statusEffects.push(slowStartEffectSource());
+  const maximumHp = abilityMaximumHp(instance.abilities, instance.hp?.max ?? species.hp);
   return {
     name: deploymentActorName(pokemonItem),
     type: "npc",
@@ -682,7 +690,7 @@ async function deployedActorSource(pokemonItem) {
       attributes: {
         ac: { calc: "flat", flat: (Number(instance.ac) || Number(species.ac) || 10) + heldAdjustments.ac },
         init: { bonus: String(heldAdjustments.initiative || "") },
-        hp: { value: Number(instance.hp?.value) || 0, max: Number(instance.hp?.max) || Number(species.hp) || 1 },
+        hp: { value: Math.min(maximumHp, Number(instance.hp?.value) || 0), max: maximumHp },
         movement,
         senses: { ranges: senseRanges, units: "ft", special: "" }
       },
@@ -703,9 +711,22 @@ async function deployedActorSource(pokemonItem) {
         trainerUuid: trainer.uuid,
         speciesId: species.id,
         pokemonTypes: effectiveTypes,
+        deployedRound: game.combat?.round ?? 0,
         // Ver el comentario junto a `pokemonAbilities` en syncPokemonHeldItemToDeployment().
         pokemonAbilities: instance.abilities ?? []
       }
     }
+  };
+}
+
+function slowStartEffectSource() {
+  return {
+    name: "Inicio Lento", icon: "icons/svg/downgrade.svg", img: "icons/svg/downgrade.svg",
+    description: "Velocidad reducida a la mitad durante las dos primeras rondas en combate.",
+    changes: ["walk", "fly", "swim", "burrow", "climb"].map(type => ({
+      key: `system.attributes.movement.${type}`, mode: CONST.ACTIVE_EFFECT_MODES.MULTIPLY, value: 0.5, priority: 20
+    })),
+    duration: { rounds: 2, startRound: game.combat?.round ?? 0, startTurn: game.combat?.turn ?? 0 },
+    flags: { [MODULE_ID]: { kind: "ability-slow-start" } }
   };
 }

@@ -87,6 +87,7 @@ export function abilityAutoHalvesDamage(abilities, { pendingHp, currentHp, maxHp
   if (known.some(id => FULL_HP_HALF_DAMAGE_ABILITIES.has(id)) && Number.isFinite(Number(maxHp)) && hp === Number(maxHp)) {
     return true;
   }
+  if (known.includes("tera-shell") && Number.isFinite(Number(maxHp)) && hp === Number(maxHp)) return true;
   if (known.some(id => STURDY_HALF_DAMAGE_ABILITIES.has(id)) && drop >= hp / 2) {
     return Number(sturdyRoll) === 3 || Number(sturdyRoll) === 4;
   }

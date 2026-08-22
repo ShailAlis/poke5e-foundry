@@ -8,7 +8,7 @@
  * para que validate-held-items.mjs pueda comprobar el catálogo en Node.
  */
 import { MODULE_ID, displayPokemonName, getPokemonItems } from "../core/model.mjs";
-import { abilityBerryHealBonus } from "./pokemon-abilities.mjs";
+import { abilityAutoConsumesHealingBerry, abilityBerryHealBonus } from "./pokemon-abilities.mjs";
 
 /** Bayas que consumen una reacción para curar el estado indicado; `*` acepta cualquiera. */
 export const STATUS_BERRIES = Object.freeze({
@@ -351,7 +351,7 @@ export async function resolvePokemonHpBerryReaction(pokemonItem, previousHp, nex
   const maximum = Math.max(1, Number(instance.hp?.max) || 1);
   const reaction = healingBerryReaction({ sourceId: held?.sourceId, previousHp, nextHp, maximumHp: maximum });
   if (!reaction) return { handled: false, hp: nextHp };
-  const confirmed = await confirmHeldItemReaction(held.name, `<p>${escapeHtml(displayPokemonName(pokemonItem))} ha bajado de la mitad de sus PG. ¿Consumir ${escapeHtml(held.name)} para curarse?</p>`);
+  const confirmed = abilityAutoConsumesHealingBerry(instance.abilities) || await confirmHeldItemReaction(held.name, `<p>${escapeHtml(displayPokemonName(pokemonItem))} ha bajado de la mitad de sus PG. ¿Consumir ${escapeHtml(held.name)} para curarse?</p>`);
   if (!confirmed) return { handled: false, hp: nextHp };
   const rolled = reaction.formula
     ? await rollHeldItemFormula(pokemonItem, reaction.formula, `${held.name} · Reacción de curación`)

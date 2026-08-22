@@ -28,6 +28,8 @@ assert.equal(shieldedDamage(5, 20, "survive"), 5, "Aguante no toca golpes que no
 assert.equal(abilityAutoHalvesDamage(["multiscale"], { pendingHp: 10, currentHp: 20, maxHp: 20 }), true, "Multiescama a PG máximos reduce el primer golpe");
 assert.equal(abilityAutoHalvesDamage(["shadow-shield"], { pendingHp: 10, currentHp: 20, maxHp: 20 }), true, "Escudo Sombra comparte el mismo texto que Multiescama");
 assert.equal(abilityAutoHalvesDamage(["multiscale"], { pendingHp: 10, currentHp: 18, maxHp: 20 }), false, "Multiescama no aplica si ya no está a PG máximos");
+assert.equal(abilityAutoHalvesDamage(["tera-shell"], { pendingHp: 10, currentHp: 20, maxHp: 20 }), true, "Teracaparazón da resistencia a todo a PG máximos");
+assert.equal(abilityAutoHalvesDamage(["tera-shell"], { pendingHp: 10, currentHp: 19, maxHp: 20 }), false, "Teracaparazón se apaga al perder PG");
 assert.equal(abilityAutoHalvesDamage(["multiscale"], { pendingHp: 20, currentHp: 20, maxHp: 20 }), false, "Sin caída de PG no hay golpe que reducir");
 assert.equal(abilityAutoHalvesDamage([], { pendingHp: 10, currentHp: 20, maxHp: 20 }), false, "Sin la habilidad conocida no se reduce nada");
 

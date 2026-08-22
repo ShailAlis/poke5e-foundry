@@ -46,6 +46,19 @@ export function nearbyAllyActors(actor, rangeFeet) {
   return alliesWithinFeet(origin, rangeFeet).map(token => token.actor).filter(Boolean);
 }
 
+/** Cualquier otro Pokémon de la escena dentro del alcance, sin filtrar bando. */
+export function nearbyPokemonActors(actor, rangeFeet) {
+  const origin = actorToken(actor);
+  if (!origin || !canvas?.tokens?.placeables || !canvas.grid?.size) return [];
+  const unitFeet = Number(canvas.grid.distance) || 5;
+  return canvas.tokens.placeables.filter(token => {
+    if (token === origin || !token.actor?.getFlag) return false;
+    const dx = token.center.x - origin.center.x;
+    const dy = token.center.y - origin.center.y;
+    return (Math.hypot(dx, dy) / canvas.grid.size) * unitFeet <= rangeFeet;
+  }).map(token => token.actor);
+}
+
 /** Habilidades conocidas (flag síncrono `pokemonAbilities`, lote 9) de un actor. */
 function actorAbilities(actor) {
   return actor?.getFlag?.(MODULE_ID, "pokemonAbilities") ?? [];
@@ -125,6 +138,30 @@ export function plusMinusAttackDamageBonus(selfAbilities, nearbyAllies) {
     return allyAbilities.includes("plus") || allyAbilities.includes("minus");
   });
   return allyPaired ? 2 : 0;
+}
+
+/**
+ * Aura Oscura/Aura Feérica duplican los dados del tipo correspondiente a
+ * 100 pies. Rompeaura invierte el bono y los reduce a la mitad. Las fuentes
+ * no se apilan: basta con que exista una aura coincidente.
+ */
+export function typeAuraDiceMultiplier({ selfAbilities = [], nearbyActors = [], moveType = null } = {}) {
+  const all = [selfAbilities, ...(nearbyActors ?? []).map(actorAbilities)];
+  const auraId = moveType === "dark" ? "dark-aura" : moveType === "fairy" ? "fairy-aura" : null;
+  if (!auraId || !all.some(abilities => abilities.includes(auraId))) return 1;
+  return all.some(abilities => abilities.includes("aura-break")) ? 0.5 : 2;
+}
+
+/** Néctar Dulce: cualquier tirada de daño a 30 pies recibe un d4, sin acumular. */
+export function supersweetSyrupExtraDie(selfAbilities = [], nearbyActors = []) {
+  const sources = [selfAbilities, ...(nearbyActors ?? []).map(actorAbilities)];
+  return sources.some(abilities => abilities.includes("supersweet-syrup")) ? "1d4" : null;
+}
+
+/** Bucle Aire/Aclimatación anulan habilidades dependientes del clima en escena. */
+export function weatherAbilitiesSuppressed(selfAbilities = [], nearbyActors = []) {
+  return [selfAbilities, ...(nearbyActors ?? []).map(actorAbilities)]
+    .some(abilities => abilities.includes("air-lock") || abilities.includes("cloud-nine"));
 }
 
 /**

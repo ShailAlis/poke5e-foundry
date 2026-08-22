@@ -11,9 +11,14 @@ import {
   HP_THRESHOLD_SWITCH_ABILITIES, hpThresholdSwitchTrigger,
   recallAbilityAdjustment, abilityDoublesRecoilStab, abilityRollsSuperEffectiveTwice,
   DAMAGE_TYPE_SELF_REACTION_ABILITIES, damageTypeSelfReactionTrigger,
-  ABILITY_REST_RESOURCES, abilityRestUseAvailable, markAbilityRestUseSpent, abilityUsesAfterRest, resetAbilityRestResourcesAfterRest
+  ABILITY_REST_RESOURCES, abilityRestUseAvailable, markAbilityRestUseSpent, abilityUsesAfterRest, resetAbilityRestResourcesAfterRest,
+  ABILITY_BREAKER_IDS, SOUND_MOVE_IDS, WEATHER_DAMAGE_MOVE_IDS, abilityBlocksIncomingMove, abilityForcesMoveStab,
+  abilityAutoConsumesHealingBerry, abilityFaintedAllyAttackBonus, abilityGrantsStatusSaveAdvantage, abilityIgnoresAbilityDamageImmunity, abilityIgnoresNormalFightingImmunity, abilityIgnoresPoisonStatusTypeImmunity, abilityMaximumHp, abilityMinimumChainExtraHits, abilityMoveDamageBonus, abilityMovePpCost, abilityMoveStabBonus, abilityMoveUserTypeChange, abilityProtectsAttackDamageBonuses, abilityReceivedDamageTypeChange, abilitySlowStartActive, abilityVulnerabilityFilter,
+  abilityAdjustedMoveModifiers, abilityCriticalDamageProfile, abilityMoveActivationTime, abilityRollsVulnerableDamageTwiceLower, abilitySheerForceProfile, abilitySuppressesTargetAbilities, abilityTargetDamageDiceMultiplier, abilityTriggeredMoveModifierMultiplier, isSoundMove
 } from "../pokemon/pokemon-abilities.mjs";
 import { plusMinusAttackDamageBonus } from "../combat/aura-abilities.mjs";
+import { badDreamsDamage, END_TURN_ABILITY_IDS, shedSkinStatus } from "../combat/ability-turn-effects.mjs";
+import { AUTOMATED_ABILITY_IDS, abilityAutomationMode } from "../pokemon/ability-coverage.mjs";
 import { POKEMON_STATUS_EFFECTS } from "../combat/status-effects.mjs";
 
 const abilities = JSON.parse(fs.readFileSync(new URL("../../data/abilities.json", import.meta.url), "utf8")).items;
@@ -39,14 +44,24 @@ const catalogued = [
   ...Object.keys(DAMAGE_TYPE_SELF_REACTION_ABILITIES), "plus", "minus", "defiant",
   "multiscale", "shadow-shield", "sturdy",
   ...Object.keys(ABILITY_REST_RESOURCES),
-  "arena-trap", "shadow-tag", "magnet-pull"
+  "arena-trap", "shadow-tag", "magnet-pull",
+  "battery", "power-spot", "victory-star", "steely-spirit", "costar", "flower-gift", "sweet-veil", "flower-veil", "unnerve", "as-one",
+  "soundproof", "damp", "overcoat", ...ABILITY_BREAKER_IDS, "mega-launcher", "tough-claws", "punk-rock", "tinted-lens", "fluffy", "prism-armor", "pressure", "skill-link", "liquid-voice", "dark-aura", "fairy-aura", "aura-break", "wonder-guard", "paper-thin", "corrosion", "wonder-skin", "synchronize", "tangled-feet", "hyper-cutter", "gluttony",
+  "chlorophyll", "swift-swim", "sand-rush", "slush-rush", "surge-surfer", "sand-veil", "snow-cloak", "grass-pelt",
+  "rks-system", "multitype", "form-change-arceus", "filter", "scrappy", "minds-eye", "supreme-overlord", "slow-start", "air-lock", "cloud-nine", "protean", "libero", "color-change",
+  ...END_TURN_ABILITY_IDS, "supersweet-syrup", "tera-shell", "contrary", "big-pecks", "sheer-force", "sniper",
+  "electric-surge", "grassy-surge", "misty-surge", "psychic-surge", "triage", "electromorphosis"
 ];
 
 const moves = JSON.parse(fs.readFileSync(new URL("../../data/moves.json", import.meta.url), "utf8")).moves;
 const moveIds = new Set(moves.map(move => move.id));
 for (const id of STRONG_JAW_MOVE_IDS) assert.ok(moveIds.has(id), `Mandíbula Firme referencia un movimiento inexistente: ${id}`);
+for (const id of [...SOUND_MOVE_IDS, ...WEATHER_DAMAGE_MOVE_IDS]) assert.ok(moveIds.has(id), `Familia de habilidad referencia un movimiento inexistente: ${id}`);
 const unknown = catalogued.filter(id => !abilityIds.has(id));
 assert.deepEqual(unknown, [], `Habilidades sin correspondencia en data/abilities.json: ${unknown.join(", ")}`);
+const automatedAbilityIds = new Set(catalogued);
+assert.deepEqual([...automatedAbilityIds].sort(), [...AUTOMATED_ABILITY_IDS].sort(), "El inventario visible de automatización debe coincidir con las reglas validadas");
+for (const ability of abilities) assert.ok(["automatic", "assisted"].includes(abilityAutomationMode(ability.id)), `Cobertura desconocida: ${ability.id}`);
 
 const statusIds = new Set(Object.keys(POKEMON_STATUS_EFFECTS));
 for (const [ability, statuses] of Object.entries(STATUS_IMMUNITY_ABILITIES)) {
@@ -315,6 +330,7 @@ assert.equal(abilityGrantsSelfAttackAdvantage([]), false);
 assert.deepEqual(abilityTargetAttackRollModifier(["no-guard"], false), { advantage: true, disadvantage: false });
 assert.deepEqual(abilityTargetAttackRollModifier(["dauntless-shield"], true), { advantage: false, disadvantage: true });
 assert.deepEqual(abilityTargetAttackRollModifier(["dauntless-shield"], false), { advantage: false, disadvantage: false }, "Escudo Intrépido solo cuerpo a cuerpo");
+assert.deepEqual(abilityTargetAttackRollModifier(["tangled-feet"], false, ["confused"]), { advantage: false, disadvantage: true });
 assert.deepEqual(abilityTargetAttackRollModifier([], true), { advantage: false, disadvantage: false });
 assert.equal(abilityHealsFromPoisonTick(["poison-heal"]), true);
 assert.equal(abilityHealsFromPoisonTick([]), false);
@@ -370,4 +386,81 @@ assert.deepEqual(abilityUsesAfterRest({ "huge-power": true, simple: true }, "sho
 assert.deepEqual(abilityUsesAfterRest({ "huge-power": true }, "long"), {}, "Un descanso largo también limpia los de descanso corto");
 assert.equal(typeof resetAbilityRestResourcesAfterRest, "function");
 
-console.log(`Pokémon abilities validation passed: ${Object.keys(IMMUNITY_ABILITIES).length} immunities, ${Object.keys(RESISTANCE_ABILITIES).length} resistances, ${Object.keys(WEATHER_ABILITIES).length} weather-setters, ${Object.keys(STATUS_IMMUNITY_ABILITIES).length + FULL_STATUS_IMMUNITY_ABILITIES.size} status immunities, ${Object.keys(CONTACT_DAMAGE_ABILITIES).length} contact damage reactions, ${Object.keys(CONTACT_STATUS_ABILITIES).length + 1} contact status reactions, ${LOW_HP_STAB_ABILITIES.size} low-HP STAB doublers, ${MOVE_PROFILE_ABILITY_IDS.length} move-profile bonuses, ${Object.keys(SELF_STATUS_DAMAGE_BOOST_ABILITIES).length} self-status damage boosters + Guts, ${Object.keys(AC_STATUS_BONUS_ABILITIES).length + Object.keys(SPEED_STATUS_BONUS_ABILITIES).length} status AC/speed bonuses, ${Object.keys(WEATHER_HEAL_ABILITIES).length} weather-healing abilities, ${Object.keys(ABSORB_HEAL_ABILITIES).length} absorb-heal abilities, ${CRITICAL_IMMUNITY_ABILITIES.size} critical-immunity abilities, ${Object.keys(WEATHER_STATUS_IMMUNITY_ABILITIES).length} weather status-immunity abilities, ${ROLL_TWICE_HIGHER_ABILITY_IDS.length} roll-twice-higher abilities, ${HELD_ITEM_PROTECTION_ABILITY_IDS.length} held-item protection abilities, ${FORCED_SWITCH_IMMUNE_ABILITIES.size} forced-switch immunity abilities, ${DEBUFF_IMMUNITY_ABILITIES.size} debuff-immunity abilities, ${Object.keys(WEATHER_DAMAGE_BONUS_ABILITIES).length + Object.keys(WEATHER_STAB_DOUBLE_ABILITIES).length} weather roll bonuses, ${Object.keys(NORMAL_MOVE_TYPE_OVERRIDE_ABILITIES).length + 1} move-type overrides, ${Object.keys(TYPE_TRIGGERED_ADVANTAGE_ABILITIES).length} type-triggered advantage abilities, 11 standalone abilities (Serene Grace/Rock Head/Sharpness/Unburden/Ripen/Cheek Pouch/Defeatist/Berserk/Iron Fist/Strong Jaw/Bulletproof), ${Object.keys(OWN_MELEE_HIT_STATUS_ABILITIES).length} own-melee-hit status abilities, 1 contact speed reaction (Gooey), 2 more standalone abilities (Analytic/Truant), 7 more standalone abilities (Ice Scales/Merciless/Intrepid Sword/No Guard/Dauntless Shield/Emergency Exit/Wimp Out), 4 more standalone abilities (Natural Cure/Regenerator/Reckless/Neuroforce), ${Object.keys(DAMAGE_TYPE_SELF_REACTION_ABILITIES).length} more standalone abilities (Steam Engine/Stamina), Plus/Minus (aura), Defiant, 3 previously-uncounted abilities (Multiscale/Shadow Shield/Sturdy, lote 9), ${Object.keys(ABILITY_REST_RESOURCES).length} once-per-rest abilities (Huge Power/Pure Power/Simple), and 3 more standalone abilities (Arena Trap/Shadow Tag/Magnet Pull, aura) out of ${abilities.length} known abilities.`);
+// Lotes 44-49: familias sonoras/climáticas, Rompemoldes, STAB, mitigación,
+// Presión y Encadenado.
+assert.equal(isSoundMove("hyper-voice", "Hyper Voice"), true);
+assert.equal(isSoundMove("tackle", "Tackle"), false);
+assert.equal(abilityBlocksIncomingMove(["soundproof"], { moveId: "hyper-voice", moveName: "Hyper Voice" }), "soundproof");
+assert.equal(abilityBlocksIncomingMove(["damp"], { moveId: "explosion" }), "damp");
+assert.equal(abilityBlocksIncomingMove(["overcoat"], { moveId: "weather-ball" }), "overcoat");
+assert.equal(abilityBlocksIncomingMove(["overcoat"], { moveId: "tackle" }), null);
+assert.equal(abilitySuppressesTargetAbilities(["mold-breaker"]), true);
+assert.equal(abilitySuppressesTargetAbilities(["overgrow"]), false);
+assert.equal(abilityMoveDamageBonus(["mega-launcher"], { moveName: "Dragon Pulse", proficiency: 4 }), 4);
+assert.equal(abilityMoveDamageBonus(["mega-launcher"], { moveName: "Tackle", proficiency: 4 }), 0);
+assert.equal(abilityForcesMoveStab(["tough-claws"], true), true);
+assert.equal(abilityForcesMoveStab(["tough-claws"], false), false);
+assert.equal(abilityMoveStabBonus(["tough-claws"], { moveType: "normal", speciesTypes: ["normal"], isMelee: true }), 2);
+assert.equal(abilityMoveStabBonus(["punk-rock"], { moveId: "hyper-voice", moveType: "normal", speciesTypes: ["electric"] }), 2);
+assert.equal(abilityTargetDamageDiceMultiplier(["tinted-lens"], [], { targetResists: true }), 2);
+assert.equal(abilityTargetDamageDiceMultiplier([], ["fluffy"], { isMelee: true, moveType: "normal" }), 0.5);
+assert.equal(abilityTargetDamageDiceMultiplier([], ["fluffy"], { isMelee: true, moveType: "fire" }), 1);
+assert.equal(abilityTargetDamageDiceMultiplier([], ["punk-rock"], { moveId: "hyper-voice" }), 0.5);
+assert.equal(abilityRollsVulnerableDamageTwiceLower(["prism-armor"], true), true);
+assert.equal(abilityRollsVulnerableDamageTwiceLower(["prism-armor"], false), false);
+assert.equal(abilityMovePpCost(["pressure"], true), 2);
+assert.equal(abilityMovePpCost(["pressure"], false), 1);
+assert.equal(abilityMinimumChainExtraHits(["skill-link"], "fury-swipes"), 1);
+assert.equal(abilityMinimumChainExtraHits([], "fury-swipes"), 0);
+assert.equal(abilityMoveTypeOverride(["liquid-voice"], "normal", { moveId: "hyper-voice", moveName: "Hyper Voice" }), "water");
+assert.equal(abilityMaximumHp(["paper-thin"], 50), 1);
+assert.equal(abilityMaximumHp([], 50), 50);
+assert.equal(abilityIgnoresPoisonStatusTypeImmunity(["corrosion"], "poisoned"), true);
+assert.equal(abilityIgnoresPoisonStatusTypeImmunity(["corrosion"], "burned"), false);
+assert.equal(abilityGrantsStatusSaveAdvantage(["wonder-skin"], ["paralyzed"]), true);
+assert.equal(abilityGrantsStatusSaveAdvantage(["wonder-skin"], ["confused"]), false);
+assert.equal(abilityProtectsAttackDamageBonuses(["hyper-cutter"]), true);
+assert.equal(abilityAutoConsumesHealingBerry(["gluttony"]), true);
+assert.deepEqual(abilityVulnerabilityFilter(["filter"], true), { die: 4, on: 4, multiplier: 0.5 });
+assert.equal(abilityIgnoresNormalFightingImmunity(["scrappy"], "normal"), true);
+assert.equal(abilityIgnoresNormalFightingImmunity(["minds-eye"], "fighting"), true);
+assert.equal(abilityIgnoresAbilityDamageImmunity(["mold-breaker"], ["water-absorb"], "water"), true);
+assert.equal(abilityIgnoresAbilityDamageImmunity([], ["water-absorb"], "water"), false);
+assert.equal(abilityFaintedAllyAttackBonus(["supreme-overlord"], 8), 5);
+assert.equal(abilitySlowStartActive(["slow-start"], 3, 4), true);
+assert.equal(abilitySlowStartActive(["slow-start"], 3, 5), false);
+assert.equal(abilityMoveUserTypeChange(["protean"], "fire"), "fire");
+assert.equal(abilityMoveUserTypeChange(["libero"], "water"), "water");
+assert.equal(abilityMoveUserTypeChange([], "fire"), null);
+assert.equal(abilityReceivedDamageTypeChange(["color-change"], "ghost"), "ghost");
+assert.equal(abilityReceivedDamageTypeChange(["color-change"], "typeless"), null);
+const wonderTraits = { dr: { value: [] }, dv: { value: ["fire"] }, di: { value: [] } };
+applyAbilityDefenses(wonderTraits, ["wonder-guard"]);
+assert.ok(wonderTraits.di.value.includes("water") && !wonderTraits.di.value.includes("fire"), "Superguarda inmuniza todo salvo vulnerabilidades");
+const fluffyTraits = { dr: { value: ["fire"] }, dv: { value: [] }, di: { value: [] } };
+applyAbilityDefenses(fluffyTraits, ["fluffy"]);
+assert.ok(fluffyTraits.dv.value.includes("fire") && !fluffyTraits.dr.value.includes("fire"), "Peluche fuerza vulnerabilidad a Fuego");
+
+assert.equal(badDreamsDamage(true, [
+  { abilities: ["bad-dreams"], proficiency: 3 },
+  { abilities: ["bad-dreams"], proficiency: 5 }
+]), 5, "Mal Sueño usa la competencia mayor y no acumula varias fuentes");
+assert.equal(badDreamsDamage(false, [{ abilities: ["bad-dreams"], proficiency: 5 }]), 0);
+assert.equal(shedSkinStatus(["shed-skin"], ["poisoned", "burned"], 4), "poisoned");
+assert.equal(shedSkinStatus(["shed-skin"], ["poisoned"], 3), null);
+globalThis.foundry ??= { utils: { deepClone: value => structuredClone(value) } };
+assert.deepEqual(abilityAdjustedMoveModifiers(["contrary"], { ac: 2, attack: -1, abilities: { str: 4 } }), { ac: -2, attack: 1, abilities: { str: -4 } });
+assert.deepEqual(abilityAdjustedMoveModifiers(["big-pecks"], { ac: -3, speed: -10 }), { ac: 0, speed: -10 });
+assert.deepEqual(abilityAdjustedMoveModifiers(["contrary", "big-pecks"], { ac: 2 }), { ac: 0 }, "Sacapecho también bloquea una reducción invertida por Respondón");
+assert.deepEqual(abilitySheerForceProfile(["sheer-force"], { damaging: true, hasSecondaryEffect: true }), { moveModifierMultiplier: 2, suppressSecondaryEffect: true });
+assert.deepEqual(abilitySheerForceProfile(["sheer-force"], { damaging: false, hasSecondaryEffect: true }), { moveModifierMultiplier: 1, suppressSecondaryEffect: false });
+assert.deepEqual(abilityCriticalDamageProfile(["sniper"], "2d6 + 1d4 + 3", true, true), { formula: "6d6 + 3d4 + 3", systemCritical: false, multiplier: 3 });
+assert.deepEqual(abilityCriticalDamageProfile([], "2d6 + 3", true, true), { formula: "2d6 + 3", systemCritical: true, multiplier: 2 });
+assert.deepEqual(abilityCriticalDamageProfile([], "2d6 + 3", true, false), { formula: "4d6 + 3", systemCritical: false, multiplier: 2 });
+assert.equal(abilityMoveActivationTime(["electric-surge"], { moveId: "electric-terrain", time: "1 action" }), "1 bonus action");
+assert.equal(abilityMoveActivationTime(["triage"], { moveId: "recover", time: "1 action", healing: true }), "1 bonus action");
+assert.equal(abilityMoveActivationTime(["triage"], { moveId: "tackle", time: "1 action", healing: false }), "1 action");
+assert.equal(abilityTriggeredMoveModifierMultiplier(["electromorphosis"], { electromorphosis: true }, "electric"), 2);
+assert.equal(abilityTriggeredMoveModifierMultiplier(["electromorphosis"], { electromorphosis: true }, "fire"), 1);
+
+console.log(`Pokémon abilities validation passed: ${automatedAbilityIds.size}/${abilities.length} catalogued as automated; all referenced abilities and move families are valid.`);

@@ -604,5 +604,10 @@
   "POKE5E.Capture.TrainedFailure": "{trainer} throws a {ball} at {pokemon}, but the Pokémon already belongs to another Trainer.",
   "POKE5E.Capture.TrainerSummary": "Level {level} Trainer. The Poké Ball will be consumed when making the attempt.",
   "POKE5E.Capture.Underwater": "Target underwater",
-  "POKE5E.Capture.ThrowDescription": "{trainer} throws a {ball} at {pokemon}."
+  "POKE5E.Capture.ThrowDescription": "{trainer} throws a {ball} at {pokemon}.",
+  "POKE5E.Abilities.Assisted": "Assisted resolution",
+  "POKE5E.Abilities.AssistedHint": "This ability requires a table decision or information that Foundry cannot determine safely.",
+  "POKE5E.Abilities.Automatic": "Automatic",
+  "POKE5E.Abilities.AutomationTitle": "Ability automation level",
+  "POKE5E.Abilities.Use": "Post ability to chat"
 }

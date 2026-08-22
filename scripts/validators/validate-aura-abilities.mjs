@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { MODULE_ID } from "../core/model.mjs";
 import {
   batteryDiceMultiplier, costarAdvantage, flowerGiftDamageBonus, flowerVeilBlocksStatus,
-  powerSpotExtraDie, steelySpiritDamageBonus, sweetVeilBlocksSleep, victoryStarAttackBonus
+  powerSpotExtraDie, steelySpiritDamageBonus, supersweetSyrupExtraDie, sweetVeilBlocksSleep, typeAuraDiceMultiplier, victoryStarAttackBonus, weatherAbilitiesSuppressed
 } from "../combat/aura-abilities.mjs";
 
 function ally(abilities, extra = {}) {
@@ -60,5 +60,16 @@ assert.equal(flowerVeilBlocksStatus(["flower-veil"], ["grass"], []), true);
 assert.equal(flowerVeilBlocksStatus([], ["grass"], [ally(["flower-veil"])]), true);
 assert.equal(flowerVeilBlocksStatus([], ["fire"], [ally(["flower-veil"])]), false, "Solo protege a un protegido de tipo Planta");
 assert.equal(flowerVeilBlocksStatus([], ["grass"], []), false);
+
+assert.equal(typeAuraDiceMultiplier({ selfAbilities: ["dark-aura"], moveType: "dark" }), 2);
+assert.equal(typeAuraDiceMultiplier({ nearbyActors: [ally(["fairy-aura"])], moveType: "fairy" }), 2);
+assert.equal(typeAuraDiceMultiplier({ selfAbilities: ["dark-aura"], nearbyActors: [ally(["aura-break"])], moveType: "dark" }), 0.5);
+assert.equal(typeAuraDiceMultiplier({ selfAbilities: ["dark-aura"], moveType: "fire" }), 1);
+assert.equal(weatherAbilitiesSuppressed(["air-lock"], []), true);
+assert.equal(weatherAbilitiesSuppressed([], [ally(["cloud-nine"])]), true);
+assert.equal(weatherAbilitiesSuppressed(["overgrow"], []), false);
+assert.equal(supersweetSyrupExtraDie(["supersweet-syrup"], []), "1d4");
+assert.equal(supersweetSyrupExtraDie([], [ally(["supersweet-syrup"])]), "1d4");
+assert.equal(supersweetSyrupExtraDie([], [ally(["overgrow"])]), null);
 
 console.log("Aura abilities validation passed.");

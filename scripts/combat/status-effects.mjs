@@ -13,8 +13,8 @@
  */
 import { MODULE_ID } from "../core/model.mjs";
 import { pokemonEffectIcon } from "../core/effect-icons.mjs";
-import { abilityBlocksStatus, abilityHealsFromPoisonTick, abilityStatusBonusEffectSource, abilityWeatherBlocksStatus, abilityWeatherHeal } from "../pokemon/pokemon-abilities.mjs";
-import { flowerVeilBlocksStatus, nearbyAllyActors, sweetVeilBlocksSleep } from "./aura-abilities.mjs";
+import { abilityBlocksStatus, abilityGrantsStatusSaveAdvantage, abilityHealsFromPoisonTick, abilityIgnoresPoisonStatusTypeImmunity, abilityStatusBonusEffectSource, abilityWeatherBlocksStatus, abilityWeatherHeal } from "../pokemon/pokemon-abilities.mjs";
+import { flowerVeilBlocksStatus, nearbyAllyActors, nearbyPokemonActors, sweetVeilBlocksSleep, weatherAbilitiesSuppressed } from "./aura-abilities.mjs";
 import { attackHitsPokemonTarget, pokemonCombatModifiers } from "./move-modifiers.mjs";
 import { confirmHeldItemReaction, consumeHeldItem, heldItemId, postHeldItemMessage, statusBerryMatches } from "../pokemon/held-items.mjs";
 import { currentField } from "./terrain-effects.mjs";
@@ -241,9 +241,11 @@ export async function applyMoveStatuses({ move, attack = null, saveDc, sourceAct
     action: STATUS_SOCKET_ACTION,
     userId: game.user.id,
     sourceActorUuid: sourceActor?.uuid,
+    sourceCombatActorUuid: sourceCombatActor?.uuid,
     sourceName,
     moveId: move.id,
     moveName: move.name,
+    sourceAbilities: sourceCombatActor?.getFlag?.(MODULE_ID, "pokemonAbilities") ?? [],
     targets
   };
   if (game.user.isGM || selected.every(token => token.actor.canUserModify(game.user, "update"))) await completeStatusApplication(payload);
@@ -370,11 +372,22 @@ export async function removePokemonStatus(pokemonItem, id) {
 async function completeStatusApplication(payload) {
   const requester = game.users.get(payload.userId);
   const sourceActor = payload.sourceActorUuid ? await fromUuid(payload.sourceActorUuid) : null;
+  const sourceCombatActor = payload.sourceCombatActorUuid ? await fromUuid(payload.sourceCombatActorUuid) : null;
   if (!requester?.active || sourceActor?.documentName !== "Actor" || !sourceActor.testUserPermission(requester, "OWNER")) return;
   for (const target of payload.targets ?? []) {
     const actor = await fromUuid(target.actorUuid);
     if (actor?.documentName !== "Actor") continue;
-    for (const effect of target.effects ?? []) await applyPokemonStatus(actor, effect.id, { sourceName: payload.sourceName, moveName: payload.moveName });
+    const targetAbilities = await pokemonAbilities(actor);
+    for (const effect of target.effects ?? []) {
+      const applied = await applyPokemonStatus(actor, effect.id, {
+        sourceName: payload.sourceName,
+        moveName: payload.moveName,
+        ignoreTypeImmunity: abilityIgnoresPoisonStatusTypeImmunity(payload.sourceAbilities, effect.id)
+      });
+      if (applied && sourceCombatActor && targetAbilities.includes("synchronize") && ["burned", "paralyzed", "poisoned", "badly-poisoned"].includes(effect.id)) {
+        await applyPokemonStatus(sourceCombatActor, effect.id, { sourceName: actor.name, moveName: "Sincronía" });
+      }
+    }
   }
 }
 
@@ -393,15 +406,15 @@ export async function applyPokemonStatus(actor, id, source) {
   // Manto Hoja/Hidratación (lote 12): inmunidad a cualquier estado mientras
   // el clima activo del combate coincida, junto a las inmunidades fijas por
   // tipo o habilidad que ya comprobaba este punto.
-  const weatherId = currentField(game.combat).weather?.id ?? null;
+  const weatherId = weatherAbilitiesSuppressed(abilities, nearbyPokemonActors(actor, 9999)) ? null : (currentField(game.combat).weather?.id ?? null);
   // Velo Dulce/Velo Flor (lote 38): auras de aliado cercano contra Dormido y
   // (si el protegido es de tipo Planta) contra cualquier estado nuevo.
   const nearbyAllies15 = nearbyAllyActors(actor, 15);
   const auraBlocksSleep = id === "asleep" && sweetVeilBlocksSleep(abilities, nearbyAllies15);
   const auraBlocksAny = flowerVeilBlocksStatus(abilities, types, nearbyAllies15);
-  if (definition.immuneTypes.some(type => types.includes(type)) || abilityBlocksStatus(abilities, id) || abilityWeatherBlocksStatus(abilities, weatherId) || auraBlocksSleep || auraBlocksAny) {
+  if ((!source?.ignoreTypeImmunity && definition.immuneTypes.some(type => types.includes(type))) || abilityBlocksStatus(abilities, id) || abilityWeatherBlocksStatus(abilities, weatherId) || auraBlocksSleep || auraBlocksAny) {
     ui.notifications.info(game.i18n.format("POKE5E.StatusEffects.Immune", { actor: actor.name, status: definition.name.toLocaleLowerCase() }));
-    return;
+    return false;
   }
   const effectId = statusId(id);
   const activePokemonStatuses = new Set(actor.effects.map(effect => effect.getFlag(MODULE_ID, "status")).filter(Boolean));
@@ -414,11 +427,11 @@ export async function applyPokemonStatus(actor, id, source) {
     // tiene (p. ej. probar Hipnosis dos veces seguidas sobre el mismo Dormido) no
     // hacía nada visible: la tirada se publicaba en el chat y ahí quedaba todo.
     ui.notifications.info(game.i18n.format("POKE5E.StatusEffects.AlreadyActive", { actor: actor.name, status: definition.name.toLocaleLowerCase() }));
-    return;
+    return false;
   }
   if (definition.nonVolatile && Object.entries(POKEMON_STATUS_EFFECTS).some(([status, entry]) => entry.nonVolatile && activePokemonStatuses.has(status))) {
     ui.notifications.info(game.i18n.format("POKE5E.StatusEffects.NonVolatile", { actor: actor.name, status: definition.name.toLocaleLowerCase() }));
-    return;
+    return false;
   }
   const effectSource = pokemonStatusEffectSource(id, source);
   await actor.createEmbeddedDocuments("ActiveEffect", [effectSource]);
@@ -436,6 +449,7 @@ export async function applyPokemonStatus(actor, id, source) {
     content: `<div class="dnd5e chat-card poke5e-status-card"><header class="card-header"><h3>${escapeHtml(actor.name)}: ${escapeHtml(definition.name)}</h3></header><p>${escapeHtml(source.moveName)} aplica <strong>${escapeHtml(definition.name)}</strong>.</p><p>${escapeHtml(definition.description)}</p></div>`
   });
   await resolveHeldItemStatusReaction(actor, id);
+  return true;
 }
 
 /**
@@ -527,7 +541,7 @@ export async function applyEndTurnAbilityHealing(actor) {
   const hp = actor.system.attributes?.hp;
   if (!hp || Number(hp.value) <= 0 || Number(hp.value) >= Number(hp.max)) return;
   const abilities = await pokemonAbilities(actor);
-  const weatherId = currentField(game.combat).weather?.id ?? null;
+  const weatherId = weatherAbilitiesSuppressed(abilities, nearbyPokemonActors(actor, 9999)) ? null : (currentField(game.combat).weather?.id ?? null);
   if (!abilityWeatherHeal(abilities, weatherId)) return;
   const pokemonItem = await pokemonItemForActor(actor);
   const level = Number(pokemonItem?.getFlag(MODULE_ID, "instance")?.level) || 1;
@@ -649,7 +663,10 @@ async function rollTargetSave(actor, move, dc, sourceModifiers = {}, sourceActor
   const sourceDisadvantage = (sourceModifiers.saveTargetsDisadvantageAbilities ?? []).some(key => attributes.includes(key));
   const darkAdvantage = await applyGruntSaveAdvantage(actor);
   const nurseAdvantage = await applyNurseStatusSaveAdvantage(actor);
-  const advantage = combat.saveAdvantage || combat.saveAdvantageAbilities.includes(chosen.key) || Boolean(sourceModifiers.saveTargetsAdvantage) || darkAdvantage || nurseAdvantage;
+  const targetAbilities = await pokemonAbilities(actor);
+  const moveStatusIds = (move.statusEffects ?? inferMoveStatusEffects(move)).map(effect => effect.id);
+  const wonderSkinAdvantage = abilityGrantsStatusSaveAdvantage(targetAbilities, moveStatusIds);
+  const advantage = combat.saveAdvantage || combat.saveAdvantageAbilities.includes(chosen.key) || Boolean(sourceModifiers.saveTargetsAdvantage) || darkAdvantage || nurseAdvantage || wonderSkinAdvantage;
   const disadvantage = combat.saveDisadvantageAbilities.includes(chosen.key) || sourceDisadvantage;
   const dice = advantage === disadvantage ? "1d20" : advantage ? "2d20kh" : "2d20kl";
   const roll = await new Roll(`${dice} + @modifier${bonusDice}`, { modifier }).evaluate();

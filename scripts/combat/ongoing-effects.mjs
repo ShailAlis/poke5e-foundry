@@ -16,6 +16,7 @@ import { pokemonEffectIcon } from "../core/effect-icons.mjs";
 import { advanceHeldItemTurn, heldItemEndTurnEffect, postHeldItemMessage } from "../pokemon/held-items.mjs";
 import { pokemonCombatModifiers } from "./move-modifiers.mjs";
 import { applyNurseStatusSaveAdvantage } from "../trainer/trainer-resources.mjs";
+import { applyEndTurnAbilityEffects } from "./ability-turn-effects.mjs";
 
 const SOCKET_ACTION = "applyOngoingMoveEffects";
 const KIND = "ongoing-move";
@@ -138,6 +139,7 @@ export function registerOngoingMoveEffects() {
     try {
       await applyEndTurnStatusDamage(previousActor);
       await applyEndTurnAbilityHealing(previousActor); // Cuenco Lluvia/Cuerpo Hielo: curación de fin de turno por clima activo (lote 8)
+      await applyEndTurnAbilityEffects(previousActor, combat);
       await applyEndTurnHeldItemEffect(previousActor);
       await processOngoingEffects(previousActor, "end");
       await advanceHeldItemTurn(previousActor);

@@ -604,5 +604,10 @@
   "POKE5E.Capture.TrainedFailure": "{trainer} lanza una {ball} a {pokemon}, pero el Pokémon ya pertenece a otro entrenador.",
   "POKE5E.Capture.TrainerSummary": "Entrenador de nivel {level}. La Poké Ball se consumirá al realizar el intento.",
   "POKE5E.Capture.Underwater": "Objetivo bajo el agua",
-  "POKE5E.Capture.ThrowDescription": "{trainer} lanza una {ball} a {pokemon}."
+  "POKE5E.Capture.ThrowDescription": "{trainer} lanza una {ball} a {pokemon}.",
+  "POKE5E.Abilities.Assisted": "Resolución asistida",
+  "POKE5E.Abilities.AssistedHint": "Esta habilidad requiere una decisión de mesa o datos que Foundry no puede determinar de forma segura.",
+  "POKE5E.Abilities.Automatic": "Automática",
+  "POKE5E.Abilities.AutomationTitle": "Nivel de automatización de la habilidad",
+  "POKE5E.Abilities.Use": "Publicar habilidad en el chat"
 }
