@@ -1,9 +1,19 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import {
-  AC_STATUS_BONUS_ABILITIES, CONTACT_DAMAGE_ABILITIES, CONTACT_STATUS_ABILITIES, FULL_STATUS_IMMUNITY_ABILITIES, GUTS_IGNORED_STATUSES, IMMUNITY_ABILITIES, LOW_HP_STAB_ABILITIES, RESISTANCE_ABILITIES, SELF_STATUS_DAMAGE_BOOST_ABILITIES, SPEED_STATUS_BONUS_ABILITIES, STATUS_IMMUNITY_ABILITIES, WEATHER_ABILITIES, WEATHER_HEAL_ABILITIES,
-  abilityBlocksStatus, abilityDeployWeather, abilityIgnoresStatusPenalty, abilityLowHpStabBonus, abilityMoveProfile, abilitySelfStatusDamageBonus, abilityStatusBonusEffectSource, abilityWeatherHeal, applyAbilityDefenses, contactDamageReaction, contactStatusReaction, pokemonAbilityDefenses
+  ABSORB_HEAL_ABILITIES, AC_STATUS_BONUS_ABILITIES, CONTACT_DAMAGE_ABILITIES, CONTACT_STATUS_ABILITIES, CRITICAL_IMMUNITY_ABILITIES, DEBUFF_IMMUNITY_ABILITIES, FORCED_SWITCH_IMMUNE_ABILITIES, FULL_STATUS_IMMUNITY_ABILITIES, GUTS_IGNORED_STATUSES, IMMUNITY_ABILITIES, LOW_HP_STAB_ABILITIES, NORMAL_MOVE_TYPE_OVERRIDE_ABILITIES, RESISTANCE_ABILITIES, SELF_STATUS_DAMAGE_BOOST_ABILITIES, SPEED_STATUS_BONUS_ABILITIES, STATUS_IMMUNITY_ABILITIES, WEATHER_ABILITIES, WEATHER_DAMAGE_BONUS_ABILITIES, WEATHER_HEAL_ABILITIES, WEATHER_STAB_DOUBLE_ABILITIES, WEATHER_STATUS_IMMUNITY_ABILITIES,
+  abilityBerryHealBonus, abilityBlocksForcedSwitch, abilityBlocksStatus, abilityDeployWeather, abilityGrantsDebuffImmunity, abilityGrantsUnburdenSpeed, abilityIgnoresCriticalDamage, abilityIgnoresRecoil, abilityIgnoresStatusPenalty, abilityLowHpCombatModifiers, abilityLowHpDamageDiceMultiplier, abilityLowHpStabBonus, abilityMoveProfile, abilityMoveTypeOverride, abilityPreventsHoldingItem, abilityProtectsHeldItem, abilityRollsDamageTwiceHigher, abilitySaveDcBonus, abilitySelfStatusDamageBonus, abilitySharpnessDoublesModifier, abilityStatusBonusEffectSource, abilityTypeTriggeredAdvantage, abilityWeatherBlocksStatus, abilityWeatherDamageBonus, abilityWeatherHeal, abilityWeatherStabBonus, absorbHealType, applyAbilityDefenses, contactDamageReaction, contactStatusReaction, pokemonAbilityDefenses,
+  STRONG_JAW_MOVE_IDS, TYPE_TRIGGERED_ADVANTAGE_ABILITIES,
+  abilityBlocksBulletproofMove, OWN_MELEE_HIT_STATUS_ABILITIES, ownMeleeHitStatusTrigger,
+  abilityGrantsAnalyticAdvantage, abilityBlocksRepeatingMove,
+  abilityIceScalesDiceMultiplier, abilityDoublesDiceAgainstPoisoned, abilityGrantsMeleeAttackAdvantage,
+  abilityGrantsSelfAttackAdvantage, abilityTargetAttackRollModifier, abilityHealsFromPoisonTick,
+  HP_THRESHOLD_SWITCH_ABILITIES, hpThresholdSwitchTrigger,
+  recallAbilityAdjustment, abilityDoublesRecoilStab, abilityRollsSuperEffectiveTwice,
+  DAMAGE_TYPE_SELF_REACTION_ABILITIES, damageTypeSelfReactionTrigger,
+  ABILITY_REST_RESOURCES, abilityRestUseAvailable, markAbilityRestUseSpent, abilityUsesAfterRest, resetAbilityRestResourcesAfterRest
 } from "../pokemon/pokemon-abilities.mjs";
+import { plusMinusAttackDamageBonus } from "../combat/aura-abilities.mjs";
 import { POKEMON_STATUS_EFFECTS } from "../combat/status-effects.mjs";
 
 const abilities = JSON.parse(fs.readFileSync(new URL("../../data/abilities.json", import.meta.url), "utf8")).items;
@@ -11,12 +21,30 @@ const abilityIds = new Set(abilities.map(entry => entry.id));
 const MOVE_PROFILE_ABILITY_IDS = ["compound-eyes", "gale-wings", "steelworker", "rivalry", "super-luck"];
 const CURSED_BODY_ABILITY_ID = "cursed-body";
 const SELF_STATUS_ABILITY_IDS = ["guts", "competitive", "flare-boost"];
+const ROLL_TWICE_HIGHER_ABILITY_IDS = ["adaptability", "dragons-maw", "rocky-payload", "transistor", "technician"];
+const HELD_ITEM_PROTECTION_ABILITY_IDS = ["sticky-hold", "klutz"];
+const NORMALIZE_ABILITY_ID = "normalize";
 const catalogued = [
   ...Object.keys(IMMUNITY_ABILITIES), ...Object.keys(RESISTANCE_ABILITIES), ...Object.keys(WEATHER_ABILITIES),
   ...Object.keys(STATUS_IMMUNITY_ABILITIES), ...FULL_STATUS_IMMUNITY_ABILITIES, ...Object.keys(CONTACT_DAMAGE_ABILITIES), ...LOW_HP_STAB_ABILITIES,
   ...MOVE_PROFILE_ABILITY_IDS, ...Object.keys(CONTACT_STATUS_ABILITIES), CURSED_BODY_ABILITY_ID, ...SELF_STATUS_ABILITY_IDS,
-  ...Object.keys(AC_STATUS_BONUS_ABILITIES), ...Object.keys(SPEED_STATUS_BONUS_ABILITIES), ...Object.keys(WEATHER_HEAL_ABILITIES)
+  ...Object.keys(AC_STATUS_BONUS_ABILITIES), ...Object.keys(SPEED_STATUS_BONUS_ABILITIES), ...Object.keys(WEATHER_HEAL_ABILITIES), ...Object.keys(ABSORB_HEAL_ABILITIES),
+  ...CRITICAL_IMMUNITY_ABILITIES, ...Object.keys(WEATHER_STATUS_IMMUNITY_ABILITIES), ...ROLL_TWICE_HIGHER_ABILITY_IDS, ...HELD_ITEM_PROTECTION_ABILITY_IDS,
+  ...FORCED_SWITCH_IMMUNE_ABILITIES, ...DEBUFF_IMMUNITY_ABILITIES, ...Object.keys(WEATHER_DAMAGE_BONUS_ABILITIES), ...Object.keys(WEATHER_STAB_DOUBLE_ABILITIES),
+  ...Object.keys(NORMAL_MOVE_TYPE_OVERRIDE_ABILITIES), NORMALIZE_ABILITY_ID, ...Object.keys(TYPE_TRIGGERED_ADVANTAGE_ABILITIES),
+  "serene-grace", "rock-head", "sharpness", "unburden", "ripen", "cheek-pouch", "defeatist", "berserk", "iron-fist", "strong-jaw", "bulletproof",
+  ...Object.keys(OWN_MELEE_HIT_STATUS_ABILITIES), "gooey", "analytic", "truant",
+  "ice-scales", "merciless", "intrepid-sword", "no-guard", "dauntless-shield", ...Object.keys(HP_THRESHOLD_SWITCH_ABILITIES),
+  "natural-cure", "regenerator", "reckless", "neuroforce",
+  ...Object.keys(DAMAGE_TYPE_SELF_REACTION_ABILITIES), "plus", "minus", "defiant",
+  "multiscale", "shadow-shield", "sturdy",
+  ...Object.keys(ABILITY_REST_RESOURCES),
+  "arena-trap", "shadow-tag", "magnet-pull"
 ];
+
+const moves = JSON.parse(fs.readFileSync(new URL("../../data/moves.json", import.meta.url), "utf8")).moves;
+const moveIds = new Set(moves.map(move => move.id));
+for (const id of STRONG_JAW_MOVE_IDS) assert.ok(moveIds.has(id), `Mandíbula Firme referencia un movimiento inexistente: ${id}`);
 const unknown = catalogued.filter(id => !abilityIds.has(id));
 assert.deepEqual(unknown, [], `Habilidades sin correspondencia en data/abilities.json: ${unknown.join(", ")}`);
 
@@ -141,4 +169,205 @@ assert.equal(abilityWeatherHeal(["rain-dish"], null), false, "Sin clima activo n
 assert.equal(abilityWeatherHeal([], "rain"), false);
 assert.equal(abilityWeatherHeal(["rain-dish", "ice-body"], "snow"), true, "Varias habilidades del lote se combinan");
 
-console.log(`Pokémon abilities validation passed: ${Object.keys(IMMUNITY_ABILITIES).length} immunities, ${Object.keys(RESISTANCE_ABILITIES).length} resistances, ${Object.keys(WEATHER_ABILITIES).length} weather-setters, ${Object.keys(STATUS_IMMUNITY_ABILITIES).length + FULL_STATUS_IMMUNITY_ABILITIES.size} status immunities, ${Object.keys(CONTACT_DAMAGE_ABILITIES).length} contact damage reactions, ${Object.keys(CONTACT_STATUS_ABILITIES).length + 1} contact status reactions, ${LOW_HP_STAB_ABILITIES.size} low-HP STAB doublers, ${MOVE_PROFILE_ABILITY_IDS.length} move-profile bonuses, ${Object.keys(SELF_STATUS_DAMAGE_BOOST_ABILITIES).length} self-status damage boosters + Guts, ${Object.keys(AC_STATUS_BONUS_ABILITIES).length + Object.keys(SPEED_STATUS_BONUS_ABILITIES).length} status AC/speed bonuses, ${Object.keys(WEATHER_HEAL_ABILITIES).length} weather-healing abilities out of ${abilities.length} known abilities.`);
+assert.equal(absorbHealType(["water-absorb"]), "water");
+assert.equal(absorbHealType(["volt-absorb"]), "electric");
+assert.equal(absorbHealType(["earth-eater"]), "ground");
+assert.equal(absorbHealType(["overgrow"]), null, "Una habilidad sin absorción con curación no aporta nada");
+assert.equal(absorbHealType([]), null);
+for (const type of Object.values(ABSORB_HEAL_ABILITIES)) assert.ok(DAMAGE_TYPES.has(type), `Tipo de daño desconocido: ${type}`);
+
+assert.equal(abilityIgnoresCriticalDamage(["battle-armor"]), true);
+assert.equal(abilityIgnoresCriticalDamage(["shell-armor"]), true);
+assert.equal(abilityIgnoresCriticalDamage(["solid-rock"]), true);
+assert.equal(abilityIgnoresCriticalDamage(["overgrow"]), false, "Una habilidad sin inmunidad a crítico no aporta nada");
+assert.equal(abilityIgnoresCriticalDamage([]), false);
+
+assert.equal(abilityBlocksStatus(["inner-focus"], "flinched"), true);
+assert.equal(abilityBlocksStatus(["inner-focus"], "confused"), false, "Foco Interior solo bloquea Amedrentado");
+assert.equal(abilityBlocksStatus(["pastel-veil"], "poisoned"), true);
+assert.equal(abilityBlocksStatus(["pastel-veil"], "badly-poisoned"), true);
+
+assert.equal(abilityWeatherBlocksStatus(["leaf-guard"], "sun"), true);
+assert.equal(abilityWeatherBlocksStatus(["leaf-guard"], "rain"), false, "Manto Hoja solo protege con sol");
+assert.equal(abilityWeatherBlocksStatus(["hydration"], "rain"), true);
+assert.equal(abilityWeatherBlocksStatus(["hydration"], null), false, "Sin clima activo no protege");
+assert.equal(abilityWeatherBlocksStatus(["overgrow"], "rain"), false, "Una habilidad sin esta inmunidad no aporta nada");
+assert.equal(abilityWeatherBlocksStatus([], "sun"), false);
+
+assert.equal(abilityRollsDamageTwiceHigher(["adaptability"], { moveType: "fire", speciesTypes: ["fire"] }), true);
+assert.equal(abilityRollsDamageTwiceHigher(["adaptability"], { moveType: "fire", speciesTypes: ["water"] }), false, "Adaptabilidad exige que el movimiento comparta tipo");
+assert.equal(abilityRollsDamageTwiceHigher(["dragons-maw"], { moveType: "dragon" }), true);
+assert.equal(abilityRollsDamageTwiceHigher(["dragons-maw"], { moveType: "fire" }), false);
+assert.equal(abilityRollsDamageTwiceHigher(["rocky-payload"], { moveType: "rock" }), true);
+assert.equal(abilityRollsDamageTwiceHigher(["transistor"], { moveType: "electric" }), true);
+assert.equal(abilityRollsDamageTwiceHigher(["technician"], { movePp: 15 }), true);
+assert.equal(abilityRollsDamageTwiceHigher(["technician"], { movePp: 14 }), false, "Técnico exige 15 PP máximos o más");
+assert.equal(abilityRollsDamageTwiceHigher([], { moveType: "fire", movePp: 20 }), false);
+assert.equal(abilityRollsDamageTwiceHigher(["overgrow"], { moveType: "fire", movePp: 20 }), false, "Una habilidad sin este efecto no aporta nada");
+
+assert.equal(abilityProtectsHeldItem(["sticky-hold"]), true);
+assert.equal(abilityProtectsHeldItem(["overgrow"]), false);
+assert.equal(abilityProtectsHeldItem([]), false);
+assert.equal(abilityPreventsHoldingItem(["klutz"]), true);
+assert.equal(abilityPreventsHoldingItem(["overgrow"]), false);
+assert.equal(abilityPreventsHoldingItem([]), false);
+
+assert.equal(abilityBlocksForcedSwitch(["suction-cups"]), true);
+assert.equal(abilityBlocksForcedSwitch(["guard-dog"]), true);
+assert.equal(abilityBlocksForcedSwitch(["overgrow"]), false, "Una habilidad sin este efecto no aporta nada");
+assert.equal(abilityBlocksForcedSwitch([]), false);
+
+assert.equal(abilityGrantsDebuffImmunity(["clear-body"]), true);
+assert.equal(abilityGrantsDebuffImmunity(["full-metal-body"]), true);
+assert.equal(abilityGrantsDebuffImmunity(["white-smoke"]), true);
+assert.equal(abilityGrantsDebuffImmunity(["overgrow"]), false, "Una habilidad sin este efecto no aporta nada");
+assert.equal(abilityGrantsDebuffImmunity([]), false);
+
+assert.equal(abilityWeatherDamageBonus(["solar-power"], "sun"), 2);
+assert.equal(abilityWeatherDamageBonus(["solar-power"], "rain"), 0, "Poder Solar solo con sol");
+assert.equal(abilityWeatherDamageBonus([], "sun"), 0);
+assert.equal(abilityWeatherStabBonus(["sand-force"], "sandstorm"), 2);
+assert.equal(abilityWeatherStabBonus(["sand-force"], "sun"), 0, "Fuerza de Arena solo con tormenta de arena");
+assert.equal(abilityWeatherStabBonus([], "sandstorm"), 0);
+
+assert.equal(abilityMoveTypeOverride(["galvanize"], "normal"), "electric");
+assert.equal(abilityMoveTypeOverride(["pixilate"], "normal"), "fairy");
+assert.equal(abilityMoveTypeOverride(["refrigerate"], "normal"), "ice");
+assert.equal(abilityMoveTypeOverride(["galvanize"], "fire"), null, "Solo cambia movimientos de tipo Normal");
+assert.equal(abilityMoveTypeOverride(["normalize"], "fire"), "normal", "Normalizar cambia cualquier tipo");
+assert.equal(abilityMoveTypeOverride(["normalize"], "normal"), "normal");
+assert.equal(abilityMoveTypeOverride([], "normal"), null);
+assert.equal(abilityMoveTypeOverride(["overgrow"], "normal"), null, "Una habilidad sin este efecto no aporta nada");
+
+for (const types of Object.values(TYPE_TRIGGERED_ADVANTAGE_ABILITIES)) for (const type of types) assert.ok(DAMAGE_TYPES.has(type), `Tipo de daño desconocido: ${type}`);
+assert.equal(abilityTypeTriggeredAdvantage(["justified"], "dark"), true);
+assert.equal(abilityTypeTriggeredAdvantage(["justified"], "fire"), false, "Firmeza solo reacciona a Siniestro");
+assert.equal(abilityTypeTriggeredAdvantage(["rattled"], "bug"), true);
+assert.equal(abilityTypeTriggeredAdvantage(["rattled"], "ghost"), true);
+assert.equal(abilityTypeTriggeredAdvantage(["toxic-boost"], "poison"), true);
+assert.equal(abilityTypeTriggeredAdvantage(["thermal-exchange"], "fire"), true);
+assert.equal(abilityTypeTriggeredAdvantage([], "dark"), false);
+assert.equal(abilityTypeTriggeredAdvantage(["justified"], null), false, "Sin tipo de daño conocido no reacciona");
+assert.equal(abilityBlocksStatus(["thermal-exchange"], "burned"), true, "Intercambio Térmico también es inmune a Quemado");
+
+assert.equal(abilitySaveDcBonus(["serene-grace"]), 1);
+assert.equal(abilitySaveDcBonus([]), 0);
+assert.equal(abilityIgnoresRecoil(["rock-head"]), true);
+assert.equal(abilityIgnoresRecoil([]), false);
+assert.equal(abilitySharpnessDoublesModifier(["sharpness"], "Night Slash"), true);
+assert.equal(abilitySharpnessDoublesModifier(["sharpness"], "Sacred Sword"), true);
+assert.equal(abilitySharpnessDoublesModifier(["sharpness"], "Aerial Ace"), false, "Sin ninguna de las palabras clave no dobla el modificador");
+assert.equal(abilitySharpnessDoublesModifier(["sharpness"], "Wedge Attack"), false, "\"wedge\" no debe confundirse con \"edge\"");
+assert.equal(abilitySharpnessDoublesModifier([], "Night Slash"), false);
+
+assert.equal(abilityGrantsUnburdenSpeed(["unburden"]), true);
+assert.equal(abilityGrantsUnburdenSpeed([]), false);
+
+assert.equal(abilityBerryHealBonus(["ripen"], 10, 100), 20, "Madurez dobla la curación de la baya");
+assert.equal(abilityBerryHealBonus(["cheek-pouch"], 10, 100), 20, "Buche suma el 10% de los PG máximos");
+assert.equal(abilityBerryHealBonus(["cheek-pouch"], 10, 25), 13, "El 10% se redondea hacia arriba (2.5 -> 3)");
+assert.equal(abilityBerryHealBonus(["ripen", "cheek-pouch"], 10, 100), 30, "Madurez dobla la base y Buche se suma después, no se duplica");
+assert.equal(abilityBerryHealBonus([], 10, 100), 10);
+
+assert.deepEqual(abilityLowHpCombatModifiers(["defeatist"], 0.2), { attackDisadvantage: true, saveTargetsAdvantage: false });
+assert.deepEqual(abilityLowHpCombatModifiers(["berserk"], 0.2), { attackDisadvantage: true, saveTargetsAdvantage: true });
+assert.deepEqual(abilityLowHpCombatModifiers(["defeatist"], 0.3), { attackDisadvantage: false, saveTargetsAdvantage: false }, "Por encima del 25% no aplica");
+assert.deepEqual(abilityLowHpCombatModifiers([], 0.1), { attackDisadvantage: false, saveTargetsAdvantage: false });
+assert.equal(abilityLowHpDamageDiceMultiplier(["berserk"], 0.2), 2);
+assert.equal(abilityLowHpDamageDiceMultiplier(["berserk"], 0.3), 1, "Por encima del 25% no dobla los dados");
+assert.equal(abilityLowHpDamageDiceMultiplier(["defeatist"], 0.2), 1, "Desertor no dobla dados, solo da desventaja");
+assert.equal(abilityLowHpDamageDiceMultiplier([], 0.1), 1);
+
+assert.equal(abilityRollsDamageTwiceHigher(["iron-fist"], { moveName: "Mega Punch" }), true);
+assert.equal(abilityRollsDamageTwiceHigher(["iron-fist"], { moveName: "Tackle" }), false, "Sin \"punch\" en el nombre no aplica Puño Férreo");
+assert.equal(abilityRollsDamageTwiceHigher(["strong-jaw"], { moveId: "crunch" }), true);
+assert.equal(abilityRollsDamageTwiceHigher(["strong-jaw"], { moveId: "tackle" }), false, "Mandíbula Firme solo con movimientos de la lista");
+
+assert.equal(abilityBlocksBulletproofMove(["bulletproof"], "Shadow Ball"), true);
+assert.equal(abilityBlocksBulletproofMove(["bulletproof"], "Bullet Seed"), true);
+assert.equal(abilityBlocksBulletproofMove(["bulletproof"], "Egg Bomb"), true);
+assert.equal(abilityBlocksBulletproofMove(["bulletproof"], "Tackle"), false, "Sin Bullet/Ball/Bomb en el nombre no aplica");
+assert.equal(abilityBlocksBulletproofMove([], "Shadow Ball"), false);
+
+for (const { status } of Object.values(OWN_MELEE_HIT_STATUS_ABILITIES)) assert.ok(statusIds.has(status), `Estado desconocido: ${status}`);
+assert.deepEqual(ownMeleeHitStatusTrigger(["poison-touch"]), { ability: "poison-touch", mode: "chance", die: 10, on: 10, status: "poisoned" });
+assert.deepEqual(ownMeleeHitStatusTrigger(["toxic-chain"]), { ability: "toxic-chain", mode: "save", dc: 16, saveAbility: "con", status: "badly-poisoned" });
+assert.equal(ownMeleeHitStatusTrigger(["overgrow"]), null, "Una habilidad sin este efecto no aporta nada");
+assert.equal(ownMeleeHitStatusTrigger([]), null);
+
+assert.equal(abilityGrantsAnalyticAdvantage(["analytic"]), true);
+assert.equal(abilityGrantsAnalyticAdvantage([]), false);
+assert.equal(abilityBlocksRepeatingMove(["truant"]), true);
+assert.equal(abilityBlocksRepeatingMove([]), false);
+
+assert.equal(abilityIceScalesDiceMultiplier(["ice-scales"], ["int"]), 0.5);
+assert.equal(abilityIceScalesDiceMultiplier(["ice-scales"], ["wis", "cha"]), 0.5);
+assert.equal(abilityIceScalesDiceMultiplier(["ice-scales"], ["str"]), 1, "Escamas de Hielo no resiste movimientos con potencia física");
+assert.equal(abilityIceScalesDiceMultiplier([], ["int"]), 1);
+assert.equal(abilityDoublesDiceAgainstPoisoned(["merciless"], ["poisoned"]), true);
+assert.equal(abilityDoublesDiceAgainstPoisoned(["merciless"], ["badly-poisoned"]), true);
+assert.equal(abilityDoublesDiceAgainstPoisoned(["merciless"], ["burned"]), false, "Despiadado solo contra Envenenado");
+assert.equal(abilityDoublesDiceAgainstPoisoned([], ["poisoned"]), false);
+assert.equal(abilityGrantsMeleeAttackAdvantage(["intrepid-sword"]), true);
+assert.equal(abilityGrantsMeleeAttackAdvantage([]), false);
+assert.equal(abilityGrantsSelfAttackAdvantage(["no-guard"]), true);
+assert.equal(abilityGrantsSelfAttackAdvantage([]), false);
+assert.deepEqual(abilityTargetAttackRollModifier(["no-guard"], false), { advantage: true, disadvantage: false });
+assert.deepEqual(abilityTargetAttackRollModifier(["dauntless-shield"], true), { advantage: false, disadvantage: true });
+assert.deepEqual(abilityTargetAttackRollModifier(["dauntless-shield"], false), { advantage: false, disadvantage: false }, "Escudo Intrépido solo cuerpo a cuerpo");
+assert.deepEqual(abilityTargetAttackRollModifier([], true), { advantage: false, disadvantage: false });
+assert.equal(abilityHealsFromPoisonTick(["poison-heal"]), true);
+assert.equal(abilityHealsFromPoisonTick([]), false);
+assert.deepEqual(hpThresholdSwitchTrigger(["emergency-exit"], 0.6, 0.4), { ability: "emergency-exit", forced: false });
+assert.deepEqual(hpThresholdSwitchTrigger(["wimp-out"], 0.6, 0.4), { ability: "wimp-out", forced: true });
+assert.equal(hpThresholdSwitchTrigger(["emergency-exit"], 0.4, 0.3), null, "Ya estaba por debajo del umbral, no cruza esta vez");
+assert.equal(hpThresholdSwitchTrigger([], 0.6, 0.4), null);
+
+assert.deepEqual(recallAbilityAdjustment(["natural-cure"], ["poisoned"], null, 1), { clearConditions: true });
+assert.equal(recallAbilityAdjustment(["natural-cure"], [], null, 1), null, "Sin estados que curar no hay nada que ajustar");
+assert.deepEqual(recallAbilityAdjustment(["regenerator"], [], { value: 10, max: 50 }, 5), { healedHp: 15 });
+assert.equal(recallAbilityAdjustment(["regenerator"], [], { value: 50, max: 50 }, 5), null, "Ya a PG máximos no cura nada");
+assert.deepEqual(
+  recallAbilityAdjustment(["natural-cure", "regenerator"], ["poisoned"], { value: 10, max: 50 }, 5),
+  { clearConditions: true, healedHp: 15 }
+);
+assert.equal(recallAbilityAdjustment([], ["poisoned"], { value: 10, max: 50 }, 5), null);
+assert.equal(abilityDoublesRecoilStab(["reckless"]), true);
+assert.equal(abilityDoublesRecoilStab([]), false);
+assert.equal(abilityRollsSuperEffectiveTwice(["neuroforce"], 2), true);
+assert.equal(abilityRollsSuperEffectiveTwice(["neuroforce"], 1), false, "Sin ser supereficaz no se activa");
+assert.equal(abilityRollsSuperEffectiveTwice([], 2), false);
+
+// Lote 41: Motor de Vapor/Vigor (reacción propia, no de contacto), Más/Menos
+// (aura, aura-abilities.mjs) y Desafiante (lote 41 también, pero se resuelve
+// en pokemonCombatModifiers()/move-modifiers.mjs — probado ahí, no aquí).
+// Multiescama/Escudo Sombra/Robustez ya existían (lote 9, damage-shields.mjs)
+// pero no estaban en `catalogued`; se suman aquí para que la cuenta total
+// de habilidades automatizadas los refleje.
+assert.equal(damageTypeSelfReactionTrigger(["steam-engine"], "fire"), "steam-engine");
+assert.equal(damageTypeSelfReactionTrigger(["steam-engine"], "water"), "steam-engine");
+assert.equal(damageTypeSelfReactionTrigger(["steam-engine"], "electric"), null, "Motor de Vapor solo reacciona a Fuego o Agua");
+assert.equal(damageTypeSelfReactionTrigger(["stamina"], "electric"), "stamina", "Vigor reacciona a cualquier tipo de daño");
+assert.equal(damageTypeSelfReactionTrigger([], "fire"), null);
+assert.equal(plusMinusAttackDamageBonus(["plus"], [{ getFlag: () => ["minus"] }]), 2);
+assert.equal(plusMinusAttackDamageBonus(["plus"], [{ getFlag: () => ["overgrow"] }]), 0, "Sin un aliado con Más o Menos no hay bono");
+assert.equal(plusMinusAttackDamageBonus(["overgrow"], [{ getFlag: () => ["plus"] }]), 0, "Hace falta conocer Más o Menos uno mismo");
+assert.equal(plusMinusAttackDamageBonus(["minus"], []), 0);
+
+// Lote 42: motor de recursos "una vez por descanso corto/largo"
+// (Fuerza Bruta/Energía Pura/Simple, primer uso). resetAbilityRestResourcesAfterRest()
+// toca Item/actor reales, así que solo se prueban aquí sus piezas puras
+// (abilityRestUseAvailable/markAbilityRestUseSpent/abilityUsesAfterRest); el
+// enganche a dnd5e.restCompleted vive en main.mjs y no tiene validador propio,
+// igual que restoreHeldItemChargesAfterRest() (held-items.mjs).
+assert.equal(abilityRestUseAvailable({}, "huge-power"), true, "Sin usos registrados el recurso está disponible");
+assert.equal(abilityRestUseAvailable({ abilityUses: { "huge-power": true } }, "huge-power"), false);
+assert.equal(abilityRestUseAvailable({}, "overgrow"), false, "Una habilidad que no es un recurso de descanso nunca está \"disponible\"");
+assert.deepEqual(markAbilityRestUseSpent({ level: 5 }, "simple"), { level: 5, abilityUses: { simple: true } });
+assert.deepEqual(markAbilityRestUseSpent({ abilityUses: { simple: true } }, "pure-power"), { abilityUses: { simple: true, "pure-power": true } });
+assert.deepEqual(markAbilityRestUseSpent({ level: 5 }, "overgrow"), { level: 5 }, "Una habilidad que no es un recurso de descanso no modifica la instancia");
+assert.deepEqual(abilityUsesAfterRest({ "huge-power": true, simple: true }, "short"), {}, "Un descanso corto limpia todos los recursos de descanso corto conocidos");
+assert.deepEqual(abilityUsesAfterRest({ "huge-power": true }, "long"), {}, "Un descanso largo también limpia los de descanso corto");
+assert.equal(typeof resetAbilityRestResourcesAfterRest, "function");
+
+console.log(`Pokémon abilities validation passed: ${Object.keys(IMMUNITY_ABILITIES).length} immunities, ${Object.keys(RESISTANCE_ABILITIES).length} resistances, ${Object.keys(WEATHER_ABILITIES).length} weather-setters, ${Object.keys(STATUS_IMMUNITY_ABILITIES).length + FULL_STATUS_IMMUNITY_ABILITIES.size} status immunities, ${Object.keys(CONTACT_DAMAGE_ABILITIES).length} contact damage reactions, ${Object.keys(CONTACT_STATUS_ABILITIES).length + 1} contact status reactions, ${LOW_HP_STAB_ABILITIES.size} low-HP STAB doublers, ${MOVE_PROFILE_ABILITY_IDS.length} move-profile bonuses, ${Object.keys(SELF_STATUS_DAMAGE_BOOST_ABILITIES).length} self-status damage boosters + Guts, ${Object.keys(AC_STATUS_BONUS_ABILITIES).length + Object.keys(SPEED_STATUS_BONUS_ABILITIES).length} status AC/speed bonuses, ${Object.keys(WEATHER_HEAL_ABILITIES).length} weather-healing abilities, ${Object.keys(ABSORB_HEAL_ABILITIES).length} absorb-heal abilities, ${CRITICAL_IMMUNITY_ABILITIES.size} critical-immunity abilities, ${Object.keys(WEATHER_STATUS_IMMUNITY_ABILITIES).length} weather status-immunity abilities, ${ROLL_TWICE_HIGHER_ABILITY_IDS.length} roll-twice-higher abilities, ${HELD_ITEM_PROTECTION_ABILITY_IDS.length} held-item protection abilities, ${FORCED_SWITCH_IMMUNE_ABILITIES.size} forced-switch immunity abilities, ${DEBUFF_IMMUNITY_ABILITIES.size} debuff-immunity abilities, ${Object.keys(WEATHER_DAMAGE_BONUS_ABILITIES).length + Object.keys(WEATHER_STAB_DOUBLE_ABILITIES).length} weather roll bonuses, ${Object.keys(NORMAL_MOVE_TYPE_OVERRIDE_ABILITIES).length + 1} move-type overrides, ${Object.keys(TYPE_TRIGGERED_ADVANTAGE_ABILITIES).length} type-triggered advantage abilities, 11 standalone abilities (Serene Grace/Rock Head/Sharpness/Unburden/Ripen/Cheek Pouch/Defeatist/Berserk/Iron Fist/Strong Jaw/Bulletproof), ${Object.keys(OWN_MELEE_HIT_STATUS_ABILITIES).length} own-melee-hit status abilities, 1 contact speed reaction (Gooey), 2 more standalone abilities (Analytic/Truant), 7 more standalone abilities (Ice Scales/Merciless/Intrepid Sword/No Guard/Dauntless Shield/Emergency Exit/Wimp Out), 4 more standalone abilities (Natural Cure/Regenerator/Reckless/Neuroforce), ${Object.keys(DAMAGE_TYPE_SELF_REACTION_ABILITIES).length} more standalone abilities (Steam Engine/Stamina), Plus/Minus (aura), Defiant, 3 previously-uncounted abilities (Multiscale/Shadow Shield/Sturdy, lote 9), ${Object.keys(ABILITY_REST_RESOURCES).length} once-per-rest abilities (Huge Power/Pure Power/Simple), and 3 more standalone abilities (Arena Trap/Shadow Tag/Magnet Pull, aura) out of ${abilities.length} known abilities.`);

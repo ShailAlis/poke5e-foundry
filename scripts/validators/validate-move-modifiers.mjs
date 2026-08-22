@@ -52,6 +52,36 @@ assert.equal(pokemonCombatModifiers(poisonedActor).attackDisadvantage, true);
 const healthyActor = { effects: [statusEffect("burned")] };
 assert.equal(pokemonCombatModifiers(healthyActor).attackDisadvantage, false);
 
+// Cuerpo Puro/Cuerpo de Metal Pleno/Humo Blanco (lote 16 de habilidades
+// Pokémon): debuffImmune también se activa por el flag síncrono
+// `pokemonAbilities`, sin necesitar ningún ActiveEffect de movimiento.
+const clearBodyActor = { effects: [], getFlag: (moduleId, key) => moduleId === "poke5e-foundry" && key === "pokemonAbilities" ? ["clear-body"] : null };
+assert.equal(pokemonCombatModifiers(clearBodyActor).debuffImmune, true);
+const noAbilityActor = { effects: [], getFlag: (moduleId, key) => moduleId === "poke5e-foundry" && key === "pokemonAbilities" ? ["overgrow"] : null };
+assert.equal(pokemonCombatModifiers(noAbilityActor).debuffImmune, false, "Una habilidad sin este efecto no aporta nada");
+
+// Desertor/Descontrol (lote 24): desventaja/ventaja según la fracción de PG
+// actuales/máximos del propio actor, ya disponibles en pokemonCombatModifiers().
+const berserkActor = { effects: [], system: { attributes: { hp: { value: 5, max: 100 } } }, getFlag: (moduleId, key) => moduleId === "poke5e-foundry" && key === "pokemonAbilities" ? ["berserk"] : null };
+assert.equal(pokemonCombatModifiers(berserkActor).attackDisadvantage, true);
+assert.equal(pokemonCombatModifiers(berserkActor).saveTargetsAdvantage, true);
+const healthyBerserkActor = { effects: [], system: { attributes: { hp: { value: 90, max: 100 } } }, getFlag: (moduleId, key) => moduleId === "poke5e-foundry" && key === "pokemonAbilities" ? ["berserk"] : null };
+assert.equal(pokemonCombatModifiers(healthyBerserkActor).attackDisadvantage, false, "Por encima del 25% de PG no aplica Descontrol");
+
+// Espada Justiciera/Sin Reparos (lotes 34/35): ventaja propia vía el mismo flag síncrono.
+const intrepidSwordActor = { effects: [], getFlag: (moduleId, key) => moduleId === "poke5e-foundry" && key === "pokemonAbilities" ? ["intrepid-sword"] : null };
+assert.equal(pokemonCombatModifiers(intrepidSwordActor).meleeAttackAdvantage, true);
+assert.equal(pokemonCombatModifiers(intrepidSwordActor).attackAdvantage, false, "Espada Justiciera solo da ventaja cuerpo a cuerpo");
+const noGuardActor = { effects: [], getFlag: (moduleId, key) => moduleId === "poke5e-foundry" && key === "pokemonAbilities" ? ["no-guard"] : null };
+assert.equal(pokemonCombatModifiers(noGuardActor).attackAdvantage, true);
+
+// Desafiante (lote 41): +2 a los propios ataques mientras haya un
+// ActiveEffect de estado (kind "pokemon-status") activo en el actor.
+const defiantPoisonedActor = { effects: [statusEffect("poisoned")], getFlag: (moduleId, key) => moduleId === "poke5e-foundry" && key === "pokemonAbilities" ? ["defiant"] : null };
+assert.equal(pokemonCombatModifiers(defiantPoisonedActor).attack, 2);
+const defiantHealthyActor = { effects: [], getFlag: (moduleId, key) => moduleId === "poke5e-foundry" && key === "pokemonAbilities" ? ["defiant"] : null };
+assert.equal(pokemonCombatModifiers(defiantHealthyActor).attack, 0, "Sin estado alterado activo, Desafiante no aporta nada");
+
 const auditCandidates = moves.filter(isTargetModifierCandidate);
 const uncovered = auditCandidates.filter(move => !MOVE_MODIFIER_EFFECTS[move.id] && !CONTEXTUAL_MODIFIER_COVERAGE[move.id]);
 assert.deepEqual(uncovered.map(move => move.id), [], `Movimientos modificadores sin cobertura: ${uncovered.map(move => move.id).join(", ")}`);

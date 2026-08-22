@@ -14,7 +14,8 @@ import { loadPoke5eData } from "../core/data-service.mjs";
 import { damageTraitsForPokemonTypes } from "../combat/combat.mjs";
 import { aceTrainerAbilityBonus, applyTypeMasteryDefense, hasTrainerPath } from "../trainer/trainer-path-rules.mjs";
 import { speciesSkillKey } from "../trainer/trainer-creation-data.mjs";
-import { applyAbilityDefenses, applyAbilityDeployWeather } from "../pokemon/pokemon-abilities.mjs";
+import { abilityBerryHealBonus, abilityGrantsUnburdenSpeed, applyAbilityDefenses, applyAbilityDeployWeather, hpThresholdSwitchTrigger, recallAbilityAdjustment } from "../pokemon/pokemon-abilities.mjs";
+import { opponentBlocksBerryEating, opponentBlocksVoluntarySwitch } from "../combat/aura-abilities.mjs";
 import { pokemonStatusEffectSource } from "../combat/status-effects.mjs";
 import { actorHasRecallLock } from "../combat/ongoing-effects.mjs";
 import {
@@ -169,7 +170,26 @@ export async function recallPokemon(pokemonItem, { fainted = false, forced = fal
     ui.notifications.warn(localizeFormat("POKE5E.Deployment.Immobilized", { pokemon: displayPokemonName(pokemonItem) }, `${displayPokemonName(pokemonItem)} está inmovilizado por un efecto mantenido y no puede ser retirado voluntariamente.`));
     return false;
   }
+  // Garra Trampa/Duotenaz/Imán (lote 43): un oponente cercano con alguna de
+  // estas habilidades impide la retirada voluntaria, igual que un efecto de
+  // inmovilización propio (mismo guardián `!fainted && !forced` de arriba).
+  if (!fainted && !forced && opponentBlocksVoluntarySwitch(actor)) {
+    ui.notifications.warn(localizeFormat("POKE5E.Deployment.Trapped", { pokemon: displayPokemonName(pokemonItem) }, `${displayPokemonName(pokemonItem)} no puede ser retirado: un oponente cercano se lo impide.`));
+    return false;
+  }
   await removeDeployment(actor, { deleteTokens: true });
+  // Cura Natural/Regenerador (lote 40): al volver a la Poké Ball, cura todos
+  // los estados alterados y/o recupera PG igual a su nivel. No se aplica si
+  // se debilitó (fainted): en los videojuegos necesita un Centro Pokémon.
+  if (!fainted) {
+    const instance = foundry.utils.deepClone(pokemonItem.getFlag(MODULE_ID, "instance") ?? {});
+    const adjustment = recallAbilityAdjustment(instance.abilities, instance.conditions, instance.hp, instance.level);
+    if (adjustment) {
+      if (adjustment.clearConditions) instance.conditions = [];
+      if (adjustment.healedHp != null) instance.hp = { ...instance.hp, value: adjustment.healedHp };
+      await pokemonItem.setFlag(MODULE_ID, "instance", instance);
+    }
+  }
   const pokemon = displayPokemonName(pokemonItem);
   const fallback = fainted ? `${pokemon} ha caído debilitado y ha vuelto con su entrenador.` : `${pokemon} ha vuelto con su entrenador.`;
   ui.notifications.info(localizeFormat(fainted ? "POKE5E.Deployment.RecalledFainted" : "POKE5E.Deployment.Recalled", { pokemon }, fallback));
@@ -215,12 +235,17 @@ export async function syncDeploymentHp(actor) {
     ejectButtonActivated = await confirmHeldItemReaction(held.name, `<p>${foundry.utils.escapeHTML(displayPokemonName(item))} ha recibido daño. Si procede de un ataque, ¿consumir una carga para retirarlo como acción gratuita?</p>`);
     if (ejectButtonActivated) held.charges = 0;
   }
-  if (held && resolution.reaction) {
+  // Prepotencia/Compañero del Alma (lote 39): ningún oponente en la escena
+  // con esa habilidad puede comer bayas, ni siquiera como reacción de curación.
+  if (held && resolution.reaction && opponentBlocksBerryEating(actor)) {
+    await postHeldItemMessage(item, held, "No puede comerla: un oponente cercano tiene Prepotencia o Compañero del Alma.");
+  } else if (held && resolution.reaction) {
     const confirmed = await confirmHeldItemReaction(held.name, `<p>${foundry.utils.escapeHTML(displayPokemonName(item))} ha bajado de la mitad de sus PG. ¿Consumir ${foundry.utils.escapeHTML(held.name)}?</p>`);
     if (confirmed) {
-      const amount = resolution.reaction.formula
+      const rolled = resolution.reaction.formula
         ? await rollHeldItemFormula(item, resolution.reaction.formula, `${held.name} · Reacción de curación`)
         : resolution.reaction.healing;
+      const amount = abilityBerryHealBonus(instance.abilities, rolled, maximumHp);
       const healed = Math.min(Math.max(0, Number(amount) || 0), Math.max(0, maximumHp - resolvedHp));
       resolvedHp += healed;
       delete instance.heldItem;
@@ -242,6 +267,24 @@ export async function syncDeploymentHp(actor) {
     await postHeldItemMessage(item, held, "Consume su carga y devuelve al portador con su entrenador.");
     await recallPokemon(item, { forced: true });
     return;
+  }
+  // Salida de Emergencia/Rendirse (lote 37): al cruzar el 50% de PG máximos
+  // hacia abajo por esta bajada concreta, ofrece (Salida de Emergencia) o
+  // fuerza (Rendirse) la retirada. Solo para Pokémon de entrenador: un
+  // salvaje no tiene a quién retirarse.
+  if (kind === "deployed" && resolution.damage > 0 && maximumHp > 0) {
+    const previousFraction = Number(instance.hp?.value ?? actorHp) / maximumHp;
+    const nextFraction = resolvedHp / maximumHp;
+    const hpSwitchTrigger = hpThresholdSwitchTrigger(instance.abilities, previousFraction, nextFraction);
+    if (hpSwitchTrigger) {
+      const label = hpSwitchTrigger.ability === "wimp-out" ? "Rendirse" : "Salida de Emergencia";
+      const proceed = hpSwitchTrigger.forced || await confirmHeldItemReaction(label, `<p>${foundry.utils.escapeHTML(displayPokemonName(item))} ha bajado de la mitad de sus PG. ¿Retirarlo del combate (${label})?</p>`);
+      if (proceed) {
+        await ChatMessage.create({ content: `<div class="dnd5e chat-card poke5e-status-card"><p><strong>${foundry.utils.escapeHTML(displayPokemonName(item))}</strong> se retira del combate por ${foundry.utils.escapeHTML(label)}.</p></div>` });
+        await recallPokemon(item, { forced: true });
+        return;
+      }
+    }
   }
   if (resolution.events.some(event => event.type === "air-balloon-popped")) await syncPokemonHeldItemToDeployment(item);
   if (kind === "deployed" && resolvedHp <= 0) await recallPokemon(item, { fainted: true });
@@ -301,6 +344,12 @@ export async function syncPokemonHeldItemToDeployment(item) {
   }
   if (adjustments.speed) {
     for (const key of ["walk", "fly", "swim", "burrow", "climb"]) if (movement[key] > 0) movement[key] += adjustments.speed;
+  }
+  // Impasible (unburden, lote 22): +10 pies de velocidad mientras no lleve
+  // objeto equipado. Se recalcula aquí porque esta función ya se ejecuta
+  // cada vez que cambia el objeto (equipar, consumir, romper, restaurar).
+  if (!held && abilityGrantsUnburdenSpeed(instance.abilities)) {
+    for (const key of ["walk", "fly", "swim", "burrow", "climb"]) if (movement[key] > 0) movement[key] += 10;
   }
   await actor.update({
     "system.attributes.ac.calc": "flat",
@@ -577,6 +626,11 @@ async function deployedActorSource(pokemonItem) {
   }
   if (heldAdjustments.speed) {
     for (const key of ["walk", "fly", "swim", "burrow", "climb"]) if (movement[key] > 0) movement[key] += heldAdjustments.speed;
+  }
+  // Impasible (unburden, lote 22): +10 pies de velocidad mientras no lleve
+  // objeto equipado.
+  if (!instance.heldItem && abilityGrantsUnburdenSpeed(instance.abilities)) {
+    for (const key of ["walk", "fly", "swim", "burrow", "climb"]) if (movement[key] > 0) movement[key] += 10;
   }
   const senseRanges = { darkvision: 0, blindsight: 0, tremorsense: 0, truesight: 0 };
   for (const sense of species.senses ?? []) {

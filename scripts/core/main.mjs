@@ -31,6 +31,7 @@ import { registerDamageShields } from "../combat/damage-shields.mjs";
 import { registerFieldEffects } from "../combat/terrain-effects.mjs";
 import { registerCombatHistory } from "../combat/combat-history.mjs";
 import { restoreHeldItemChargesAfterRest } from "../pokemon/held-items.mjs";
+import { resetAbilityRestResourcesAfterRest } from "../pokemon/pokemon-abilities.mjs";
 import { clearPoke5eDataCache, loadPoke5eData } from "./data-service.mjs";
 import { configurePokedollarEconomy } from "../world/economy.mjs";
 import { synchronizePrimaryParty } from "../trainer/primary-party.mjs";
@@ -294,10 +295,14 @@ Hooks.on("updateItem", (item, changes) => {
 
 /**
  * Delega `dnd5e.restCompleted` en held-items.mjs: el descanso largo actúa como
- * amanecer para las cargas y el corto permite reparar el Globo Helio.
+ * amanecer para las cargas y el corto permite reparar el Globo Helio. También
+ * restaura los recursos "una vez por descanso" de habilidad (lote 42,
+ * pokemon-abilities.mjs) — función hermana en vez de fusionarla con la de
+ * objetos equipados, para no mezclar sus vocabularios.
  */
 Hooks.on("dnd5e.restCompleted", (actor, result, config) => {
   restoreHeldItemChargesAfterRest(actor, config).catch(error => console.error(`${MODULE_ID} | Held item rest reset failed`, error));
+  resetAbilityRestResourcesAfterRest(actor, config).catch(error => console.error(`${MODULE_ID} | Ability rest resource reset failed`, error));
 });
 
 /** Retira del mapa el token de un Pokémon cuyo Item se ha borrado (deployment.mjs). */

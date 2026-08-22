@@ -125,8 +125,250 @@
  * previsibilidad — así que toda la lógica de recorte de PG vive en un único
  * hook en damage-shields.mjs, y este archivo solo aporta el catálogo de
  * habilidades y la función pura que decide si aplican.
+ *
+ * Lote 10: absorción con curación (Absorbe Agua, Absorbe Electricidad, Come
+ * Tierra) — el catálogo real de estas tres no es solo "inmune al tipo X"
+ * (ya cubierto desde la fase 1 vía IMMUNITY_ABILITIES): además absorben la
+ * mitad del daño que habrían recibido y lo convierten en curación. La
+ * inmunidad de tipo sigue viniendo de damageTraitsForPokemonTypes()/
+ * applyAbilityDefenses() al desplegar, sin tocar; la curación se resuelve
+ * aparte, en #rollMove() (pokemon-sheet.mjs), reutilizando recoilAmount()
+ * (recoil.mjs, la misma fracción 0.5 de la familia de drenaje) sobre el
+ * daño en bruto ya tirado (`dealtDamageTotal`), antes de que la inmunidad
+ * del objetivo lo reduzca a cero al aplicarlo.
+ *
+ * Lote 11: sin extra de daño por golpe crítico (Armadura Bélica, Armadura
+ * Concha, Roca Sólida). Se resuelve apagando `critical` en las opciones de
+ * DamageRoll, solo cuando hay un único objetivo seleccionado —el daño se
+ * tira una sola vez para todos los alcanzados, así que no hay forma de
+ * tratar distinto a dos objetivos con habilidades distintas en la misma
+ * tirada, la misma limitación que ya reconoce Alza tus defensas (Tactician
+ * 9) en #rollMove().
+ *
+ * Lote 12: dos añadidos al lote 1 (Foco Interior inmune a Amedrentado, Velo
+ * Pastel inmune a Envenenado en su parte propia —la de sus aliados es una
+ * aura fuera de alcance—) y una familia nueva, inmunidad a TODO estado
+ * condicionada al clima activo (Manto Hoja con sol, Hidratación con lluvia):
+ * abilityWeatherBlocksStatus() se consulta en applyPokemonStatus()
+ * (status-effects.mjs) junto a abilityBlocksStatus(), reutilizando
+ * currentField() (terrain-effects.mjs) igual que ya hace
+ * applyEndTurnAbilityHealing() del lote 8.
+ *
+ * Lote 13: tirar el daño dos veces y quedarse con el MAYOR cuando el
+ * movimiento cumple una condición de tipo o de PP (Adaptabilidad, Fauces de
+ * Dragón, Carga Rocosa, Transistor, Técnico) — lo opuesto de Quemado (que ya
+ * tira dos veces y se queda con el menor). Se resuelve en el mismo bloque de
+ * #rollMove() (pokemon-sheet.mjs) que Quemado, con la misma pareja de
+ * tiradas reutilizada para ambos casos; si el Pokémon está quemado, Quemado
+ * gana y esta familia no se activa esa vez (combinar las dos exigiría una
+ * tercera tirada y un criterio de desempate que el texto original no da).
+ * Se sumaron después Puño Férreo (movimientos de puño, detectados por el
+ * nombre en inglés como Filo) y Mandíbula Firme (movimientos de mordisco,
+ * sin patrón de nombre común: se listan explícitamente en
+ * STRONG_JAW_MOVE_IDS, el mismo puñado que reconoce el juego original).
+ *
+ * Lote 14: protección del objeto equipado. Ventosas bloquea Cambiazo/Ladrón/
+ * Robo (las tres llamadas a requestHeldItemSwap()/requestHeldItemDestroy()
+ * en #rollMove(), pokemon-sheet.mjs) contra el Pokémon que la conoce; Torpeza
+ * bloquea el propio flujo de equipar un objeto (#equipHeldItem()) para que
+ * nunca llegue a tener uno. Ninguna de las dos necesita tocar held-items.mjs:
+ * ambas son una comprobación previa a una llamada que ya existía.
+ *
+ * Lote 15: inmunidad a cambio forzado (Ventosas, Guardián — el resto del
+ * texto de Guardián, "Intimidación contra él con desventaja e inmune a la
+ * habilidad Intimidate", queda fuera porque Intimidate no tiene ningún
+ * mecanismo automatizado del que eximirse). abilityBlocksForcedSwitch() se
+ * consulta al principio de requestForcedSwitch() (forced-switch.mjs), antes
+ * de cualquier otra cosa, con su propia copia de pokemonItemForActor().
+ *
+ * Lote 16: inmunidad a debuffs (Cuerpo Puro, Cuerpo de Metal Pleno, Humo
+ * Blanco) reutilizando el flag `debuffImmune` que `pokemonCombatModifiers()`
+ * (move-modifiers.mjs) ya calculaba a partir de ActiveEffects de movimiento;
+ * ahora también lo activa conocer una de estas tres habilidades. No cubre
+ * Pico Grande/Cortador Grande (versión de un solo stat: CA o ataque/daño),
+ * porque el flag existente es "todo o nada" por categoría, no por
+ * característica concreta.
+ *
+ * Lote 17: bonos condicionados al clima activo del combate en la propia
+ * tirada, sin estado adicional que guardar (Poder Solar +2 al daño con sol,
+ * Fuerza de Arena duplica el STAB con tormenta de arena) — mismos huecos que
+ * abilitySelfStatusDamageBonus() y abilityLowHpStabBonus() en #rollMove(),
+ * leyendo `currentField(game.combat).weather` igual que el lote 8.
+ *
+ * Lote 18: velocidad duplicada y bono de CA por clima o terreno ACTIVOS
+ * (Clorofila/Nado Rápido/Paso Arena/Aguanieve duplican la velocidad; Onda
+ * Voltaica lo mismo pero por terreno; Velo Arena/Manto Nieve suman CA por
+ * clima; Pelaje Herboso por terreno). A diferencia de todos los lotes
+ * anteriores, esto SÍ afecta al Pokémon mientras está desplegado sin que él
+ * mismo haga nada (el clima/terreno lo puso otro, o simplemente sigue
+ * activo), así que no puede resolverse en el momento de una tirada como el
+ * lote 17: terrain-effects.mjs recalcula el ActiveEffect de
+ * abilityFieldBonusEffectSource() para todos los actores desplegados y
+ * salvajes cada vez que el campo cambia (refreshFieldAbilityBonuses()).
+ *
+ * Lote 19: cambio del tipo de daño (Galvanismo/Pixelado/Refrigerar cambian
+ * los movimientos de tipo Normal; Normalizar cambia CUALQUIER movimiento a
+ * Normal). abilityMoveTypeOverride() se consulta en #rollMove() justo
+ * después de elegir el tipo de daño del movimiento, mismo punto donde ya
+ * vive el cambio de tipo de Diluvio Iónico.
+ *
+ * Lote 20: ventaja en el próximo ataque al recibir un tipo de daño concreto
+ * (Firmeza, Nervios, Impulso Tóxico, Intercambio Térmico —que de paso se
+ * suma al lote 1/12 como inmune a Quemado—). Reutiliza applyDynamicModifier()
+ * (move-modifiers.mjs) en vez de un ActiveEffect propio, en el mismo bucle
+ * por objetivo alcanzado del lote 10 (absorción con curación), porque
+ * comparte el mismo criterio de "tipo de daño recibido".
+ *
+ * Lote 21: tres habilidades sueltas que no encajan en ninguna familia
+ * anterior. Gracia Sereno (+1 a la CD de salvación de sus movimientos) suma
+ * al mismo `8 + attackMoveModifier + proficiency` que ya se repetía cinco
+ * veces en #rollMove(). Cabeza Roca (sin daño de retroceso propio) apaga
+ * `recoilFraction` antes de restar PG. Filo dobla el modificador MOVE de un
+ * movimiento si su nombre en inglés contiene "Cut/Blade/Slash/Edge/Cleave/
+ * Razor/Sword/Axe" — el único dato disponible para detectarlo, ya que el
+ * catálogo no etiqueta "movimiento cortante" de ningún otro modo.
+ *
+ * Lote 22: Impasible (+10 pies de velocidad mientras no lleva objeto
+ * equipado). Se recalcula en deployment.mjs/wild-deployment.mjs junto al
+ * resto de ajustes de velocidad del objeto equipado, porque ya se
+ * recomputan cada vez que el objeto cambia (equipar, consumir, romper,
+ * restaurar) — un salvaje, que nunca lleva objeto en este proyecto, lo
+ * cumple siempre.
+ *
+ * Lote 23: Madurez y Buche corrigen la cantidad que curan Baya Zanahoria y
+ * Baya Saludable, las dos únicas bayas de curación automática del catálogo
+ * de objetos (held-items.mjs). abilityBerryHealBonus() se llama en los dos
+ * sitios donde ya se resolvía esa curación: syncDeploymentHp() (deployment.mjs,
+ * bajada de PG en combate) y resolvePokemonHpBerryReaction() (held-items.mjs,
+ * edición manual de PG en la ficha Pokédex).
+ *
+ * Lote 24: Desertor/Descontrol, ataques con desventaja al 25% o menos de PG
+ * máximos —Descontrol además dobla los dados de daño y da ventaja a la
+ * salvación del objetivo—. La desventaja propia y la ventaja del objetivo se
+ * calculan dentro de pokemonCombatModifiers() (move-modifiers.mjs, mismo
+ * hueco síncrono que el lote 16), porque esa función ya tiene el actor y por
+ * tanto sus PG actuales/máximos sin necesitar ningún dato adicional; el
+ * doblado de dados se resuelve aparte en #rollMove(), junto al resto de
+ * multiplicadores de dados de la tirada.
+ *
+ * Lote 26: Antibalas, inmunidad total (no un tipo de daño) a movimientos con
+ * "Bullet/Ball/Bomb" en el nombre. Se resuelve anulando `formula` antes de
+ * tirar daño en #rollMove(), solo con un único objetivo seleccionado.
+ *
+ * Lote 27: envenenar con el propio golpe cuerpo a cuerpo (dirección
+ * contraria a los lotes de contacto anteriores, que reaccionan al golpe
+ * RECIBIDO): Toque Tóxico (1d10, envenena con un 10) y Cadena Tóxica
+ * (salvación de CON CD 16, gravemente envenenado si falla, reutilizando
+ * rollFailedSaves() de hp-effects.mjs). Se resuelve en el mismo bucle de
+ * objetivos alcanzados que ya usan Falso Tortazo/Ladrón en #rollMove().
+ *
+ * Lote 28: Baba, reacción de contacto que dobla la familia de daño/estado de
+ * los lotes 2/5 con un efecto de velocidad: reduce la del atacante a 0
+ * durante una ronda mediante un ActiveEffect propio, el mismo patrón OVERRIDE
+ * que ya usa Parálisis pero con caducidad automática en vez de ligado a un
+ * estado no volátil.
+ *
+ * Lote 29: Analítico, ventaja en el próximo ataque tras fallar el anterior.
+ * Reutiliza `instance.lastAttackMissed`, ya calculado en #rollMove() para
+ * otros efectos condicionados a fallar, y applyDynamicModifier() para la
+ * ventaja de una ronda — sin ActiveEffect propio ni cálculo nuevo.
+ *
+ * Lote 30: Constancia, no puede repetir el mismo movimiento en rondas
+ * consecutivas. Reutiliza `instance.lastMoveId` (ya se guarda tras cada
+ * tirada) para comparar contra el movimiento elegido esta vez, en el mismo
+ * punto donde #rollMove() ya bloquea un movimiento en recarga
+ * (isMoveRecharging()).
+ *
+ * Lotes 31-37: siete habilidades sueltas más. Escamas de Hielo (resistencia
+ * a movimientos con potencia INT/SAB/CAR) usa `diceMultiplier` 0.5, mismo
+ * hueco que otros multiplicadores de dados, solo con un único objetivo
+ * seleccionado. Cura Tóxica (poison-heal) se suma a IMMUNITY_ABILITIES/
+ * ABSORB_HEAL_ABILITIES del lote 1/10 (inmune a daño de tipo Veneno y cura la
+ * mitad), más una corrección aparte en applyEndTurnStatusDamage()
+ * (status-effects.mjs) para que el daño periódico de Envenenado cure en vez
+ * de dañar. Despiadado dobla los dados de daño contra un objetivo
+ * envenenado (extiende el lote 13/25 con el estado del objetivo). Espada
+ * Justiciera y Sin Reparos dan ventaja a los propios ataques (cuerpo a
+ * cuerpo la primera, cualquiera la segunda). Sin Reparos y Escudo Intrépido
+ * también actúan sobre el ATACANTE cuando el objetivo los conoce
+ * (abilityTargetAttackRollModifier()), con el mismo único-objetivo que el
+ * resto de comprobaciones "por objetivo" de #rollMove(). Salida de
+ * Emergencia/Rendirse ofrecen o fuerzan la retirada al cruzar el 50% de PG
+ * máximos hacia abajo, resuelto en syncDeploymentHp() (deployment.mjs) junto
+ * al resto de reacciones por bajada de PG.
+ *
+ * Lotes 38-39: la primera familia que mide distancia entre tokens del
+ * lienzo. Vive en `combat/aura-abilities.mjs`, no aquí, porque necesita
+ * `canvas`/`game` (nada comprobable desde Node) y sirve a varios archivos
+ * consumidores (pokemon-sheet.mjs, status-effects.mjs, deployment.mjs) igual
+ * que el resto de motores de combate. El lote 38 son las auras de aliado
+ * cercano (Batería, Punto de Poder, Espíritu Metálico, Costar, Regalo Flor,
+ * Estrella Victoria —esta última sin límite de distancia en su texto—,
+ * Velo Dulce, Velo Flor). El lote 39 es Prepotencia/Compañero del Alma:
+ * ningún oponente en la escena puede comer bayas, ni siquiera como reacción
+ * de curación en syncDeploymentHp().
+ *
+ * Lote 40: cuatro habilidades sueltas más. Cura Natural/Regenerador se
+ * resuelven en recallPokemon() (deployment.mjs) al volver a la Poké Ball —
+ * Regenerador simplifica el límite "una vez por descanso largo" porque este
+ * proyecto no lleva un contador de usos por Pokémon, solo por objeto
+ * equipado—. Alocado dobla el STAB con movimientos que ya tienen retroceso
+ * (RECOIL_FRACTION_MOVES, recoil.mjs), mismo hueco que el resto de bonos de
+ * STAB. Fuerza Neuronal extiende el mecanismo "tirar dos veces y quedarse
+ * con el mayor" del lote 13, condicionado a que el golpe sea supereficaz
+ * (pokemonDefenses(), combat.mjs) contra el único objetivo seleccionado.
+ *
+ * Lote 41: cinco habilidades sueltas más. Motor de Vapor/Vigor son
+ * "reacciones propias" (no de contacto: cualquier golpe alcanzado, del
+ * atacante que sea) que crean un ActiveEffect de una ronda sobre el propio
+ * defensor -velocidad de andar x2 o CA +2-, mismo patrón de duración
+ * simplificada que la Baba del lote 28 pero SOBRE quien lo sufre en vez de
+ * sobre el atacante; DAMAGE_TYPE_SELF_REACTION_ABILITIES/
+ * damageTypeSelfReactionTrigger()/applyDamageTypeSelfReaction() borran y
+ * recrean el efecto en vez de apilarlo, igual que abilityFieldBonusEffectSource()
+ * en terrain-effects.mjs. Compactación Acuática se descarta a propósito:
+ * "reduce a la mitad cualquier otro daño" no es una resistencia de tipo
+ * fijo, y el daño real lo aplica el botón de Aplicar Daño de D&D 5e a partir
+ * de `system.traits` -el mismo límite ya documentado para Filtro/Lente
+ * Teñida, no se puede recortar un tipo de daño arbitrario después de
+ * tirarlo-. Más/Menos vive en aura-abilities.mjs (plusMinusAttackDamageBonus):
+ * +2 a ataque y daño propios si un aliado en la misma escena (sin límite de
+ * distancia, igual que Estrella Victoria) también conoce Más o Menos.
+ * Desafiante suma +2 a los propios ataques mientras el Pokémon sufra
+ * cualquier estado alterado activo (STATUS_KIND en pokemonCombatModifiers(),
+ * move-modifiers.mjs); el texto original también cubre una reducción de
+ * característica impuesta por el rival, pero este proyecto no lleva un
+ * registro de "quién causó" cada cambio de característica, así que se
+ * simplifica al caso de estado alterado.
+ *
+ * Lote 42: motor de recursos "una vez por descanso corto/largo"
+ * (ABILITY_REST_RESOURCES/abilityRestUseAvailable()/markAbilityRestUseSpent()/
+ * abilityUsesAfterRest()/resetAbilityRestResourcesAfterRest()). Hasta ahora
+ * este proyecto solo llevaba un contador de usos por OBJETO EQUIPADO
+ * (`instance.heldItem.charges`, held-items.mjs); este lote introduce el
+ * equivalente por HABILIDAD (`instance.abilityUses`, un mapa habilidad→usada
+ * desde el último descanso que le toque), enganchado al mismo hook
+ * `dnd5e.restCompleted` que ya restaura las cargas de objetos equipados
+ * (main.mjs) mediante una función hermana en vez de tocar
+ * restoreHeldItemChargesAfterRest() —evita mezclar el vocabulario de "objeto
+ * equipado" con el de "habilidad" en el mismo archivo—. Un descanso largo
+ * también limpia los recursos de descanso corto (incluye uno), igual que la
+ * convención habitual de D&D 5e. Primer uso: Fuerza Bruta/Energía Pura
+ * (duplican los dados de daño de un único golpe) y Simple (duplica el
+ * modificador MOVE del daño de un único golpe; el texto original también
+ * permite aplicarlo al ataque en vez de al daño, pero se simplifica siempre
+ * al daño para no bifurcar el diálogo de confirmación en #rollMove()),
+ * resueltas con un diálogo confirmHeldItemReaction() antes de construir la
+ * fórmula de daño, mismo patrón que ya usa Golpes disciplinados
+ * (pokemon-sheet.mjs) para preguntar antes de actuar.
+ *
+ * Lote 43: Garra Trampa/Duotenaz/Imán viven en aura-abilities.mjs
+ * (opponentBlocksVoluntarySwitch()), no aquí, porque necesitan recorrer el
+ * lienzo igual que el resto de esa familia; se enganchan en recallPokemon()
+ * (deployment.mjs) con el mismo guardián `!fainted && !forced` que ya usa
+ * actorHasRecallLock() para los efectos de inmovilización propios.
  */
-import { MODULE_ID } from "../core/model.mjs";
+import { MODULE_ID, getPokemonItems } from "../core/model.mjs";
 import { typeLabel } from "../combat/combat.mjs";
 import { requestFieldEffect } from "../combat/terrain-effects.mjs";
 
@@ -143,7 +385,8 @@ export const IMMUNITY_ABILITIES = Object.freeze({
   "dry-skin": "water",
   "well-baked-body": "fire",
   "earth-eater": "ground",
-  "wind-rider": "flying"
+  "wind-rider": "flying",
+  "poison-heal": "poison"
   // Soundproof/Bulletproof no encajan aquí: dan inmunidad a movimientos
   // "de sonido" o "balísticos", una propiedad del movimiento que el catálogo
   // de datos no etiqueta, no un tipo de daño — necesitarían su propia pasada
@@ -179,7 +422,13 @@ export const STATUS_IMMUNITY_ABILITIES = Object.freeze({
   "own-tempo": ["confused"],
   "water-veil": ["burned"],
   "water-bubble": ["burned"],
-  "magma-armor": ["frozen"]
+  "thermal-exchange": ["burned"],
+  "magma-armor": ["frozen"],
+  "inner-focus": ["flinched"],
+  // Velo Pastel protege también a los aliados cercanos ("y sus aliados"),
+  // pero eso es una aura (fuera de alcance, ver cabecera del archivo); aquí
+  // solo se cubre la parte propia, ya presente en el texto sin condición.
+  "pastel-veil": ["poisoned", "badly-poisoned"]
 });
 
 /** Habilidades que dan inmunidad a todos los estados del catálogo. */
@@ -592,4 +841,591 @@ export function abilityStatusBonusEffectSource(abilities = []) {
     duration: {},
     flags: { [MODULE_ID]: { kind: "ability-status-bonus" } }
   };
+}
+
+/**
+ * Habilidad → tipo de daño que absorbe como curación en vez de solo
+ * bloquearlo (Absorbe Agua, Absorbe Electricidad, Come Tierra; ver el Lote
+ * 10 en la cabecera del archivo). Comparte ids con IMMUNITY_ABILITIES: la
+ * inmunidad de tipo no cambia, esto solo añade la mitad del daño en bruto
+ * como curación.
+ */
+export const ABSORB_HEAL_ABILITIES = Object.freeze({
+  "water-absorb": "water",
+  "volt-absorb": "electric",
+  "earth-eater": "ground",
+  "poison-heal": "poison"
+});
+
+/**
+ * Tipo de daño que las habilidades conocidas absorben como curación, o null
+ * si ninguna coincide. La consulta #rollMove() (pokemon-sheet.mjs) para
+ * decidir si un objetivo alcanzado por ese tipo de daño se cura la mitad de
+ * lo tirado en vez de solo evitarlo.
+ */
+export function absorbHealType(abilities = []) {
+  for (const id of abilities ?? []) if (ABSORB_HEAL_ABILITIES[id]) return ABSORB_HEAL_ABILITIES[id];
+  return null;
+}
+
+/**
+ * Habilidades sin extra de daño por golpe crítico (Armadura Bélica, Armadura
+ * Concha, Roca Sólida: mismo efecto exacto con distinto nombre). Se resuelve
+ * en #rollMove() (pokemon-sheet.mjs) apagando el flag `critical` de las
+ * opciones de DamageRoll cuando el único objetivo seleccionado la conoce.
+ */
+export const CRITICAL_IMMUNITY_ABILITIES = Object.freeze(new Set(["battle-armor", "shell-armor", "solid-rock"]));
+
+/** True si el Pokémon conoce alguna habilidad de CRITICAL_IMMUNITY_ABILITIES. */
+export function abilityIgnoresCriticalDamage(abilities = []) {
+  return (abilities ?? []).some(id => CRITICAL_IMMUNITY_ABILITIES.has(id));
+}
+
+/**
+ * Habilidad → climas que dan inmunidad a CUALQUIER estado del catálogo
+ * mientras estén activos (Manto Hoja con sol, Hidratación con lluvia — el
+ * texto de Hidratación también cubre "en el agua", un terreno que este
+ * proyecto no rastrea, así que se simplifica al clima de lluvia).
+ */
+export const WEATHER_STATUS_IMMUNITY_ABILITIES = Object.freeze({
+  "leaf-guard": ["sun"],
+  hydration: ["rain"]
+});
+
+/** True si alguna habilidad conocida da inmunidad a estado con el clima activo dado. */
+export function abilityWeatherBlocksStatus(abilities = [], weatherId = null) {
+  if (!weatherId) return false;
+  return (abilities ?? []).some(id => WEATHER_STATUS_IMMUNITY_ABILITIES[id]?.includes(weatherId));
+}
+
+/**
+ * Habilidades que tiran el daño dos veces y se quedan con el resultado
+ * mayor cuando el movimiento cumple su condición: Adaptabilidad (el
+ * movimiento comparte tipo con el Pokémon, STAB o no), Fauces de Dragón
+ * (tipo Dragón), Carga Rocosa (tipo Roca), Transistor (tipo Eléctrico) y
+ * Técnico (el movimiento tiene 15 PP máximos o más). Cada una solo mira su
+ * propia condición, listadas como datos porque la lógica que las consulta
+ * (abilityRollsDamageTwiceHigher()) es idéntica para las cinco.
+ */
+export function abilityRollsDamageTwiceHigher(abilities = [], { moveType = null, speciesTypes = [], movePp = 0, moveId = null, moveName = "" } = {}) {
+  const known = new Set(abilities ?? []);
+  if (known.has("adaptability") && speciesTypes.includes(moveType)) return true;
+  if (known.has("dragons-maw") && moveType === "dragon") return true;
+  if (known.has("rocky-payload") && moveType === "rock") return true;
+  if (known.has("transistor") && moveType === "electric") return true;
+  if (known.has("technician") && Number(movePp) >= 15) return true;
+  // Puño Férreo (punch): el catálogo no etiqueta "movimiento de puño", igual
+  // que Filo (lote 21) se detecta por el nombre en inglés.
+  if (known.has("iron-fist") && /punch/i.test(moveName ?? "")) return true;
+  // Mandíbula Firme (bite): sin patrón de nombre fiable (Crunch/Bite Fang no
+  // comparten texto), así que se lista el mismo puñado de movimientos de
+  // mordisco que ya reconoce el juego original.
+  if (known.has("strong-jaw") && STRONG_JAW_MOVE_IDS.has(moveId)) return true;
+  return false;
+}
+
+/** Movimientos de mordisco que activan Mandíbula Firme (sin patrón de nombre común, se listan explícitamente). */
+export const STRONG_JAW_MOVE_IDS = Object.freeze(new Set([
+  "bite", "bug-bite", "crunch", "fire-fang", "hyper-fang", "ice-fang", "jaw-lock", "poison-fang", "psychic-fangs", "super-fang", "thunder-fang"
+]));
+
+/**
+ * Antibalas (bulletproof): inmune a movimientos con "Bullet", "Ball" o
+ * "Bomb" en su nombre en inglés — el mismo patrón de nombre que ya usan
+ * Filo/Puño Férreo, porque el catálogo tampoco etiqueta "movimiento
+ * balístico" de ningún otro modo. A diferencia de esas dos, aquí la
+ * inmunidad es total (no un tipo de daño real que D&D 5e pueda resolver por
+ * sí solo vía traits), así que se resuelve anulando la fórmula de daño ANTES
+ * de tirarla en #rollMove(), solo con un único objetivo seleccionado —misma
+ * limitación que Armadura Bélica (lote 11) y Alza tus defensas—.
+ */
+const BULLETPROOF_NAME_PATTERN = /\b(bullet|ball|bomb)/i;
+
+/** True si el Pokémon conoce Antibalas y el nombre del movimiento coincide con BULLETPROOF_NAME_PATTERN. */
+export function abilityBlocksBulletproofMove(abilities = [], moveName = "") {
+  return (abilities ?? []).includes("bulletproof") && BULLETPROOF_NAME_PATTERN.test(moveName ?? "");
+}
+
+/**
+ * Habilidad → cómo envenena el propio golpe cuerpo a cuerpo de este Pokémon
+ * (dirección contraria a los lotes 2/5/20, que reaccionan al golpe RECIBIDO):
+ * Toque Tóxico tira 1d10 y envenena con un 10; Cadena Tóxica exige que el
+ * objetivo falle una salvación de CON CD 16 para quedar gravemente
+ * envenenado. Se resuelve en el mismo bucle de `selectedTokens` alcanzados
+ * que ya usan Falso Tortazo/Ladrón en #rollMove(), reutilizando
+ * `rollFailedSaves()` (hp-effects.mjs) para el caso de salvación.
+ */
+export const OWN_MELEE_HIT_STATUS_ABILITIES = Object.freeze({
+  "poison-touch": { mode: "chance", die: 10, on: 10, status: "poisoned" },
+  "toxic-chain": { mode: "save", dc: 16, saveAbility: "con", status: "badly-poisoned" }
+});
+
+/** Primera habilidad de OWN_MELEE_HIT_STATUS_ABILITIES que conoce el Pokémon, o null. */
+export function ownMeleeHitStatusTrigger(abilities = []) {
+  for (const id of abilities ?? []) if (OWN_MELEE_HIT_STATUS_ABILITIES[id]) return { ability: id, ...OWN_MELEE_HIT_STATUS_ABILITIES[id] };
+  return null;
+}
+
+/**
+ * Resuelve Baba tras recibir un golpe cuerpo a cuerpo: tira 1d4 y, en 3 o 4,
+ * deja la velocidad del atacante a 0 mediante un ActiveEffect de una ronda de
+ * duración (mismo patrón OVERRIDE que ya usa Parálisis para reducirla a la
+ * mitad, pero a 0 y con caducidad propia en vez de ligado a un estado). La
+ * llama #rollMove() (pokemon-sheet.mjs) junto al resto de reacciones de
+ * contacto, con su propia copia de pokemonItemForActor().
+ */
+export async function applyGooeyReaction(defenderActor, attackerActor) {
+  if (!defenderActor || !attackerActor || defenderActor === attackerActor) return false;
+  const pokemonItem = await pokemonItemForActor(defenderActor);
+  const instance = pokemonItem?.getFlag(MODULE_ID, "instance");
+  if (!(instance?.abilities ?? []).includes("gooey")) return false;
+  const label = pokemonItem.name ?? defenderActor.name;
+  const roll = await new Roll("1d4").evaluate();
+  await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor: defenderActor }), flavor: `${defenderActor.name} — ${label} (contacto): ¿reduce la velocidad del atacante a 0? (ocurre con un 3 o 4)` });
+  if (Number(roll.total) < 3) return false;
+  await attackerActor.createEmbeddedDocuments("ActiveEffect", [{
+    name: "Baba",
+    icon: "icons/svg/downgrade.svg",
+    img: "icons/svg/downgrade.svg",
+    description: `Velocidad reducida a 0 por Baba de ${defenderActor.name} hasta el final de su próximo turno.`,
+    changes: ["walk", "fly", "swim", "burrow", "climb"].map(type => ({
+      key: `system.attributes.movement.${type}`, mode: CONST.ACTIVE_EFFECT_MODES.OVERRIDE, value: 0, priority: 25
+    })),
+    duration: { rounds: 1, startRound: game.combat?.round ?? 0, startTurn: game.combat?.turn ?? 0 },
+    flags: { [MODULE_ID]: { kind: "ability-contact-debuff" } }
+  }]);
+  return true;
+}
+
+/** True si el Pokémon conoce Analítico: ventaja en el próximo ataque tras fallar el anterior. */
+export function abilityGrantsAnalyticAdvantage(abilities = []) {
+  return (abilities ?? []).includes("analytic");
+}
+
+/** True si el Pokémon conoce Constancia: no puede repetir el mismo movimiento en rondas consecutivas. */
+export function abilityBlocksRepeatingMove(abilities = []) {
+  return (abilities ?? []).includes("truant");
+}
+
+/**
+ * Escamas de Hielo: resistencia (mitad de dados de daño) a movimientos cuya
+ * característica de potencia sea INT, SAB o CAR. No es un tipo de daño fijo
+ * —depende del movimiento del atacante, no del Pokémon defensor—, así que se
+ * resuelve como `diceMultiplier` 0.5 (el mismo valor que ya usan otros
+ * multiplicadores de dados de #rollMove()) solo con un único objetivo
+ * seleccionado, igual que Armadura Bélica/Antibalas/Roca Sólida.
+ */
+export function abilityIceScalesDiceMultiplier(abilities = [], movePower = []) {
+  const known = abilities ?? [];
+  const powers = Array.isArray(movePower) ? movePower : [movePower].filter(Boolean);
+  if (known.includes("ice-scales") && powers.some(power => ["int", "wis", "cha"].includes(power))) return 0.5;
+  return 1;
+}
+
+/** True si el Pokémon conoce Merciless o Vigor... — no, solo Merciless: dobla los dados de daño contra un objetivo envenenado. */
+export function abilityDoublesDiceAgainstPoisoned(abilities = [], targetConditions = []) {
+  return (abilities ?? []).includes("merciless") && (targetConditions ?? []).some(id => id === "poisoned" || id === "badly-poisoned");
+}
+
+/** True si el Pokémon conoce Espada Justiciera: sus ataques cuerpo a cuerpo se tiran con ventaja. */
+export function abilityGrantsMeleeAttackAdvantage(abilities = []) {
+  return (abilities ?? []).includes("intrepid-sword");
+}
+
+/** True si el Pokémon conoce Sin Reparos: sus propios ataques (a cualquier movimiento) se tiran con ventaja. */
+export function abilityGrantsSelfAttackAdvantage(abilities = []) {
+  return (abilities ?? []).includes("no-guard");
+}
+
+/**
+ * Ventaja/desventaja que el objetivo de un ataque impone al ATACANTE por sus
+ * propias habilidades: Sin Reparos da ventaja a cualquier ataque que reciba,
+ * Escudo Intrépido da desventaja a los que reciba cuerpo a cuerpo. Se
+ * consulta con un único objetivo seleccionado, igual que el resto de
+ * comprobaciones "por objetivo" de #rollMove().
+ */
+export function abilityTargetAttackRollModifier(targetAbilities = [], isMelee = false) {
+  const known = targetAbilities ?? [];
+  return {
+    advantage: known.includes("no-guard"),
+    disadvantage: isMelee && known.includes("dauntless-shield")
+  };
+}
+
+/** True si el Pokémon conoce Cura Tóxica: el daño periódico de Envenenado/Gravemente envenenado cura en vez de dañar. */
+export function abilityHealsFromPoisonTick(abilities = []) {
+  return (abilities ?? []).includes("poison-heal");
+}
+
+/**
+ * Habilidad → umbral de PG máximos (fracción) y si el cambio es forzado u
+ * ofrecido: Salida de Emergencia deja elegir al entrenador, Rendirse lo
+ * obliga. Ambas al cruzar el 50% de PG máximos hacia abajo por una bajada de
+ * PG (no simplemente estar por debajo ya de antes).
+ */
+export const HP_THRESHOLD_SWITCH_ABILITIES = Object.freeze({
+  "emergency-exit": { threshold: 0.5, forced: false },
+  "wimp-out": { threshold: 0.5, forced: true }
+});
+
+/** Habilidad que acaba de cruzar su umbral de PG hacia abajo en esta bajada concreta, o null. */
+export function hpThresholdSwitchTrigger(abilities = [], previousHpFraction = 1, nextHpFraction = 1) {
+  const known = abilities ?? [];
+  for (const [id, rule] of Object.entries(HP_THRESHOLD_SWITCH_ABILITIES)) {
+    if (known.includes(id) && Number(previousHpFraction) > rule.threshold && Number(nextHpFraction) <= rule.threshold) {
+      return { ability: id, forced: rule.forced };
+    }
+  }
+  return null;
+}
+
+/**
+ * Cura Natural/Regenerador (lote 40): qué corregir en la instancia de un
+ * Pokémon al volver a la Poké Ball —cura todos los estados alterados y/o
+ * recupera PG igual a su nivel—, o null si no conoce ninguna de las dos.
+ * Regenerador se simplifica sin el límite "una vez por descanso largo" del
+ * texto original: este proyecto no lleva un contador de usos por Pokémon
+ * (solo por objeto equipado), así que se aplica en cada retirada.
+ */
+export function recallAbilityAdjustment(abilities = [], conditions = [], hp = null, level = 1) {
+  const known = abilities ?? [];
+  const result = {};
+  if (known.includes("natural-cure") && (conditions ?? []).length) result.clearConditions = true;
+  if (known.includes("regenerator") && hp && Number(hp.value) < Number(hp.max)) {
+    result.healedHp = Math.min(Number(hp.max) || 0, Number(hp.value) + (Number(level) || 1));
+  }
+  return Object.keys(result).length ? result : null;
+}
+
+/** True si el Pokémon conoce Alocado (reckless): dobla el STAB al usar un movimiento con retroceso. */
+export function abilityDoublesRecoilStab(abilities = []) {
+  return (abilities ?? []).includes("reckless");
+}
+
+/** True si el Pokémon conoce Fuerza Neuronal: tira el daño dos veces y se queda con el mayor si el golpe fue supereficaz. */
+export function abilityRollsSuperEffectiveTwice(abilities = [], effectivenessMultiplier = 1) {
+  return (abilities ?? []).includes("neuroforce") && Number(effectivenessMultiplier) > 1;
+}
+
+/** True si el Pokémon conoce Ventosas (sticky-hold): su objeto no puede robarse ni tirarse. */
+export function abilityProtectsHeldItem(abilities = []) {
+  return (abilities ?? []).includes("sticky-hold");
+}
+
+/** True si el Pokémon conoce Torpeza (klutz): no puede llevar ningún objeto equipado. */
+export function abilityPreventsHoldingItem(abilities = []) {
+  return (abilities ?? []).includes("klutz");
+}
+
+/** Habilidades que impiden ser expulsado del combate por un movimiento ajeno (Ventosas, Guardián). */
+export const FORCED_SWITCH_IMMUNE_ABILITIES = Object.freeze(new Set(["suction-cups", "guard-dog"]));
+
+/** True si el Pokémon conoce alguna habilidad de FORCED_SWITCH_IMMUNE_ABILITIES. */
+export function abilityBlocksForcedSwitch(abilities = []) {
+  return (abilities ?? []).some(id => FORCED_SWITCH_IMMUNE_ABILITIES.has(id));
+}
+
+/**
+ * Habilidades cuyo texto es "las habilidades o movimientos de otros Pokémon
+ * no pueden bajar las características de este" (Cuerpo Puro, Cuerpo de Metal
+ * Pleno, Humo Blanco: mismo efecto exacto). `pokemonCombatModifiers()`
+ * (move-modifiers.mjs) ya tenía un flag `debuffImmune` para esto —lo ponía un
+ * ActiveEffect de movimiento (categoría "debuffs")—, así que este lote solo
+ * añade que también lo active conocer una de estas tres habilidades, leídas
+ * del flag `pokemonAbilities` que ya llevan los actores desplegados y
+ * salvajes (lote 9) para poder consultarse sin `await` en esa función síncrona.
+ */
+export const DEBUFF_IMMUNITY_ABILITIES = Object.freeze(new Set(["clear-body", "full-metal-body", "white-smoke"]));
+
+/** True si el Pokémon conoce alguna habilidad de DEBUFF_IMMUNITY_ABILITIES. */
+export function abilityGrantsDebuffImmunity(abilities = []) {
+  return (abilities ?? []).some(id => DEBUFF_IMMUNITY_ABILITIES.has(id));
+}
+
+/**
+ * Bono fijo de daño según el clima activo del combate (Poder Solar: +2 con
+ * sol). Se suma al mismo hueco de `effectDamage` que ya usa
+ * abilitySelfStatusDamageBonus() (lote 6) en #rollMove().
+ */
+export const WEATHER_DAMAGE_BONUS_ABILITIES = Object.freeze({ "solar-power": { weather: "sun", bonus: 2 } });
+
+/** Bono de daño de WEATHER_DAMAGE_BONUS_ABILITIES si el clima activo coincide, o 0. */
+export function abilityWeatherDamageBonus(abilities = [], weatherId = null) {
+  if (!weatherId) return 0;
+  const match = (abilities ?? []).find(id => WEATHER_DAMAGE_BONUS_ABILITIES[id]?.weather === weatherId);
+  return match ? WEATHER_DAMAGE_BONUS_ABILITIES[match].bonus : 0;
+}
+
+/**
+ * Duplicación de STAB según el clima activo (Fuerza de Arena: ×2 con
+ * tormenta de arena). Mismo hueco que abilityLowHpStabBonus() (lote 3) en
+ * damageFormula(): +2 para que el +2 base se convierta en +4.
+ */
+export const WEATHER_STAB_DOUBLE_ABILITIES = Object.freeze({ "sand-force": "sandstorm" });
+
+/** +2 de STAB si el clima activo coincide con alguna de WEATHER_STAB_DOUBLE_ABILITIES, o 0. */
+export function abilityWeatherStabBonus(abilities = [], weatherId = null) {
+  if (!weatherId) return 0;
+  return (abilities ?? []).some(id => WEATHER_STAB_DOUBLE_ABILITIES[id] === weatherId) ? 2 : 0;
+}
+
+/**
+ * Habilidad → tipo de daño al que cambian los movimientos de tipo Normal
+ * (Galvanismo, Pixelado, Refrigerar). Normalizar es la habilidad contraria
+ * ("todos sus movimientos son de tipo Normal") y por eso no vive en este
+ * mapa: abilityMoveTypeOverride() la comprueba aparte, primero, porque
+ * sustituye cualquier tipo de origen, no solo Normal.
+ */
+export const NORMAL_MOVE_TYPE_OVERRIDE_ABILITIES = Object.freeze({
+  galvanize: "electric",
+  pixilate: "fairy",
+  refrigerate: "ice"
+});
+
+/**
+ * Tipo de daño final de un movimiento tras Galvanismo/Pixelado/Refrigerar/
+ * Normalizar, o null si ninguna de las cuatro aplica. Solo cambia el tipo de
+ * daño (resistencias/inmunidades/vulnerabilidades del objetivo): el STAB
+ * sigue comprobando el tipo ORIGINAL del movimiento contra los tipos del
+ * Pokémon, la misma simplificación que ya usa el cambio de tipo de Diluvio
+ * Iónico en #rollMove() (pokemon-sheet.mjs), porque `damageFormula()` no
+ * recibe el tipo ya sustituido.
+ */
+export function abilityMoveTypeOverride(abilities = [], moveType = null) {
+  const known = abilities ?? [];
+  if (known.includes("normalize")) return "normal";
+  if (moveType !== "normal") return null;
+  const match = known.find(id => NORMAL_MOVE_TYPE_OVERRIDE_ABILITIES[id]);
+  return match ? NORMAL_MOVE_TYPE_OVERRIDE_ABILITIES[match] : null;
+}
+
+/**
+ * Habilidad → tipos de daño que, al recibirlos, dan ventaja en el próximo
+ * ataque (Firmeza con Siniestro; Nervios con Siniestro/Bicho/Fantasma;
+ * Impulso Tóxico con Veneno; Intercambio Térmico con Fuego, que además ya es
+ * inmune a Quemado por STATUS_IMMUNITY_ABILITIES). Se resuelve con
+ * applyDynamicModifier() (move-modifiers.mjs, `{ attackAdvantage: true }`,
+ * una ronda de duración) en el mismo bucle por objetivo alcanzado que ya usa
+ * absorbHealType() (lote 10), porque comparte el mismo criterio "el tipo de
+ * daño recibido coincide".
+ */
+export const TYPE_TRIGGERED_ADVANTAGE_ABILITIES = Object.freeze({
+  justified: ["dark"],
+  rattled: ["dark", "bug", "ghost"],
+  "toxic-boost": ["poison"],
+  "thermal-exchange": ["fire"]
+});
+
+/** True si alguna habilidad conocida da ventaja en el próximo ataque al recibir ese tipo de daño. */
+export function abilityTypeTriggeredAdvantage(abilities = [], damageType = null) {
+  if (!damageType) return false;
+  return (abilities ?? []).some(id => TYPE_TRIGGERED_ADVANTAGE_ABILITIES[id]?.includes(damageType));
+}
+
+/** +1 a la CD de salvación de todos los movimientos si el Pokémon conoce Gracia Sereno. */
+export function abilitySaveDcBonus(abilities = []) {
+  return (abilities ?? []).includes("serene-grace") ? 1 : 0;
+}
+
+/** True si el Pokémon conoce Cabeza Roca: no sufre daño de retroceso propio. */
+export function abilityIgnoresRecoil(abilities = []) {
+  return (abilities ?? []).includes("rock-head");
+}
+
+/** True si el Pokémon conoce Impasible (unburden): +10 pies de velocidad sin objeto equipado. */
+export function abilityGrantsUnburdenSpeed(abilities = []) {
+  return (abilities ?? []).includes("unburden");
+}
+
+/**
+ * Corrige la curación de una baya (Baya Zanahoria/Baya Saludable, las dos
+ * únicas de curación automática de este proyecto) según Madurez (duplica el
+ * efecto de la baya) y Buche (suma un 10% adicional de los PG máximos,
+ * redondeado hacia arriba, sin depender de si también duplicó). El orden es
+ * el mismo que en los videojuegos: Madurez dobla primero, Buche se suma
+ * después y no se ve afectado por la duplicación.
+ */
+export function abilityBerryHealBonus(abilities = [], amount = 0, maximumHp = 0) {
+  const known = abilities ?? [];
+  let total = Number(amount) || 0;
+  if (known.includes("ripen")) total *= 2;
+  if (known.includes("cheek-pouch")) total += Math.ceil((Number(maximumHp) || 0) * 0.1);
+  return total;
+}
+
+/** Habilidades cuyos ataques se tiran con desventaja al 25% o menos de PG máximos (Desertor, Descontrol). */
+export const LOW_HP_ATTACK_DISADVANTAGE_ABILITIES = Object.freeze(new Set(["defeatist", "berserk"]));
+/** Habilidades que dan ventaja a la salvación del objetivo al 25% o menos de PG máximos (Descontrol). */
+export const LOW_HP_SAVE_ADVANTAGE_ABILITIES = Object.freeze(new Set(["berserk"]));
+/** Habilidades que duplican los dados de daño al 25% o menos de PG máximos (Descontrol). */
+export const LOW_HP_DAMAGE_DOUBLE_ABILITIES = Object.freeze(new Set(["berserk"]));
+
+/**
+ * Desventaja de ataque propia y ventaja de salvación del objetivo que
+ * aportan Desertor/Descontrol al 25% o menos de PG máximos, listas para
+ * fusionarlas en el `total` de pokemonCombatModifiers() (move-modifiers.mjs)
+ * — mismo hueco síncrono que ya usa abilityGrantsDebuffImmunity() (lote 16),
+ * con la fracción de PG calculada ahí mismo a partir del propio actor.
+ */
+export function abilityLowHpCombatModifiers(abilities, hpFraction) {
+  const known = abilities ?? [];
+  const lowHp = Number(hpFraction) <= 0.25;
+  return {
+    attackDisadvantage: lowHp && known.some(id => LOW_HP_ATTACK_DISADVANTAGE_ABILITIES.has(id)),
+    saveTargetsAdvantage: lowHp && known.some(id => LOW_HP_SAVE_ADVANTAGE_ABILITIES.has(id))
+  };
+}
+
+/** Multiplicador de dados de daño (2 con Descontrol al 25% o menos de PG, si no 1). Mismo hueco que el resto de multiplicadores de dados en #rollMove(). */
+export function abilityLowHpDamageDiceMultiplier(abilities = [], hpFraction = 1) {
+  if (!(Number(hpFraction) <= 0.25)) return 1;
+  return (abilities ?? []).some(id => LOW_HP_DAMAGE_DOUBLE_ABILITIES.has(id)) ? 2 : 1;
+}
+
+/**
+ * Palabras que activan Filo (sharpness): el movimiento dobla su modificador
+ * MOVE si su nombre en inglés (el que trae el catálogo de datos) contiene
+ * alguna de ellas. `move.name` es el único dato disponible para esto —el
+ * catálogo no etiqueta "movimiento cortante" de ningún otro modo—, así que
+ * se compara en inglés aunque el resto de la ficha esté en español.
+ */
+const SHARPNESS_NAME_PATTERN = /\b(cut|blade|slash|edge|cleave|razor|sword|axe)/i;
+
+/** True si el Pokémon conoce Filo y el nombre del movimiento coincide con SHARPNESS_NAME_PATTERN. */
+export function abilitySharpnessDoublesModifier(abilities = [], moveName = "") {
+  return (abilities ?? []).includes("sharpness") && SHARPNESS_NAME_PATTERN.test(moveName ?? "");
+}
+
+// La familia de velocidad/CA por clima o terreno activos (Clorofila, Nado
+// Rápido, Paso Arena, Aguanieve, Onda Voltaica, Velo Arena, Manto Nieve,
+// Pelaje Herboso) vive en terrain-effects.mjs, no aquí: ese archivo es quien
+// necesita recorrer todos los actores desplegados/salvajes al cambiar el
+// campo, y este archivo ya importa requestFieldEffect() de terrain-effects.mjs
+// para el clima de despliegue (fase 1) — importar en la otra dirección
+// crearía un ciclo entre los dos módulos. Ver WEATHER_SPEED_DOUBLE_ABILITIES
+// y abilityFieldBonusEffectSource() en terrain-effects.mjs (lote 18).
+
+/**
+ * Habilidad → qué tipo(s) de daño recibido la activa (`null` = cualquiera) y
+ * qué efecto propio crea (lote 41). A diferencia de OWN_MELEE_HIT_STATUS_ABILITIES
+ * (que reacciona al PROPIO golpe) o applyGooeyReaction() (que crea el
+ * ActiveEffect en el ATACANTE), esta familia reacciona a un golpe RECIBIDO
+ * de cualquier tipo de ataque (no solo cuerpo a cuerpo) y el ActiveEffect
+ * resultante queda en el propio defensor.
+ */
+export const DAMAGE_TYPE_SELF_REACTION_ABILITIES = Object.freeze({
+  "steam-engine": { types: ["fire", "water"], effect: "steam-engine" },
+  stamina: { types: null, effect: "stamina" }
+});
+
+/** Primer efecto de DAMAGE_TYPE_SELF_REACTION_ABILITIES que activa `damageType` (o cualquiera si `types` es null), o null. */
+export function damageTypeSelfReactionTrigger(abilities = [], damageType = null) {
+  for (const id of abilities ?? []) {
+    const entry = DAMAGE_TYPE_SELF_REACTION_ABILITIES[id];
+    if (!entry) continue;
+    if (entry.types && !entry.types.includes(damageType)) continue;
+    return entry.effect;
+  }
+  return null;
+}
+
+/**
+ * Crea (borrando cualquier copia anterior, sin apilar) el ActiveEffect de
+ * una ronda que corresponde a `effect` sobre `defenderActor`: Motor de Vapor
+ * duplica su velocidad de andar, Vigor suma +2 a su CA. La llama #rollMove()
+ * (pokemon-sheet.mjs) por cada objetivo alcanzado con `dealtDamageTotal` no
+ * nulo, igual que ya hace con absorbHealType()/el descongelado por Fuego.
+ */
+export async function applyDamageTypeSelfReaction(defenderActor, effect) {
+  if (!defenderActor || !effect) return false;
+  const kind = `ability-self-reaction-${effect}`;
+  const existing = defenderActor.effects.filter(entry => entry.getFlag(MODULE_ID, "kind") === kind);
+  if (existing.length) await defenderActor.deleteEmbeddedDocuments("ActiveEffect", existing.map(entry => entry.id));
+  const changes = effect === "steam-engine"
+    ? [{ key: "system.attributes.movement.walk", mode: CONST.ACTIVE_EFFECT_MODES.MULTIPLY, value: 2, priority: 20 }]
+    : [{ key: "system.attributes.ac.bonus", mode: CONST.ACTIVE_EFFECT_MODES.ADD, value: 2 }];
+  const name = effect === "steam-engine" ? "Motor de Vapor" : "Vigor";
+  await defenderActor.createEmbeddedDocuments("ActiveEffect", [{
+    name,
+    icon: "icons/svg/upgrade.svg",
+    img: "icons/svg/upgrade.svg",
+    description: effect === "steam-engine"
+      ? "Velocidad de andar duplicada hasta el final del próximo turno por Motor de Vapor."
+      : "+2 a la CA hasta el inicio del próximo turno por Vigor.",
+    changes,
+    duration: { rounds: 1, startRound: game.combat?.round ?? 0, startTurn: game.combat?.turn ?? 0 },
+    flags: { [MODULE_ID]: { kind } }
+  }]);
+  return true;
+}
+
+/**
+ * Habilidad → {rest, name} de las abilidades "una vez por descanso corto/largo"
+ * (lote 42). `name` es la etiqueta en español que usa el diálogo de
+ * confirmación en #rollMove() (pokemon-sheet.mjs).
+ */
+export const ABILITY_REST_RESOURCES = Object.freeze({
+  "huge-power": { rest: "short", name: "Fuerza Bruta" },
+  "pure-power": { rest: "short", name: "Energía Pura" },
+  simple: { rest: "short", name: "Simple" }
+});
+
+/** True si `abilityId` es un recurso de ABILITY_REST_RESOURCES y el Pokémon aún no lo ha gastado desde el último descanso que le corresponda. */
+export function abilityRestUseAvailable(instance, abilityId) {
+  if (!ABILITY_REST_RESOURCES[abilityId]) return false;
+  return !(instance?.abilityUses ?? {})[abilityId];
+}
+
+/**
+ * Instancia clonada con el uso de `abilityId` marcado como gastado, o la
+ * misma instancia si `abilityId` no es un recurso de descanso conocido.
+ * Función pura (no toca el Item Pokémon): quien llame decide cómo y cuándo
+ * persistir el resultado con setFlag(), igual que el resto del motor.
+ */
+export function markAbilityRestUseSpent(instance, abilityId) {
+  if (!ABILITY_REST_RESOURCES[abilityId]) return instance;
+  // Copia superficial, no foundry.utils.deepClone(): esta función debe poder
+  // probarse desde Node (validate-pokemon-abilities.mjs) sin `foundry`
+  // definido, y `instance.abilityUses` es un mapa plano de booleanos, así que
+  // no hace falta clonar en profundidad para no compartir referencia con el
+  // original.
+  return { ...(instance ?? {}), abilityUses: { ...(instance?.abilityUses ?? {}), [abilityId]: true } };
+}
+
+/**
+ * `abilityUses` tras un descanso: limpia los recursos de descanso corto
+ * siempre, y también los de descanso largo si `restType` es "long" (un
+ * descanso largo incluye uno corto). Función pura para poder testearla sin
+ * un Item real.
+ */
+export function abilityUsesAfterRest(abilityUses, restType) {
+  const next = { ...(abilityUses ?? {}) };
+  for (const [id, resource] of Object.entries(ABILITY_REST_RESOURCES)) {
+    if (resource.rest === "short" || restType === "long") delete next[id];
+  }
+  return next;
+}
+
+/**
+ * Restaura `instance.abilityUses` de todos los Pokémon de `actor` tras un
+ * descanso (dnd5e.restCompleted, main.mjs). Hermana de
+ * restoreHeldItemChargesAfterRest() (held-items.mjs) en vez de una
+ * modificación de esa función, para no mezclar el vocabulario de "objeto
+ * equipado" con el de "habilidad" en el mismo archivo.
+ */
+export async function resetAbilityRestResourcesAfterRest(actor, config = {}) {
+  const restType = config.type === "long" ? "long" : config.type === "short" ? "short" : null;
+  if (!restType) return 0;
+  const pokemonItems = actor?.type === "character" ? getPokemonItems(actor) : [];
+  let restored = 0;
+  for (const pokemonItem of pokemonItems) {
+    const instance = pokemonItem.getFlag(MODULE_ID, "instance") ?? {};
+    const before = instance.abilityUses ?? {};
+    if (!Object.keys(before).length) continue;
+    const abilityUses = abilityUsesAfterRest(before, restType);
+    if (Object.keys(abilityUses).length === Object.keys(before).length) continue;
+    await pokemonItem.setFlag(MODULE_ID, "instance", { ...instance, abilityUses });
+    restored += 1;
+  }
+  return restored;
 }

@@ -29,7 +29,8 @@ import { acupressureEffect, hiddenPowerType, magnitudeDice } from "../combat/ran
 import { requestForcedSwitch, selfForcedSwitch } from "../combat/forced-switch.mjs";
 import { FULL_NEGATION_MOVES, HALF_NEGATION_MOVES, SURVIVE_MOVES, armDamageShield } from "../combat/damage-shields.mjs";
 import { FIELD_PULSE_MOVES, FIELD_RULE_MOVES, TERRAIN_MOVES, WEATHER_BALL_TYPES, WEATHER_MOVES, clearField, currentField, requestFieldEffect } from "../combat/terrain-effects.mjs";
-import { abilityIgnoresStatusPenalty, abilityLowHpStabBonus, abilityMoveProfile, abilitySelfStatusDamageBonus, applyContactDamageReaction, applyContactStatusReaction, applyCursedBodyReaction } from "./pokemon-abilities.mjs";
+import { ABILITY_REST_RESOURCES, abilityBlocksBulletproofMove, abilityBlocksRepeatingMove, abilityDoublesDiceAgainstPoisoned, abilityDoublesRecoilStab, abilityGrantsAnalyticAdvantage, abilityHealsFromPoisonTick, abilityIceScalesDiceMultiplier, abilityIgnoresCriticalDamage, abilityIgnoresRecoil, abilityIgnoresStatusPenalty, abilityLowHpDamageDiceMultiplier, abilityLowHpStabBonus, abilityMoveProfile, abilityMoveTypeOverride, abilityPreventsHoldingItem, abilityProtectsHeldItem, abilityRestUseAvailable, abilityRollsDamageTwiceHigher, abilityRollsSuperEffectiveTwice, abilitySaveDcBonus, abilitySelfStatusDamageBonus, abilitySharpnessDoublesModifier, abilityTargetAttackRollModifier, abilityTypeTriggeredAdvantage, abilityWeatherDamageBonus, abilityWeatherStabBonus, absorbHealType, applyContactDamageReaction, applyContactStatusReaction, applyCursedBodyReaction, applyDamageTypeSelfReaction, applyGooeyReaction, damageTypeSelfReactionTrigger, markAbilityRestUseSpent, ownMeleeHitStatusTrigger } from "./pokemon-abilities.mjs";
+import { batteryDiceMultiplier, costarAdvantage, flowerGiftDamageBonus, nearbyAllyActors, plusMinusAttackDamageBonus, powerSpotExtraDie, steelySpiritDamageBonus, victoryStarAttackBonus } from "../combat/aura-abilities.mjs";
 import { promptSpendTrainerResource, trainerResourceState } from "../trainer/trainer-resources.mjs";
 import { pokemonFeatOptions } from "../trainer/feat-catalog.mjs";
 import { SKILLS } from "../trainer/trainer-creation-data.mjs";
@@ -599,6 +600,14 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const selected = selectedId ? trainer.items.get(selectedId) : null;
     if (selected && selected.getFlag(MODULE_ID, "kind") !== "gear") return;
     if (instance.heldItem?.sourceId === selected?.getFlag(MODULE_ID, "sourceId")) return;
+    if (selected && abilityPreventsHoldingItem(instance.abilities)) {
+      // Torpeza (klutz, lote 14): nunca puede llevar objeto equipado. Quitar
+      // uno ya puesto (selected null) sigue permitido, solo se bloquea poner
+      // uno nuevo.
+      ui.notifications.warn(game.i18n.format("POKE5E.PokemonNotifications.KlutzCannotHold", { name: displayPokemonName(this.pokemonItem) }));
+      this.render({ force: true });
+      return;
+    }
     const data = await loadPoke5eData();
     if (instance.heldItem) await returnHeldItem(trainer, instance.heldItem, data);
     if (selected) {
@@ -824,12 +833,19 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     if (!choiceHeldItemAllowsMove(instance.heldItem, move.id)) return ui.notifications.warn(game.i18n.format("POKE5E.PokemonNotifications.ChoiceLocked", { item: instance.heldItem.name }));
     const moveModifier = getMoveModifier(species, move) + heldProfile.moveModifierBonus;
     const attackMoveModifier = moveModifier * heldProfile.attackMoveMultiplier;
+    // Gracia Sereno (lote 21): +1 a la CD de salvación de todos sus
+    // movimientos, sin tocar el modificador de ataque.
+    const serenegraceBonus = abilitySaveDcBonus(instance.abilities);
     const name = displayPokemonName(this.pokemonItem);
     const flavor = `${name} — ${move.name}`;
     const speaker = ChatMessage.getSpeaker({ actor: this.pokemonItem.parent, alias: name });
     const trainer = this.pokemonItem.parent?.type === "character" ? this.pokemonItem.parent : null;
     if (isMoveRecharging(combatActor, move.id)) return ui.notifications.warn(game.i18n.format("POKE5E.Notifications.Recharging", { name, move: move.name }));
     if (pokemonCombatModifiers(combatActor).moveLockAll) return ui.notifications.warn(game.i18n.format("POKE5E.Notifications.MoveLocked", { name, move: move.name }));
+    // Constancia (lote 30): no puede repetir el mismo movimiento en rondas consecutivas.
+    if (abilityBlocksRepeatingMove(instance.abilities) && instance.lastMoveId === move.id) {
+      return ui.notifications.warn(game.i18n.format("POKE5E.Notifications.TruantRepeat", { name, move: move.name }));
+    }
     const selectedTokens = [...(game.user.targets ?? [])];
     const combatModifiers = pokemonCombatModifiers(combatActor, { targetUuids: selectedTokens.map(token => token.actor?.uuid).filter(Boolean) });
     const targetedModifiers = targetedPokemonModifiers(selectedTokens);
@@ -849,7 +865,32 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       const targetLastMove = targetLastMoveId ? data.movesById.get(targetLastMoveId) : null;
       if (!targetLastMove?.damage) targetLastMoveNotAttackMultiplier = 2;
     }
-    const damageMoveModifier = moveModifier * (targetAsleep ? 2 : 1) * weatherModifierMultiplier * targetStatusModifierMultiplier * targetHpModifierMultiplier * targetLastMoveNotAttackMultiplier * heldProfile.damageMoveMultiplier * combatModifiers.moveModifierMultiplier;
+    // Filo (lote 21): dobla el modificador MOVE en movimientos cuyo nombre
+    // (en inglés, el único dato disponible) suene a corte.
+    const sharpnessMultiplier = abilitySharpnessDoublesModifier(instance.abilities, move.name) ? 2 : 1;
+    // Fuerza Bruta/Energía Pura/Simple (lote 42): recurso de una vez por
+    // descanso corto (ABILITY_REST_RESOURCES, pokemon-abilities.mjs),
+    // confirmado con un diálogo antes de construir la fórmula de daño, mismo
+    // patrón que ya usa Golpes disciplinados para preguntar antes de actuar.
+    // Fuerza Bruta/Energía Pura duplican los dados de daño; Simple duplica el
+    // modificador MOVE del daño (el texto original también deja aplicarlo al
+    // ataque, simplificado siempre al daño para no bifurcar el diálogo).
+    let restResourceDiceMultiplier = 1;
+    let restResourceModifierMultiplier = 1;
+    if (moveHasImmediateDamage(move)) {
+      const diceAbilityId = ["huge-power", "pure-power"].find(id => instance.abilities?.includes(id) && abilityRestUseAvailable(instance, id));
+      const modifierAbilityId = !diceAbilityId && instance.abilities?.includes("simple") && abilityRestUseAvailable(instance, "simple") ? "simple" : null;
+      const restAbilityId = diceAbilityId ?? modifierAbilityId;
+      if (restAbilityId) {
+        const label = ABILITY_REST_RESOURCES[restAbilityId].name;
+        const use = await confirmHeldItemReaction(label, `<p>¿Usar <strong>${label}</strong> para duplicar ${diceAbilityId ? "los dados de daño" : "el modificador MOVE del daño"} de este golpe? (una vez por descanso corto)</p>`);
+        if (use) {
+          if (diceAbilityId) restResourceDiceMultiplier = 2; else restResourceModifierMultiplier = 2;
+          instance.abilityUses = markAbilityRestUseSpent(instance, restAbilityId).abilityUses;
+        }
+      }
+    }
+    const damageMoveModifier = moveModifier * (targetAsleep ? 2 : 1) * weatherModifierMultiplier * targetStatusModifierMultiplier * targetHpModifierMultiplier * targetLastMoveNotAttackMultiplier * heldProfile.damageMoveMultiplier * combatModifiers.moveModifierMultiplier * sharpnessMultiplier * restResourceModifierMultiplier;
     const escalation = CONSECUTIVE_ESCALATION_MOVES[move.id];
     const escalationMultiplier = escalation ? diceMultiplierForStacks(consecutiveStrikeStacks(combatActor, move.id)) : 1;
     const weatherDiceMultiplier = (WEATHER_DICE_DOUBLE_MOVES[move.id] && WEATHER_DICE_DOUBLE_MOVES[move.id] === activeWeather) || (move.id === "weather-ball" && activeWeather) ? 2 : 1;
@@ -877,6 +918,29 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const abilityProfile = abilityMoveProfile(instance.abilities, {
       moveType: move.type, hasDamage: moveHasImmediateDamage(move), proficiency, sourceTypes: species.type ?? [], targetTypes
     });
+    // Batería/Punto de Poder/Espíritu Metálico/Costar/Regalo Flor/Estrella
+    // Victoria (lote 38): bonos de proximidad entre tokens del lienzo
+    // (aura-abilities.mjs). Cada habilidad exige un alcance distinto, así que
+    // se consulta el lienzo una vez por alcance; Estrella Victoria no tiene
+    // límite de distancia en su texto, se aproxima a "todo el bando en la
+    // escena" con un alcance muy amplio.
+    const nearbyAllies20 = nearbyAllyActors(combatActor, 20);
+    const nearbyAllies15 = nearbyAllyActors(combatActor, 15);
+    const nearbyAllies30 = nearbyAllyActors(combatActor, 30);
+    const nearbyAllies5 = nearbyAllyActors(combatActor, 5);
+    const nearbyAlliesUnlimited = nearbyAllyActors(combatActor, 9999);
+    const batteryMultiplier = batteryDiceMultiplier(nearbyAllies20, move.type);
+    const powerSpotDie = powerSpotExtraDie(nearbyAllies15, level);
+    const steelySpiritBonus = steelySpiritDamageBonus({
+      selfAbilities: instance.abilities, selfChaMod: Number(combatActor?.system?.abilities?.cha?.mod) || 0,
+      nearbyAllies: nearbyAllies30, moveType: move.type
+    });
+    const costarAttackAdvantage = costarAdvantage(instance.abilities, nearbyAllies5);
+    const flowerGiftBonus = flowerGiftDamageBonus(nearbyAllies30, activeWeather, proficiency);
+    const victoryStarBonus = victoryStarAttackBonus(nearbyAlliesUnlimited);
+    // Más/Menos (lote 41): mismo alcance amplio que Estrella Victoria; se
+    // suma tanto al ataque como al daño (ver damageMoveModifier más abajo).
+    const plusMinusBonus = plusMinusAttackDamageBonus(instance.abilities, nearbyAlliesUnlimited);
     const finalGambitFormula = move.id === "final-gambit" ? appendModifier(String(Math.max(0, Number(combatActor?.system?.attributes?.hp?.value) || 0)), (species.type ?? []).includes(move.type) || forceStab ? 2 + heldProfile.stab + lowHpStabBonus : 0) : null;
     const trumpCardBonus = move.id === "trump-card" ? moveModifier * Math.max(0, Number(entry.pp.max) - Number(entry.pp.value)) : 0;
     let magnitudeFormula = null;
@@ -885,7 +949,36 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       await magnitudeRoll.toMessage({ speaker, flavor: `${flavor} — Magnitud` });
       magnitudeFormula = appendModifier(magnitudeDice(magnitudeRoll.total), damageMoveModifier);
     }
-    const formula = finalGambitFormula ?? magnitudeFormula ?? (moveHasImmediateDamage(move) ? damageFormula(move, level, damageMoveModifier, species, combatModifiers.damage + heldProfile.damage + pathProfile.damage + trumpCardBonus + abilityProfile.damage + abilitySelfStatusDamageBonus(instance.abilities, instance.conditions ?? [], proficiency), heldProfile.stab + pathProfile.stab + lowHpStabBonus, escalationMultiplier * weatherDiceMultiplier * targetStatusDiceMultiplier * selfHpDiceMultiplier * ownDamagedDiceMultiplier * ownMissedDiceMultiplier * targetDamagedThisRoundMultiplier, ownMissedExtraDie, forceStab) : null);
+    // Poder Solar (+2 daño con sol) y Fuerza de Arena (STAB×2 con tormenta de
+    // arena): mismos huecos que el bono por estado propio y el STAB por poca
+    // vida, condicionados al clima activo en vez de al estado o la vida.
+    const weatherDamageBonus = abilityWeatherDamageBonus(instance.abilities, activeWeather);
+    const weatherStabBonus = abilityWeatherStabBonus(instance.abilities, activeWeather);
+    // Alocado (lote 40): dobla el STAB con movimientos que tienen retroceso.
+    const recklessStabBonus = abilityDoublesRecoilStab(instance.abilities) && RECOIL_FRACTION_MOVES[move.id] ? 2 : 0;
+    // Descontrol (lote 24): dobla los dados de daño al 25% o menos de PG máximos.
+    const berserkDiceMultiplier = abilityLowHpDamageDiceMultiplier(instance.abilities, ownHpFraction);
+    // Antibalas (lote 26)/Escamas de Hielo (lote 31)/Despiadado (lote 33):
+    // solo se resuelven con un único objetivo seleccionado, misma limitación
+    // que Armadura Bélica (lote 11); se consulta una sola vez el Item del
+    // objetivo para las tres.
+    let targetBulletproofImmune = false;
+    let iceScalesDiceMultiplier = 1;
+    let mercilessDiceMultiplier = 1;
+    if (selectedTokens.length === 1) {
+      const targetPokemonItem = await pokemonItemForActor(selectedTokens[0].actor);
+      const targetInstance = targetPokemonItem?.getFlag(MODULE_ID, "instance");
+      targetBulletproofImmune = abilityBlocksBulletproofMove(targetInstance?.abilities, move.name);
+      iceScalesDiceMultiplier = abilityIceScalesDiceMultiplier(targetInstance?.abilities, move.power);
+      mercilessDiceMultiplier = abilityDoublesDiceAgainstPoisoned(instance.abilities, targetInstance?.conditions) ? 2 : 1;
+    }
+    const baseFormula = targetBulletproofImmune ? null : finalGambitFormula ?? magnitudeFormula ?? (moveHasImmediateDamage(move) ? damageFormula(move, level, damageMoveModifier, species, combatModifiers.damage + heldProfile.damage + pathProfile.damage + trumpCardBonus + abilityProfile.damage + abilitySelfStatusDamageBonus(instance.abilities, instance.conditions ?? [], proficiency) + weatherDamageBonus + steelySpiritBonus + flowerGiftBonus + plusMinusBonus, heldProfile.stab + pathProfile.stab + lowHpStabBonus + weatherStabBonus + recklessStabBonus, escalationMultiplier * weatherDiceMultiplier * targetStatusDiceMultiplier * selfHpDiceMultiplier * ownDamagedDiceMultiplier * ownMissedDiceMultiplier * targetDamagedThisRoundMultiplier * berserkDiceMultiplier * iceScalesDiceMultiplier * mercilessDiceMultiplier * batteryMultiplier * restResourceDiceMultiplier, ownMissedExtraDie, forceStab) : null);
+    // Punto de Poder (lote 38): dado extra fijo (no escala con el resto de
+    // multiplicadores), se añade tras construir la fórmula normal.
+    const formula = baseFormula && powerSpotDie ? `${baseFormula} + ${powerSpotDie}` : baseFormula;
+    if (targetBulletproofImmune) {
+      await ChatMessage.create({ speaker, content: `<div class="dnd5e chat-card poke5e-status-card"><p><strong>${escapeHtml(selectedTokens[0].name)}</strong> es inmune a ${escapeHtml(move.name)} gracias a Antibalas.</p></div>` });
+    }
     let hiddenPowerRoll = null;
     if (formula && move.id === "hidden-power") {
       hiddenPowerRoll = await new Roll("1d20").evaluate();
@@ -894,6 +987,11 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     let damageType = formula ? (hiddenPowerRoll ? hiddenPowerType(hiddenPowerRoll.total) ?? await chooseDamageType(move) : await chooseDamageType(move)) : null;
     if (formula && !damageType) return;
     if (damageType === "normal" && move.type === "normal" && currentField(game.combat).pulse?.id === "ion-deluge") damageType = "electric";
+    // Galvanismo/Pixelado/Refrigerar/Normalizar (lote 19): cambian el tipo de
+    // daño final, no el STAB (que sigue mirando el tipo original del
+    // movimiento, la misma simplificación que ya usaba Diluvio Iónico arriba).
+    const abilityMoveType = abilityMoveTypeOverride(instance.abilities, damageType);
+    if (abilityMoveType) damageType = abilityMoveType;
     if (move.id === "weather-ball" && activeWeather && WEATHER_BALL_TYPES[activeWeather]) damageType = WEATHER_BALL_TYPES[activeWeather];
     if (move.id === "final-gambit") damageType = "fighting";
 
@@ -905,8 +1003,10 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     let attackResult = null;
     if (move.attack?.scope) {
       // Vigor (guts) anula la desventaja por Envenenado/Gravemente
-      // envenenado, pero no la de Amedrentado, que sigue aplicando igual.
-      const statusDisadvantageIds = abilityIgnoresStatusPenalty(instance.abilities)
+      // envenenado, pero no la de Amedrentado, que sigue aplicando igual;
+      // Cura Tóxica (poison-heal, lote 32) hace lo mismo solo para Veneno.
+      const ignoresPoisonPenalty = abilityIgnoresStatusPenalty(instance.abilities) || abilityHealsFromPoisonTick(instance.abilities);
+      const statusDisadvantageIds = ignoresPoisonPenalty
         ? ["flinched"]
         : ["poisoned", "badly-poisoned", "flinched"];
       const statusDisadvantage = statusDisadvantageIds.some(id => (instance.conditions ?? []).includes(id) || combatActor?.statuses?.has(pokemonStatusId(id)));
@@ -917,14 +1017,22 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       const weatherAdvantage = move.id === "hydro-steam" && activeWeather === "sun";
       const darkAdvantage = trainer ? Boolean(await promptSpendTrainerResource(trainer, "grunt", { cost: 3, title: "Ventaja oscura (Grunt 5)", prompt: "¿Gastar 3 Puntos de Sombra para tener ventaja en este ataque?" })) : false;
       const assistAdvantage = trainer ? rangerAssistAdvantage(trainer, move.type) : false;
-      const advantage = combatModifiers.attackAdvantage || abilityAdvantage || meleeAdvantage || targetedModifiers.incomingAttackAdvantage || terrainAdvantage || weatherAdvantage || darkAdvantage || assistAdvantage;
-      const disadvantage = statusDisadvantage || combatModifiers.attackDisadvantage;
+      // Sin Reparos/Escudo Intrépido (lotes 35/36): el objetivo también puede
+      // dar ventaja o desventaja a quien le ataca por su propia habilidad,
+      // solo con un único objetivo seleccionado.
+      let targetAttackRollModifier = { advantage: false, disadvantage: false };
+      if (selectedTokens.length === 1) {
+        const targetPokemonItem = await pokemonItemForActor(selectedTokens[0].actor);
+        targetAttackRollModifier = abilityTargetAttackRollModifier(targetPokemonItem?.getFlag(MODULE_ID, "instance")?.abilities, move.attack.scope === "melee");
+      }
+      const advantage = combatModifiers.attackAdvantage || abilityAdvantage || meleeAdvantage || targetedModifiers.incomingAttackAdvantage || terrainAdvantage || weatherAdvantage || darkAdvantage || assistAdvantage || targetAttackRollModifier.advantage || costarAttackAdvantage;
+      const disadvantage = statusDisadvantage || combatModifiers.attackDisadvantage || targetAttackRollModifier.disadvantage;
       const die = advantage === disadvantage ? "1d20" : advantage ? "2d20kh" : "2d20kl";
       const effectDice = combatModifiers.attackDice.map(formula => ` + ${formula}`).join("");
       const effectProficiency = combatModifiers.suppressAttackProficiency ? 0 : proficiency;
       const targetsAreWild = Boolean(selectedTokens.length) && selectedTokens.every(token => token.actor?.getFlag?.(MODULE_ID, "kind") === "wild");
       const companionBonus = trainer ? rangerCompanionAttackBonus(trainer, this.pokemonItem, targetsAreWild) : 0;
-      const attack = await new Roll(`${die} + @mod + @prof + @effect${effectDice}`, { mod: attackMoveModifier, prof: effectProficiency, effect: combatModifiers.attack + heldProfile.attack + pathProfile.attack + companionBonus + abilityProfile.attack }).evaluate();
+      const attack = await new Roll(`${die} + @mod + @prof + @effect${effectDice}`, { mod: attackMoveModifier, prof: effectProficiency, effect: combatModifiers.attack + heldProfile.attack + pathProfile.attack + companionBonus + abilityProfile.attack + victoryStarBonus + plusMinusBonus }).evaluate();
       await attack.toMessage({ speaker, flavor: `${flavor} (${titleCase(move.attack.scope)})` });
       const rolledNatural = Number(attack.dice?.[0]?.results?.find(result => result.active)?.result ?? attack.dice?.[0]?.total) || 0;
       const guaranteed = combatModifiers.guaranteedHit || combatModifiers.guaranteedCritical;
@@ -964,9 +1072,13 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
           instance.lastAttackMissed = missed;
           await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
         }
+        // Analítico (lote 29): ventaja en el próximo ataque tras fallar.
+        if (missed && abilityGrantsAnalyticAdvantage(instance.abilities)) {
+          await applyDynamicModifier(combatActor, "analytic", { modifiers: { attackAdvantage: true }, durationRounds: 1, sourceName: name, description: "Ventaja en el próximo ataque tras fallar (Analítico)." });
+        }
       }
     } else if (move.save) {
-      const dc = 8 + attackMoveModifier + proficiency;
+      const dc = 8 + attackMoveModifier + proficiency + serenegraceBonus;
       const attributes = (move.save.attribute ?? []).map(key => key.toUpperCase()).join("/");
       await ChatMessage.create({ speaker, content: `<div class="dnd5e chat-card"><header class="card-header"><h3>${escapeHtml(flavor)}</h3></header><p><strong>Salvación ${escapeHtml(attributes)} CD ${dc}</strong></p>${moveDescription(move)}</div>` });
       if (HP_EFFECT_MOVES.has(move.id)) {
@@ -1045,33 +1157,68 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       await ChatMessage.create({ speaker, content: `<div class="dnd5e chat-card"><header class="card-header"><h3>${escapeHtml(flavor)}</h3></header>${moveDescription(move)}</div>` });
     }
     let dealtDamageTotal = null;
+    // Armadura Bélica/Armadura Concha/Roca Sólida (lote 11): sin extra de
+    // crítico. Solo se resuelve con un único objetivo seleccionado —igual
+    // que Alza tus defensas más abajo— porque el daño se tira una sola vez
+    // para todos los alcanzados y no hay forma de tratar distinto a dos
+    // objetivos con habilidades distintas en la misma tirada.
+    let targetIgnoresCritical = false;
+    if (attackResult?.critical && selectedTokens.length === 1) {
+      const targetPokemonItem = await pokemonItemForActor(selectedTokens[0].actor);
+      targetIgnoresCritical = abilityIgnoresCriticalDamage(targetPokemonItem?.getFlag(MODULE_ID, "instance")?.abilities);
+    }
+    // Adaptabilidad/Fauces de Dragón/Carga Rocosa/Transistor/Técnico (lote
+    // 13): tiran el daño dos veces y se quedan con el resultado MAYOR, lo
+    // contrario de Quemado (menor). Si el Pokémon está quemado, Quemado tiene
+    // prioridad y esta ronda no se activa —dos tiradas ya cubren "el mismo
+    // dado dos veces", combinarlas exigiría una tercera tirada y decidir cuál
+    // de las dos reglas gana el desempate, algo que el texto original no
+    // contempla—.
+    const notBurned = !((instance.conditions ?? []).includes("burned"));
+    // Fuerza Neuronal (lote 40): mismo mecanismo, pero condicionado a que el
+    // golpe sea supereficaz contra el único objetivo seleccionado.
+    let neuroforceTrigger = false;
+    if (notBurned && selectedTokens.length === 1 && damageType) {
+      const targetTypesSingle = selectedTokens[0].actor?.getFlag?.(MODULE_ID, "pokemonTypes") ?? [];
+      const isSuperEffective = pokemonDefenses(targetTypesSingle).vulnerabilities.includes(damageType);
+      neuroforceTrigger = abilityRollsSuperEffectiveTwice(instance.abilities, isSuperEffective ? 2 : 1);
+    }
+    const rollsTwiceHigher = (notBurned && abilityRollsDamageTwiceHigher(instance.abilities, { moveType: move.type, speciesTypes: species.type ?? [], movePp: move.pp, moveId: move.id, moveName: move.name })) || neuroforceTrigger;
     if (formula) {
       const DamageRoll = CONFIG.Dice?.DamageRoll;
       if (DamageRoll) {
         // Vigor (guts) ignora la tirada doble-quedarse-con-la-menor de Quemado.
         const burned = damageType !== "healing" && (instance.conditions ?? []).includes("burned") && !abilityIgnoresStatusPenalty(instance.abilities);
-        const damageOptions = { type: damageType, critical: Boolean(attackResult?.critical) };
+        const damageOptions = { type: damageType, critical: Boolean(attackResult?.critical) && !targetIgnoresCritical };
         const damageRolls = [await new DamageRoll(formula, {}, damageOptions).evaluate()];
-        if (burned) damageRolls.push(await new DamageRoll(formula, {}, damageOptions).evaluate());
-        const damage = damageRolls.reduce((lowest, candidate) => Number(candidate.total) < Number(lowest.total) ? candidate : lowest);
+        if (burned || rollsTwiceHigher) damageRolls.push(await new DamageRoll(formula, {}, damageOptions).evaluate());
+        const damage = damageRolls.reduce((chosen, candidate) => {
+          if (burned) return Number(candidate.total) < Number(chosen.total) ? candidate : chosen;
+          if (rollsTwiceHigher) return Number(candidate.total) > Number(chosen.total) ? candidate : chosen;
+          return chosen;
+        });
         dealtDamageTotal = Number(damage.total) || 0;
         const rollType = damageType === "healing" ? "healing" : "damage";
         await damage.toMessage({
           speaker,
-          flavor: `${flavor} — ${typeLabel(damageType)}${burned ? ` · Quemado: menor de ${damageRolls.map(roll => roll.total).join("/")}` : ""}`,
+          flavor: `${flavor} — ${typeLabel(damageType)}${burned ? ` · Quemado: menor de ${damageRolls.map(roll => roll.total).join("/")}` : ""}${rollsTwiceHigher ? ` · Mayor de ${damageRolls.map(roll => roll.total).join("/")}` : ""}${targetIgnoresCritical ? " · Sin extra de crítico" : ""}`,
           flags: { dnd5e: { messageType: "roll", roll: { type: rollType }, targets: targetDescriptors() } }
         });
       } else {
         // Vigor (guts) ignora la tirada doble-quedarse-con-la-menor de Quemado.
         const burned = damageType !== "healing" && (instance.conditions ?? []).includes("burned") && !abilityIgnoresStatusPenalty(instance.abilities);
         const damageRolls = [await new Roll(formula).evaluate()];
-        if (burned) damageRolls.push(await new Roll(formula).evaluate());
-        const damage = damageRolls.reduce((lowest, candidate) => Number(candidate.total) < Number(lowest.total) ? candidate : lowest);
+        if (burned || rollsTwiceHigher) damageRolls.push(await new Roll(formula).evaluate());
+        const damage = damageRolls.reduce((chosen, candidate) => {
+          if (burned) return Number(candidate.total) < Number(chosen.total) ? candidate : chosen;
+          if (rollsTwiceHigher) return Number(candidate.total) > Number(chosen.total) ? candidate : chosen;
+          return chosen;
+        });
         dealtDamageTotal = Number(damage.total) || 0;
         const rollType = damageType === "healing" ? "healing" : "damage";
         await damage.toMessage({
           speaker,
-          flavor: `${flavor} — ${typeLabel(damageType)}${burned ? ` · Quemado: menor de ${damageRolls.map(roll => roll.total).join("/")}` : ""}`,
+          flavor: `${flavor} — ${typeLabel(damageType)}${burned ? ` · Quemado: menor de ${damageRolls.map(roll => roll.total).join("/")}` : ""}${rollsTwiceHigher ? ` · Mayor de ${damageRolls.map(roll => roll.total).join("/")}` : ""}`,
           flags: { dnd5e: { messageType: "roll", roll: { type: rollType }, targets: targetDescriptors() } }
         });
       }
@@ -1088,8 +1235,50 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
         if (targetPokemonItem) await removePokemonStatus(targetPokemonItem, "frozen");
       }
     }
+    if (dealtDamageTotal != null && damageType) {
+      // Absorbe Agua/Absorbe Electricidad/Come Tierra (lote 10): además de la
+      // inmunidad de tipo ya aplicada al desplegar, absorben la mitad del
+      // daño en bruto tirado (antes de que esa inmunidad lo reduzca a cero al
+      // aplicarlo) como curación. Mismo criterio "objetivo alcanzado o todos
+      // los seleccionados si no hay tirada de ataque" que el descongelado por
+      // Fuego de arriba.
+      const absorbingTargets = attackResult ? selectedTokens.filter(token => attackHitsPokemonTarget(attackResult, token.actor)) : selectedTokens;
+      for (const token of absorbingTargets) {
+        const targetPokemonItem = await pokemonItemForActor(token.actor);
+        const targetAbilities = targetPokemonItem?.getFlag(MODULE_ID, "instance")?.abilities;
+        if (absorbHealType(targetAbilities) !== damageType) continue;
+        const healed = recoilAmount(dealtDamageTotal, 0.5);
+        const hp = token.actor.system.attributes?.hp;
+        if (healed <= 0 || !hp) continue;
+        const newValue = Math.min(Number(hp.max), Number(hp.value) + healed);
+        if (newValue <= Number(hp.value)) continue;
+        await token.actor.update({ "system.attributes.hp.value": newValue });
+        await ChatMessage.create({ speaker, content: `<div class="dnd5e chat-card poke5e-status-card"><p><strong>${escapeHtml(token.name)}</strong> absorbe el golpe y recupera <strong>${newValue - Number(hp.value)} PG</strong>.</p></div>` });
+      }
+      // Firmeza/Nervios/Impulso Tóxico/Intercambio Térmico (lote 20): ventaja
+      // en el próximo ataque del objetivo si el tipo de daño recibido
+      // coincide, vía applyDynamicModifier() (mismo criterio de bucle).
+      for (const token of absorbingTargets) {
+        const targetPokemonItem = await pokemonItemForActor(token.actor);
+        const targetAbilities = targetPokemonItem?.getFlag(MODULE_ID, "instance")?.abilities;
+        if (!abilityTypeTriggeredAdvantage(targetAbilities, damageType)) continue;
+        await applyDynamicModifier(token.actor, "type-triggered-advantage", {
+          modifiers: { attackAdvantage: true }, durationRounds: 1, sourceName: token.name,
+          description: `Ventaja en el próximo ataque por recibir daño de tipo ${typeLabel(damageType)}.`
+        });
+      }
+      // Motor de Vapor/Vigor (lote 41): reacción propia (no de contacto) que
+      // crea un ActiveEffect de una ronda sobre el propio objetivo alcanzado.
+      for (const token of absorbingTargets) {
+        const targetPokemonItem = await pokemonItemForActor(token.actor);
+        const targetAbilities = targetPokemonItem?.getFlag(MODULE_ID, "instance")?.abilities;
+        const reaction = damageTypeSelfReactionTrigger(targetAbilities, damageType);
+        if (reaction) await applyDamageTypeSelfReaction(token.actor, reaction);
+      }
+    }
     const selectedHit = Boolean(attackResult) && selectedTokens.some(token => attackHitsPokemonTarget(attackResult, token.actor));
-    const recoilFraction = RECOIL_FRACTION_MOVES[move.id];
+    // Cabeza Roca (lote 21): sin daño de retroceso propio.
+    const recoilFraction = abilityIgnoresRecoil(instance.abilities) ? 0 : RECOIL_FRACTION_MOVES[move.id];
     if (recoilFraction && selectedHit && dealtDamageTotal != null) {
       const recoilHp = recoilAmount(dealtDamageTotal, recoilFraction);
       const infamous = trainer && hasTrainerPath(trainer, "grunt", 15)
@@ -1161,20 +1350,44 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
         if (statusReaction) await applyPokemonStatus(combatActor, statusReaction.status, { sourceName: token.name, moveName: move.name });
         const cursedBody = await applyCursedBodyReaction(token.actor, combatActor);
         if (cursedBody) await applyMoveLock(combatActor, move.id, { sourceName: token.name, description: `${move.name} no puede repetirse en el próximo turno por Cuerpo Maldito de ${escapeHtml(token.name)}.` });
+        // Lote 28: Baba deja la velocidad del atacante a 0 durante una ronda.
+        await applyGooeyReaction(token.actor, combatActor);
+      }
+      // Toque Tóxico/Cadena Tóxica (lote 27): mi propio golpe cuerpo a cuerpo
+      // envenena al objetivo, dirección contraria al resto de este bloque.
+      const ownMeleeTrigger = ownMeleeHitStatusTrigger(instance.abilities);
+      if (ownMeleeTrigger) {
+        const hitTokens = selectedTokens.filter(token => attackHitsPokemonTarget(attackResult, token.actor));
+        if (hitTokens.length) {
+          if (ownMeleeTrigger.mode === "chance") {
+            for (const token of hitTokens) {
+              const roll = await new Roll(`1d${ownMeleeTrigger.die}`).evaluate();
+              await roll.toMessage({ speaker, flavor: `${flavor} — ¿envenena a ${token.name}? (ocurre con un ${ownMeleeTrigger.on})` });
+              if (Number(roll.total) === ownMeleeTrigger.on) await applyPokemonStatus(token.actor, ownMeleeTrigger.status, { sourceName: name, moveName: move.name });
+            }
+          } else if (ownMeleeTrigger.mode === "save") {
+            const failed = await rollFailedSaves(hitTokens, ownMeleeTrigger.saveAbility, ownMeleeTrigger.dc, speaker, move.name);
+            for (const target of failed) await applyPokemonStatus(target.actor, ownMeleeTrigger.status, { sourceName: name, moveName: move.name });
+          }
+        }
       }
     }
     if (move.id === "trick" && attackResult) {
       for (const token of selectedTokens) {
         if (!attackHitsPokemonTarget(attackResult, token.actor)) continue;
+        if (await stickyHoldProtects(token)) continue;
         await requestHeldItemSwap({ sourcePokemonItem: this.pokemonItem, targetActor: token.actor, sourceName: name, targetName: token.name });
       }
     }
     if (move.id === "thief" && attackResult && !instance.heldItem) {
       const hitTokens = selectedTokens.filter(token => attackHitsPokemonTarget(attackResult, token.actor));
       if (hitTokens.length) {
-        const dc = 8 + attackMoveModifier + proficiency;
+        const dc = 8 + attackMoveModifier + proficiency + serenegraceBonus;
         const failed = await rollFailedSaves(hitTokens, "dex", dc, speaker, move.name);
-        for (const target of failed) await requestHeldItemSwap({ sourcePokemonItem: this.pokemonItem, targetActor: target.actor, sourceName: name, targetName: target.tokenName });
+        for (const target of failed) {
+          if (await stickyHoldProtects(target)) continue;
+          await requestHeldItemSwap({ sourcePokemonItem: this.pokemonItem, targetActor: target.actor, sourceName: name, targetName: target.tokenName });
+        }
       }
     }
     if (move.id === "incinerate" && attackResult) {
@@ -1183,12 +1396,17 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
         const targetPokemonItem = await pokemonItemForActor(token.actor);
         const targetHeldItem = targetPokemonItem?.getFlag(MODULE_ID, "instance")?.heldItem;
         if (!isBerryHeldItem(targetHeldItem?.sourceId)) continue;
+        if (abilityProtectsHeldItem(targetPokemonItem?.getFlag(MODULE_ID, "instance")?.abilities)) {
+          await ChatMessage.create({ speaker, content: `<div class="dnd5e chat-card poke5e-status-card"><p><strong>${escapeHtml(token.name)}</strong> protege su objeto equipado con Ventosas.</p></div>` });
+          continue;
+        }
         await requestHeldItemDestroy({ targetActor: token.actor, sourceName: name, targetName: token.name, restoreAfterCombat: false });
       }
     }
     if (move.id === "knock-off" && attackResult) {
       for (const token of selectedTokens) {
         if (!attackHitsPokemonTarget(attackResult, token.actor)) continue;
+        if (await stickyHoldProtects(token)) continue;
         await requestHeldItemDestroy({ targetActor: token.actor, sourceName: name, targetName: token.name, restoreAfterCombat: true });
       }
     }
@@ -1234,15 +1452,15 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       const chosenStatus = table.resolve(tableRoll.total);
       statusMove = { ...move, statusEffects: [{ id: chosenStatus, trigger: table.trigger, minimum: table.minimum ?? null, margin: table.margin ?? 0, requiresHit: false, target: "selected" }] };
     }
-    const statusResolution = await applyMoveStatuses({ move: statusMove, attack: attackResult, saveDc: 8 + attackMoveModifier + proficiency, sourceActor: this.pokemonItem.parent, sourceCombatActor: combatActor, sourceName: name });
+    const statusResolution = await applyMoveStatuses({ move: statusMove, attack: attackResult, saveDc: 8 + attackMoveModifier + proficiency + serenegraceBonus, sourceActor: this.pokemonItem.parent, sourceCombatActor: combatActor, sourceName: name });
     await applyMoveOngoingEffects({
-      move, attack: attackResult, saveDc: 8 + attackMoveModifier + proficiency,
+      move, attack: attackResult, saveDc: 8 + attackMoveModifier + proficiency + serenegraceBonus,
       sourceOwnerActor: this.pokemonItem.parent, sourceCombatActor: combatActor,
       sourcePokemonItem: this.pokemonItem, sourceName: name, level, moveModifier,
       proficiency, sourceTypes: species.type ?? []
     });
     await applyMoveModifierEffects({
-      move, attack: attackResult, saveDc: 8 + attackMoveModifier + proficiency,
+      move, attack: attackResult, saveDc: 8 + attackMoveModifier + proficiency + serenegraceBonus,
       saveResults: statusResolution?.saveResults,
       sourceOwnerActor: this.pokemonItem.parent, sourceCombatActor: combatActor, sourceName: name, proficiency
     });
@@ -2248,6 +2466,19 @@ async function pokemonItemForActor(actor) {
   const uuid = actor?.getFlag(MODULE_ID, "pokemonItemUuid");
   if (uuid) return fromUuid(uuid);
   return actor?.items?.find(item => item.getFlag(MODULE_ID, "kind") === "pokemon") ?? null;
+}
+
+/**
+ * Ventosas (sticky-hold, lote 14): avisa en el chat y devuelve true si el
+ * objetivo la conoce, para que Cambiazo/Ladrón/Robo no le roben ni destruyan
+ * el objeto equipado. Acepta tanto una entrada de `selectedTokens` (`.name`)
+ * como una de rollFailedSaves() (`.tokenName`). Auxiliar de #rollMove().
+ */
+async function stickyHoldProtects(target) {
+  const targetPokemonItem = await pokemonItemForActor(target.actor);
+  if (!abilityProtectsHeldItem(targetPokemonItem?.getFlag(MODULE_ID, "instance")?.abilities)) return false;
+  await ChatMessage.create({ content: `<div class="dnd5e chat-card poke5e-status-card"><p><strong>${escapeHtml(target.name ?? target.tokenName ?? "")}</strong> protege su objeto equipado con Ventosas.</p></div>` });
+  return true;
 }
 
 /**

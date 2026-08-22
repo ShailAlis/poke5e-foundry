@@ -8,7 +8,7 @@
  * capture.mjs es quien después convierte al salvaje en Pokémon del entrenador.
  */
 import { damageTraitsForPokemonTypes } from "../combat/combat.mjs";
-import { applyAbilityDefenses } from "../pokemon/pokemon-abilities.mjs";
+import { abilityGrantsUnburdenSpeed, applyAbilityDefenses } from "../pokemon/pokemon-abilities.mjs";
 import { speciesSkillKey } from "../trainer/trainer-creation-data.mjs";
 import { loadPoke5eData } from "../core/data-service.mjs";
 import { buildWildInstance } from "./encounter-generator.mjs";
@@ -71,6 +71,12 @@ export function wildActorSource(species, instance, movesById, encounterId = "") 
     if (key) skills[key] = { value: 1 };
   }
   const movement = prepareMovement(species.speed);
+  // Impasible (unburden, lote 22): +10 pies de velocidad; un salvaje nunca
+  // lleva objeto equipado (este proyecto no lo modela para salvajes), así
+  // que la condición "sin objeto" siempre se cumple aquí.
+  if (abilityGrantsUnburdenSpeed(instance.abilities)) {
+    for (const key of ["walk", "fly", "swim", "burrow", "climb"]) if (movement[key] > 0) movement[key] += 10;
+  }
   const senses = prepareSenses(species.senses);
   const damageTraits = damageTraitsForPokemonTypes(species.type);
   applyAbilityDefenses(damageTraits, instance.abilities);

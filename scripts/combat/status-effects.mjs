@@ -13,7 +13,8 @@
  */
 import { MODULE_ID } from "../core/model.mjs";
 import { pokemonEffectIcon } from "../core/effect-icons.mjs";
-import { abilityBlocksStatus, abilityStatusBonusEffectSource, abilityWeatherHeal } from "../pokemon/pokemon-abilities.mjs";
+import { abilityBlocksStatus, abilityHealsFromPoisonTick, abilityStatusBonusEffectSource, abilityWeatherBlocksStatus, abilityWeatherHeal } from "../pokemon/pokemon-abilities.mjs";
+import { flowerVeilBlocksStatus, nearbyAllyActors, sweetVeilBlocksSleep } from "./aura-abilities.mjs";
 import { attackHitsPokemonTarget, pokemonCombatModifiers } from "./move-modifiers.mjs";
 import { confirmHeldItemReaction, consumeHeldItem, heldItemId, postHeldItemMessage, statusBerryMatches } from "../pokemon/held-items.mjs";
 import { currentField } from "./terrain-effects.mjs";
@@ -389,7 +390,16 @@ export async function applyPokemonStatus(actor, id, source) {
   if (!definition) return;
   const types = pokemonTypes(actor);
   const abilities = await pokemonAbilities(actor);
-  if (definition.immuneTypes.some(type => types.includes(type)) || abilityBlocksStatus(abilities, id)) {
+  // Manto Hoja/Hidratación (lote 12): inmunidad a cualquier estado mientras
+  // el clima activo del combate coincida, junto a las inmunidades fijas por
+  // tipo o habilidad que ya comprobaba este punto.
+  const weatherId = currentField(game.combat).weather?.id ?? null;
+  // Velo Dulce/Velo Flor (lote 38): auras de aliado cercano contra Dormido y
+  // (si el protegido es de tipo Planta) contra cualquier estado nuevo.
+  const nearbyAllies15 = nearbyAllyActors(actor, 15);
+  const auraBlocksSleep = id === "asleep" && sweetVeilBlocksSleep(abilities, nearbyAllies15);
+  const auraBlocksAny = flowerVeilBlocksStatus(abilities, types, nearbyAllies15);
+  if (definition.immuneTypes.some(type => types.includes(type)) || abilityBlocksStatus(abilities, id) || abilityWeatherBlocksStatus(abilities, weatherId) || auraBlocksSleep || auraBlocksAny) {
     ui.notifications.info(game.i18n.format("POKE5E.StatusEffects.Immune", { actor: actor.name, status: definition.name.toLocaleLowerCase() }));
     return;
   }
@@ -482,9 +492,22 @@ export async function applyEndTurnStatusDamage(actor) {
   else if (actorHasPokemonStatus(actor, "burned")) { multiplier = 1; label = "quemadura"; }
   if (!multiplier) return;
   const pokemonItem = await pokemonItemForActor(actor);
-  const level = Number(pokemonItem?.getFlag(MODULE_ID, "instance")?.level) || 1;
+  const instance = pokemonItem?.getFlag(MODULE_ID, "instance");
+  const level = Number(instance?.level) || 1;
   const damage = (2 + Math.floor((Math.max(1, Math.min(20, level)) - 1) / 4)) * multiplier;
   const hp = actor.system.attributes.hp;
+  // Cura Tóxica (poison-heal, lote 32): el daño periódico de Envenenado/
+  // Gravemente envenenado cura la mitad en vez de restar PG. No afecta a la
+  // quemadura, que sigue dañando igual.
+  if (label !== "quemadura" && abilityHealsFromPoisonTick(instance?.abilities)) {
+    const healed = Math.floor(damage / 2);
+    const newValue = Math.min(Number(hp.max), Number(hp.value) + healed);
+    if (newValue > Number(hp.value)) {
+      await actor.update({ "system.attributes.hp.value": newValue });
+      await ChatMessage.create({ content: `<div class="dnd5e chat-card poke5e-status-card"><p><strong>${escapeHtml(actor.name)}</strong> recupera <strong>${newValue - Number(hp.value)} PG</strong> por ${escapeHtml(label)} gracias a Cura Tóxica.</p></div>` });
+    }
+    return;
+  }
   await actor.update({ "system.attributes.hp.value": Math.max(0, Number(hp.value) - damage) });
   await ChatMessage.create({ content: `<div class="dnd5e chat-card poke5e-status-card"><p><strong>${escapeHtml(actor.name)}</strong> recibe <strong>${damage} de daño</strong> por ${escapeHtml(label)} al final de su turno.</p></div>` });
 }

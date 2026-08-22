@@ -3,9 +3,13 @@
  * reutiliza recallPokemon() de deployment.mjs para retirar al Pokémon propio,
  * y un socket delegado al director —mismo patrón que status-effects.mjs y
  * hp-effects.mjs— para retirar al de un objetivo que normalmente no pertenece
- * a quien tira el movimiento.
+ * a quien tira el movimiento. requestForcedSwitch() comprueba primero
+ * abilityBlocksForcedSwitch() (Ventosas/Guardián, lote 15 de
+ * pokemon-abilities.mjs) para que un objetivo con esa habilidad no pueda ser
+ * expulsado del combate por un movimiento ajeno.
  */
 import { MODULE_ID } from "../core/model.mjs";
+import { abilityBlocksForcedSwitch } from "../pokemon/pokemon-abilities.mjs";
 import { recallPokemon } from "../world/deployment.mjs";
 
 const SOCKET_ACTION = "applyForcedSwitch";
@@ -35,6 +39,14 @@ export async function selfForcedSwitch(pokemonItem) {
  */
 export async function requestForcedSwitch(targetActor, sourceName) {
   const targetName = targetActor?.name ?? "";
+  // Ventosas/Guardián (lote 15 de habilidades Pokémon): no puede ser
+  // expulsado del combate por un movimiento ajeno. Se comprueba antes que
+  // cualquier otra cosa, tanto para salvajes como para Pokémon de entrenador.
+  const targetPokemonItem = await pokemonItemForActor(targetActor);
+  if (abilityBlocksForcedSwitch(targetPokemonItem?.getFlag(MODULE_ID, "instance")?.abilities)) {
+    await ChatMessage.create({ content: `<div class="dnd5e chat-card poke5e-status-card"><p><strong>${escapeHtml(targetName)}</strong> no puede ser expulsado del combate por ${escapeHtml(sourceName)}.</p></div>` });
+    return;
+  }
   if (targetActor?.getFlag(MODULE_ID, "kind") === "wild") {
     await ChatMessage.create({ content: `<div class="dnd5e chat-card poke5e-status-card"><p><strong>${escapeHtml(targetName)}</strong> es lanzado fuera del combate por ${escapeHtml(sourceName)}. Si su nivel es menor, huye del combate (a criterio del director).</p></div>` });
     return;
@@ -57,6 +69,18 @@ async function completeForcedSwitch(payload) {
   if (!pokemonItem) return;
   const switched = await recallPokemon(pokemonItem, { forced: true });
   if (switched) await ChatMessage.create({ content: `<div class="dnd5e chat-card poke5e-status-card"><p><strong>${escapeHtml(payload.targetName)}</strong> es retirado del combate por ${escapeHtml(payload.sourceName)}. Su entrenador debe sacar otro Pokémon del equipo si le queda alguno.</p></div>` });
+}
+
+/**
+ * Localiza el Item Pokémon que respalda a un actor: por el UUID que guarda un
+ * desplegado o, si no lo hay, entre los Items embebidos de un salvaje. Copia
+ * local del mismo patrón ya usado en status-effects.mjs, pokemon-abilities.mjs
+ * y trainer-resources.mjs para no crear un ciclo de imports.
+ */
+async function pokemonItemForActor(actor) {
+  const uuid = actor?.getFlag(MODULE_ID, "pokemonItemUuid");
+  if (uuid) return fromUuid(uuid);
+  return actor?.items?.find(item => item.getFlag(MODULE_ID, "kind") === "pokemon") ?? null;
 }
 
 function escapeHtml(value) { return foundry.utils.escapeHTML(String(value ?? "")); }

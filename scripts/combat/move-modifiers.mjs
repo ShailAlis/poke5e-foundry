@@ -6,6 +6,7 @@
 import { MODULE_ID } from "../core/model.mjs";
 import { pokemonEffectIcon } from "../core/effect-icons.mjs";
 import { MOVE_MODIFIER_EFFECTS, modifierTriggerMatches, nextModifierStacks, scaledMoveModifiers } from "./move-modifier-rules.mjs";
+import { abilityGrantsDebuffImmunity, abilityGrantsMeleeAttackAdvantage, abilityGrantsSelfAttackAdvantage, abilityLowHpCombatModifiers } from "../pokemon/pokemon-abilities.mjs";
 import { applyGruntSaveAdvantage, applyHobbyistSaveBoost, applyNurseStatusSaveAdvantage, applyTacticianDcBoost } from "../trainer/trainer-resources.mjs";
 
 const SOCKET_ACTION = "applyMoveModifiers";
@@ -116,6 +117,35 @@ export async function applyMoveModifierEffects({ move, attack = null, saveDc, sa
 /** Suma los modificadores activos que afectan a las tiradas del actor. */
 export function pokemonCombatModifiers(actor, { targetUuids = [] } = {}) {
   const total = { attack: 0, damage: 0, criticalRangeBonus: 0, moveModifierMultiplier: 1, attackDice: [], saveDice: [], saves: {}, attackAdvantage: false, attackDisadvantage: false, incomingAttackAdvantage: false, saveAdvantage: false, saveTargetsAdvantage: false, suppressAttackProficiency: false, disableHeldItem: false, abilityCheckDisadvantage: false, attackAdvantageAbilities: [], saveDisadvantageAbilities: [], saveTargetsDisadvantageAbilities: [], saveAdvantageAbilities: [], meleeAttackAdvantage: false, guaranteedHit: false, guaranteedCritical: false, moveLockAll: false, debuffImmune: false, statusImmune: false, recallLock: false, damageHalved: false };
+  // Cuerpo Puro/Cuerpo de Metal Pleno/Humo Blanco (lote 16 de habilidades
+  // Pokémon): mismo flag `debuffImmune` que ya activaba un ActiveEffect de
+  // movimiento (categoría "debuffs"), leído del flag síncrono `pokemonAbilities`
+  // que ya llevan los actores desplegados y salvajes (lote 9) para no
+  // convertir esta función en async por una sola comprobación.
+  if (abilityGrantsDebuffImmunity(actor?.getFlag?.(MODULE_ID, "pokemonAbilities"))) total.debuffImmune = true;
+  // Desertor/Descontrol (lote 24): desventaja de ataque propia y, con
+  // Descontrol, ventaja de salvación del objetivo, al 25% o menos de PG
+  // máximos. Misma lectura síncrona del flag `pokemonAbilities` que el
+  // debuffImmune de arriba, con la fracción de PG calculada aquí mismo.
+  const hp = actor?.system?.attributes?.hp;
+  const hpFraction = hp?.max ? Number(hp.value) / Number(hp.max) : 1;
+  const lowHpModifiers = abilityLowHpCombatModifiers(actor?.getFlag?.(MODULE_ID, "pokemonAbilities"), hpFraction);
+  total.attackDisadvantage ||= lowHpModifiers.attackDisadvantage;
+  total.saveTargetsAdvantage ||= lowHpModifiers.saveTargetsAdvantage;
+  // Espada Justiciera/Sin Reparos (lotes 34/35): ventaja en los propios
+  // ataques, mismo flag síncrono `pokemonAbilities` que el resto de esta
+  // función.
+  const ownAbilities = actor?.getFlag?.(MODULE_ID, "pokemonAbilities");
+  total.meleeAttackAdvantage ||= abilityGrantsMeleeAttackAdvantage(ownAbilities);
+  total.attackAdvantage ||= abilityGrantsSelfAttackAdvantage(ownAbilities);
+  // Desafiante (lote 41): +2 a los propios ataques mientras el Pokémon sufra
+  // cualquier estado alterado activo. El texto original también cubre una
+  // reducción de característica impuesta por el rival, pero este proyecto no
+  // lleva un registro de "quién causó" cada cambio de característica, así
+  // que se simplifica al caso de estado alterado (mismo `hasActiveStatus`
+  // que se calcula abajo al recorrer los ActiveEffect del actor).
+  const hasActiveStatus = (actor?.effects ?? []).some(effect => effect.getFlag?.(MODULE_ID, "kind") === STATUS_KIND);
+  if (hasActiveStatus && (ownAbilities ?? []).includes("defiant")) total.attack += 2;
   for (const effect of actor?.effects ?? []) {
     const kind = effect.getFlag?.(MODULE_ID, "kind");
     if (kind === STATUS_KIND) {
