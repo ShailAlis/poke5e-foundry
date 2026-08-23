@@ -30,7 +30,7 @@ import { MOVE_MODIFIER_EFFECTS } from "../combat/move-modifier-rules.mjs";
 import { requestForcedSwitch, selfForcedSwitch } from "../combat/forced-switch.mjs";
 import { FULL_NEGATION_MOVES, HALF_NEGATION_MOVES, SURVIVE_MOVES, armDamageShield } from "../combat/damage-shields.mjs";
 import { FIELD_PULSE_MOVES, FIELD_RULE_MOVES, TERRAIN_MOVES, WEATHER_BALL_TYPES, WEATHER_MOVES, clearField, currentField, requestFieldEffect } from "../combat/terrain-effects.mjs";
-import { ABILITY_REST_RESOURCES, abilityBlocksBulletproofMove, abilityBlocksIncomingMove, abilityBlocksRepeatingMove, abilityCriticalDamageProfile, abilityDoublesDiceAgainstPoisoned, abilityDoublesRecoilStab, abilityFaintedAllyAttackBonus, abilityForcesMoveStab, abilityGrantsAnalyticAdvantage, abilityHealsFromPoisonTick, abilityIceScalesDiceMultiplier, abilityIgnoresAbilityDamageImmunity, abilityIgnoresCriticalDamage, abilityIgnoresNormalFightingImmunity, abilityIgnoresRecoil, abilityIgnoresStatusPenalty, abilityLowHpDamageDiceMultiplier, abilityLowHpStabBonus, abilityMinimumChainExtraHits, abilityMoveActivationTime, abilityMoveDamageBonus, abilityMovePpCost, abilityMoveProfile, abilityMoveStabBonus, abilityMoveTypeOverride, abilityMoveUserTypeChange, abilityPreventsHoldingItem, abilityProtectsHeldItem, abilityReceivedDamageTypeChange, abilityRestUseAvailable, abilityRollsDamageTwiceHigher, abilityRollsSuperEffectiveTwice, abilityRollsVulnerableDamageTwiceLower, abilitySaveDcBonus, abilitySelfStatusDamageBonus, abilitySharpnessDoublesModifier, abilitySheerForceProfile, abilitySuppressesTargetAbilities, abilityTargetAttackRollModifier, abilityTargetDamageDiceMultiplier, abilityTypeTriggeredAdvantage, abilityVulnerabilityFilter, abilityWeatherDamageBonus, abilityWeatherStabBonus, absorbHealType, applyCombatAbilityTypeChange, applyContactDamageReaction, applyContactStatusReaction, applyCursedBodyReaction, applyDamageTypeSelfReaction, applyGooeyReaction, damageTypeSelfReactionTrigger, markAbilityRestUseSpent, ownMeleeHitStatusTrigger } from "./pokemon-abilities.mjs";
+import { ABILITY_REST_RESOURCES, abilityBlocksBulletproofMove, abilityBlocksIncomingMove, abilityBlocksRepeatingMove, abilityCriticalDamageProfile, abilityDamageImmunity, abilityDoublesDiceAgainstPoisoned, abilityDoublesRecoilStab, abilityFaintedAllyAttackBonus, abilityForcesMoveStab, abilityGrantsAnalyticAdvantage, abilityHealsFromPoisonTick, abilityIceScalesDiceMultiplier, abilityIgnoresAbilityDamageImmunity, abilityIgnoresCriticalDamage, abilityIgnoresNormalFightingImmunity, abilityIgnoresRecoil, abilityIgnoresStatusPenalty, abilityLowHpDamageDiceMultiplier, abilityLowHpStabBonus, abilityMinimumChainExtraHits, abilityMoveActivationTime, abilityMoveDamageBonus, abilityMovePpCost, abilityMoveProfile, abilityMoveStabBonus, abilityMoveTypeOverride, abilityMoveUserTypeChange, abilityPreventsHoldingItem, abilityProtectsHeldItem, abilityReceivedDamageTypeChange, abilityRestUseAvailable, abilityRollsDamageTwiceHigher, abilityRollsSuperEffectiveTwice, abilityRollsVulnerableDamageTwiceLower, abilitySaveDcBonus, abilitySelfStatusDamageBonus, abilitySharpnessDoublesModifier, abilitySheerForceProfile, abilitySuppressesTargetAbilities, abilityTargetAttackRollModifier, abilityTargetDamageDiceMultiplier, abilityTypeTriggeredAdvantage, abilityVulnerabilityFilter, abilityWeatherDamageBonus, abilityWeatherStabBonus, absorbHealType, applyCombatAbilityTypeChange, applyContactDamageReaction, applyContactStatusReaction, applyCursedBodyReaction, applyDamageTypeSelfReaction, applyGooeyReaction, damageTypeSelfReactionTrigger, markAbilityRestUseSpent, ownMeleeHitStatusTrigger } from "./pokemon-abilities.mjs";
 import { batteryDiceMultiplier, costarAdvantage, flowerGiftDamageBonus, nearbyAllyActors, nearbyPokemonActors, plusMinusAttackDamageBonus, powerSpotExtraDie, steelySpiritDamageBonus, supersweetSyrupExtraDie, typeAuraDiceMultiplier, victoryStarAttackBonus, weatherAbilitiesSuppressed } from "../combat/aura-abilities.mjs";
 import { promptSpendTrainerResource, trainerResourceState } from "../trainer/trainer-resources.mjs";
 import { pokemonFeatOptions } from "../trainer/feat-catalog.mjs";
@@ -1136,12 +1136,34 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     if (move.id === "weather-ball" && activeWeather && WEATHER_BALL_TYPES[activeWeather]) damageType = WEATHER_BALL_TYPES[activeWeather];
     if (move.id === "final-gambit") damageType = "fighting";
 
+    // La afinidad de dnd5e sigue guardada en el actor, pero la tirada Pokémon
+    // detiene también el movimiento para que la inmunidad no dependa del botón
+    // usado para aplicar el daño. Las habilidades absorbentes continúan porque
+    // necesitan el total bruto de la tirada para calcular su curación.
+    const targetDamageImmunity = selectedTokens.length === 1 && !ignoreTargetDamageImmunity
+      ? abilityDamageImmunity(effectiveTargetAbilities, damageType)
+      : null;
+    const targetAbsorbsDamage = targetDamageImmunity && absorbHealType(effectiveTargetAbilities) === damageType;
+
     instance.lastMoveId = move.id;
     const ppCost = abilityMovePpCost(effectiveTargetAbilities, selectedTokens.length === 1);
     if (Number(entry.pp.max) > 0) entry.pp.value = Math.max(0, Number(entry.pp.value) - ppCost);
     await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
     if (Number(entry.pp.max) > 0 && Number(entry.pp.value) === 0) await tryLeppaBerryReaction(this.pokemonItem, entry.id);
     if (targetAbilityBlock) {
+      this.render({ force: true });
+      return;
+    }
+    if (targetDamageImmunity && !targetAbsorbsDamage) {
+      const abilityName = data.abilitiesById.get(targetDamageImmunity)?.name ?? targetDamageImmunity;
+      await ChatMessage.create({
+        speaker,
+        content: `<div class="dnd5e chat-card poke5e-status-card"><p>${game.i18n.format("POKE5E.Abilities.DamageImmunity", {
+          actor: `<strong>${escapeHtml(selectedTokens[0].name)}</strong>`,
+          move: escapeHtml(move.name),
+          ability: escapeHtml(abilityName)
+        })}</p></div>`
+      });
       this.render({ force: true });
       return;
     }
@@ -1348,11 +1370,11 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
         });
         dealtDamageTotal = Number(damage.total) || 0;
         const rollType = damageType === "healing" ? "healing" : "damage";
-        await damage.toMessage({
+        await damage.toMessage(damageRollMessageData({
           speaker,
           flavor: `${flavor} — ${typeLabel(damageType)}${burned ? ` · Quemado: menor de ${damageRolls.map(roll => roll.total).join("/")}` : ""}${vulnerableDamageTwiceLower ? ` · Armadura Prisma: menor de ${damageRolls.map(roll => roll.total).join("/")}` : ""}${rollsTwiceHigher ? ` · Mayor de ${damageRolls.map(roll => roll.total).join("/")}` : ""}${targetIgnoresCritical ? " · Sin extra de crítico" : ""}`,
-          flags: { dnd5e: { messageType: "roll", roll: { type: rollType }, targets: targetDescriptors() } }
-        });
+          rollType
+        }));
       } else {
         // Vigor (guts) ignora la tirada doble-quedarse-con-la-menor de Quemado.
         const burned = damageType !== "healing" && (instance.conditions ?? []).includes("burned") && !abilityIgnoresStatusPenalty(instance.abilities);
@@ -1367,11 +1389,11 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
         });
         dealtDamageTotal = Number(damage.total) || 0;
         const rollType = damageType === "healing" ? "healing" : "damage";
-        await damage.toMessage({
+        await damage.toMessage(damageRollMessageData({
           speaker,
           flavor: `${flavor} — ${typeLabel(damageType)}${burned ? ` · Quemado: menor de ${damageRolls.map(roll => roll.total).join("/")}` : ""}${vulnerableDamageTwiceLower ? ` · Armadura Prisma: menor de ${damageRolls.map(roll => roll.total).join("/")}` : ""}${rollsTwiceHigher ? ` · Mayor de ${damageRolls.map(roll => roll.total).join("/")}` : ""}`,
-          flags: { dnd5e: { messageType: "roll", roll: { type: rollType }, targets: targetDescriptors() } }
-        });
+          rollType
+        }));
       }
     }
     if (dealtDamageTotal != null) dealtDamageTotal = await this.#offerTrainerRollBoosts({ damageType, dealtDamageTotal, formula, speaker, flavor });
@@ -1685,11 +1707,11 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     if (ace) {
       const bonus = DamageRoll ? await new DamageRoll(aceFormula, {}, { type: damageType }).evaluate() : await new Roll(aceFormula).evaluate();
       total += Number(bonus.total) || 0;
-      await bonus.toMessage({
+      await bonus.toMessage(damageRollMessageData({
         speaker,
         flavor: `${flavor} — Dado de batalla (Ace Trainer)`,
-        flags: { dnd5e: { messageType: "roll", roll: { type: rollType }, targets: targetDescriptors() } }
-      });
+        rollType
+      }));
     }
 
     if (healing) {
@@ -1699,11 +1721,11 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
         if (!spent) { more = false; continue; }
         const bonus = DamageRoll ? await new DamageRoll("1d4", {}, { type: "healing" }).evaluate() : await new Roll("1d4").evaluate();
         total += Number(bonus.total) || 0;
-        await bonus.toMessage({
+        await bonus.toMessage(damageRollMessageData({
           speaker,
           flavor: `${flavor} — Puntos Tácticos (curación extra)`,
-          flags: { dnd5e: { messageType: "roll", roll: { type: "healing" }, targets: targetDescriptors() } }
-        });
+          rollType: "healing"
+        }));
       }
     } else {
       const directed = await promptSpendTrainerResource(trainer, "tactician", { cost: 2, prompt: "¿Gastar 2 Puntos Tácticos (Golpe dirigido) para volver a tirar este daño y quedarte con el mayor?" });
@@ -1714,11 +1736,10 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
           const delta = rerollTotal - total;
           total = rerollTotal;
           const bonus = DamageRoll ? await new DamageRoll(String(delta), {}, { type: damageType }).evaluate() : await new Roll(String(delta)).evaluate();
-          await bonus.toMessage({
+          await bonus.toMessage(damageRollMessageData({
             speaker,
-            flavor: `${flavor} — Golpe dirigido (Tactician): segunda tirada mayor (${rerollTotal})`,
-            flags: { dnd5e: { messageType: "roll", roll: { type: "damage" }, targets: targetDescriptors() } }
-          });
+            flavor: `${flavor} — Golpe dirigido (Tactician): segunda tirada mayor (${rerollTotal})`
+          }));
         } else {
           await ChatMessage.create({ speaker, content: `<div class="dnd5e chat-card poke5e-status-card"><p>${escapeHtml(flavor)} — Golpe dirigido (Tactician): la segunda tirada (${rerollTotal}) no mejora el daño ya infligido.</p></div>` });
         }
@@ -1870,7 +1891,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const damage = DamageRoll
       ? await new DamageRoll(String(Math.max(1, damageTotal)), {}, { type: "typeless" }).evaluate()
       : await new Roll(String(Math.max(1, damageTotal))).evaluate();
-    await damage.toMessage({ speaker, flavor: `${name} — ${move.name} — Típeless (doble del daño recibido)`, flags: { dnd5e: { messageType: "roll", roll: { type: "damage" }, targets: targetDescriptors() } } });
+    await damage.toMessage(damageRollMessageData({ speaker, flavor: `${name} — ${move.name} — Típeless (doble del daño recibido)` }));
     instance.bideTracking = false;
     instance.bideDamage = 0;
     await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
@@ -1943,7 +1964,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       const damage = DamageRoll
         ? await new DamageRoll(String(damageTotal), {}, { type: "steel" }).evaluate()
         : await new Roll(String(damageTotal)).evaluate();
-      await damage.toMessage({ speaker, flavor: `${name} — ${move.name} — Acero (igual al daño recibido, tope 5× nivel)`, flags: { dnd5e: { messageType: "roll", roll: { type: "damage" }, targets: targetDescriptors() } } });
+      await damage.toMessage(damageRollMessageData({ speaker, flavor: `${name} — ${move.name} — Acero (igual al daño recibido, tope 5× nivel)` }));
     }
     instance.metalBurstTracking = false;
     instance.metalBurstDamage = 0;
@@ -1986,7 +2007,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const damage = DamageRoll
       ? await new DamageRoll(formula, {}, { type: damageType }).evaluate()
       : await new Roll(formula).evaluate();
-    await damage.toMessage({ speaker, flavor: `${name} — ${move.name} — ${typeLabel(damageType)}`, flags: { dnd5e: { messageType: "roll", roll: { type: "damage" }, targets: targetDescriptors() } } });
+    await damage.toMessage(damageRollMessageData({ speaker, flavor: `${name} — ${move.name} — ${typeLabel(damageType)}` }));
     instance[trackingKey] = false;
     await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
     this.render({ force: true });
@@ -2079,7 +2100,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       const damage = DamageRoll
         ? await new DamageRoll(formula, {}, { type: damageType }).evaluate()
         : await new Roll(formula).evaluate();
-      await damage.toMessage({ speaker, flavor: `${flavor} — ${typeLabel(damageType)}`, flags: { dnd5e: { messageType: "roll", roll: { type: "damage" }, targets: targetDescriptors() } } });
+      await damage.toMessage(damageRollMessageData({ speaker, flavor: `${flavor} — ${typeLabel(damageType)}` }));
     }
     if (!hits) await ChatMessage.create({ speaker, content: `<div class="dnd5e chat-card poke5e-status-card"><p>${escapeHtml(flavor)} no llega a impactar ninguna vez.</p></div>` });
     this.render({ force: true });
@@ -2297,6 +2318,8 @@ function targetDescriptors() {
     const actor = token.actor;
     if (!actor?.uuid) continue;
     targets.set(actor.uuid, {
+      actor: actor.uuid,
+      token: token.document?.uuid ?? null,
       name: token.name,
       img: actor.img,
       uuid: actor.uuid,
@@ -2304,6 +2327,27 @@ function targetDescriptors() {
     });
   }
   return [...targets.values()];
+}
+
+/**
+ * Configura un mensaje de DamageRoll para las dos APIs compatibles del sistema:
+ * D&D5e 5.x lee flags.dnd5e y D&D5e 6.x usa el tipo de mensaje `damage` junto
+ * con system.targets. Conservar ambos formatos evita perder los botones de
+ * aplicación y, con ellos, resistencias, vulnerabilidades e inmunidades.
+ */
+function damageRollMessageData({ speaker, flavor, rollType = "damage" }) {
+  const targets = targetDescriptors();
+  const data = {
+    speaker,
+    flavor,
+    flags: { dnd5e: { messageType: "roll", roll: { type: rollType }, targets } }
+  };
+  const systemMajor = Number.parseInt(String(game.system?.version ?? "0").split(".")[0], 10);
+  if (systemMajor >= 6) {
+    data.type = "damage";
+    data.system = { targets };
+  }
+  return data;
 }
 
 /**
@@ -2624,11 +2668,10 @@ async function rollChainMultiHit(move, level, damageType, flavor, speaker, maxEx
   const extraDamage = DamageRoll
     ? await new DamageRoll(extraFormula, {}, { type: damageType }).evaluate()
     : await new Roll(extraFormula).evaluate();
-  await extraDamage.toMessage({
+  await extraDamage.toMessage(damageRollMessageData({
     speaker,
-    flavor: `${flavor} — ${extraHits} golpe${extraHits === 1 ? "" : "s"} adicional${extraHits === 1 ? "" : "es"} (${typeLabel(damageType)})`,
-    flags: { dnd5e: { messageType: "roll", roll: { type: "damage" }, targets: targetDescriptors() } }
-  });
+    flavor: `${flavor} — ${extraHits} golpe${extraHits === 1 ? "" : "s"} adicional${extraHits === 1 ? "" : "es"} (${typeLabel(damageType)})`
+  }));
 }
 
 /**

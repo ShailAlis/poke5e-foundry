@@ -147,6 +147,7 @@
   {{/if}}
 
   {{#if pokemonTabs.details}}
+  {{#if evolutions.length}}
   <section class="poke5e-evolution-panel" aria-label="Evoluciones">
     <h2><i class="fa-solid fa-dna"></i> {{localize "POKE5E.PokemonSheet.Evolution"}}</h2>
     <div class="poke5e-evolution-list">
@@ -158,11 +159,10 @@
             <button type="button" class="{{#if available}}bright{{/if}}" data-action="evolve-pokemon" data-evolution-id="{{id}}" {{#unless available}}disabled{{/unless}} title="{{#if available}}{{#if manualConfirmation}}Confirma las condiciones manuales para evolucionar{{else}}Evolución disponible{{/if}}{{else}}Todavía no cumple las condiciones{{/if}}"><i class="fa-solid fa-dna"></i> {{#if available}}Evolucionar{{else}}No disponible{{/if}}</button>
           {{/if}}
         </article>
-      {{else}}
-        <span class="poke5e-none">{{localize "POKE5E.PokemonSheet.NoEvolution"}}</span>
       {{/each}}
     </div>
   </section>
+  {{/if}}
 
   <nav class="poke5e-sheet-actions">
     {{#if hasTrainer}}<button type="button" data-action="open-trainer-sheet"><i class="fa-solid fa-user-shield"></i> {{localize "POKE5E.PokemonSheet.OpenTrainer"}}</button>{{/if}}

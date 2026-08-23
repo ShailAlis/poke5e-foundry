@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import {
   ABSORB_HEAL_ABILITIES, AC_STATUS_BONUS_ABILITIES, CONTACT_DAMAGE_ABILITIES, CONTACT_STATUS_ABILITIES, CRITICAL_IMMUNITY_ABILITIES, DEBUFF_IMMUNITY_ABILITIES, FORCED_SWITCH_IMMUNE_ABILITIES, FULL_STATUS_IMMUNITY_ABILITIES, GUTS_IGNORED_STATUSES, IMMUNITY_ABILITIES, LOW_HP_STAB_ABILITIES, NORMAL_MOVE_TYPE_OVERRIDE_ABILITIES, RESISTANCE_ABILITIES, SELF_STATUS_DAMAGE_BOOST_ABILITIES, SPEED_STATUS_BONUS_ABILITIES, STATUS_IMMUNITY_ABILITIES, WEATHER_ABILITIES, WEATHER_DAMAGE_BONUS_ABILITIES, WEATHER_HEAL_ABILITIES, WEATHER_STAB_DOUBLE_ABILITIES, WEATHER_STATUS_IMMUNITY_ABILITIES,
-  abilityBerryHealBonus, abilityBlocksForcedSwitch, abilityBlocksStatus, abilityDeployWeather, abilityGrantsDebuffImmunity, abilityGrantsUnburdenSpeed, abilityIgnoresCriticalDamage, abilityIgnoresRecoil, abilityIgnoresStatusPenalty, abilityLowHpCombatModifiers, abilityLowHpDamageDiceMultiplier, abilityLowHpStabBonus, abilityMoveProfile, abilityMoveTypeOverride, abilityPreventsHoldingItem, abilityProtectsHeldItem, abilityRollsDamageTwiceHigher, abilitySaveDcBonus, abilitySelfStatusDamageBonus, abilitySharpnessDoublesModifier, abilityStatusBonusEffectSource, abilityTypeTriggeredAdvantage, abilityWeatherBlocksStatus, abilityWeatherDamageBonus, abilityWeatherHeal, abilityWeatherStabBonus, absorbHealType, applyAbilityDefenses, contactDamageReaction, contactStatusReaction, pokemonAbilityDefenses,
+  abilityBerryHealBonus, abilityBlocksForcedSwitch, abilityBlocksStatus, abilityDamageImmunity, abilityDeployWeather, abilityGrantsDebuffImmunity, abilityGrantsUnburdenSpeed, abilityIgnoresCriticalDamage, abilityIgnoresRecoil, abilityIgnoresStatusPenalty, abilityLowHpCombatModifiers, abilityLowHpDamageDiceMultiplier, abilityLowHpStabBonus, abilityMoveProfile, abilityMoveTypeOverride, abilityPreventsHoldingItem, abilityProtectsHeldItem, abilityRollsDamageTwiceHigher, abilitySaveDcBonus, abilitySelfStatusDamageBonus, abilitySharpnessDoublesModifier, abilityStatusBonusEffectSource, abilityTypeTriggeredAdvantage, abilityWeatherBlocksStatus, abilityWeatherDamageBonus, abilityWeatherHeal, abilityWeatherStabBonus, absorbHealType, applyAbilityDefenses, contactDamageReaction, contactStatusReaction, pokemonAbilityDefenses,
   STRONG_JAW_MOVE_IDS, TYPE_TRIGGERED_ADVANTAGE_ABILITIES,
   abilityBlocksBulletproofMove, OWN_MELEE_HIT_STATUS_ABILITIES, ownMeleeHitStatusTrigger,
   abilityGrantsAnalyticAdvantage, abilityBlocksRepeatingMove,
@@ -81,6 +81,9 @@ assert.deepEqual(pokemonAbilityDefenses(["thick-fat"]), { immunities: [], resist
 assert.deepEqual(pokemonAbilityDefenses(["overgrow"]), { immunities: [], resistances: [] }, "Una habilidad sin efecto fijo no aporta nada");
 assert.deepEqual(pokemonAbilityDefenses([]), { immunities: [], resistances: [] });
 assert.deepEqual(pokemonAbilityDefenses(["levitate", "water-absorb"]).immunities.sort(), ["ground", "water"], "Varias habilidades conocidas se suman, no se sustituyen");
+assert.equal(abilityDamageImmunity(["levitate"], "ground"), "levitate");
+assert.equal(abilityDamageImmunity(["levitate"], "water"), null);
+assert.equal(abilityDamageImmunity([], "ground"), null);
 
 const traits = { dr: { value: [] }, dv: { value: ["ground"] }, di: { value: [] } };
 applyAbilityDefenses(traits, ["levitate"]);

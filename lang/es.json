@@ -620,6 +620,7 @@
   "POKE5E.Abilities.AssistedHint": "Esta habilidad requiere una decisión de mesa o datos que Foundry no puede determinar de forma segura.",
   "POKE5E.Abilities.Automatic": "Automática",
   "POKE5E.Abilities.AutomationTitle": "Nivel de automatización de la habilidad",
+  "POKE5E.Abilities.DamageImmunity": "{actor} es inmune a {move} gracias a {ability}.",
   "POKE5E.Abilities.Use": "Publicar habilidad en el chat",
   "POKE5E.TrainerClass.Biome": "Bioma",
   "POKE5E.TrainerClass.ChooseSpecialization": "Elegir especialización",

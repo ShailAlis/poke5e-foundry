@@ -31,14 +31,15 @@ import { registerForcedSwitch } from "../combat/forced-switch.mjs";
 import { registerDamageShields } from "../combat/damage-shields.mjs";
 import { registerFieldEffects } from "../combat/terrain-effects.mjs";
 import { registerCombatHistory } from "../combat/combat-history.mjs";
-import { restoreHeldItemChargesAfterRest } from "../pokemon/held-items.mjs";
-import { resetAbilityRestResourcesAfterRest } from "../pokemon/pokemon-abilities.mjs";
+import { heldItemActorAdjustments, heldItemEffectiveTypes, restoreHeldItemChargesAfterRest } from "../pokemon/held-items.mjs";
+import { applyAbilityDefenses, resetAbilityRestResourcesAfterRest } from "../pokemon/pokemon-abilities.mjs";
 import { clearPoke5eDataCache, loadPoke5eData } from "./data-service.mjs";
 import { configurePokedollarEconomy } from "../world/economy.mjs";
 import { synchronizePrimaryParty } from "../trainer/primary-party.mjs";
 import { migrateMoveMachineIcons } from "../pokemon/move-machines.mjs";
 import { registerTrainerExperienceAutomation } from "../trainer/trainer-progression.mjs";
 import { registerTrainerClassAutomation, synchronizeTrainerClassRules } from "../trainer/trainer-class-rules.mjs";
+import { applyTypeMasteryDefense } from "../trainer/trainer-path-rules.mjs";
 
 /**
  * Arranque temprano: delega el registro de tipos de daño (combat.mjs), fichas
@@ -413,8 +414,9 @@ async function migrateEmbeddedAssetUrls() {
 /**
  * Migración a la versión 1.0: asigna sexo con randomGenderForRatio() a los
  * Pokémon guardados que no lo tengan y actualiza resistencias, vulnerabilidades
- * e inmunidades de los actores desplegados con damageTraitsForPokemonTypes()
- * (combat.mjs). Se ejecuta una vez por sesión de director desde el hook `ready`.
+ * e inmunidades de los actores desplegados o salvajes, incluidas habilidades,
+ * objetos y reglas del entrenador. Se ejecuta una vez por sesión de director
+ * desde el hook `ready`.
  */
 async function migratePokemonCombatData() {
   for (const actor of game.actors) {
@@ -428,11 +430,28 @@ async function migratePokemonCombatData() {
     }
     if (updates.length) await actor.updateEmbeddedDocuments("Item", updates);
 
-    if (actor.getFlag(MODULE_ID, "kind") !== "deployed") continue;
-    const pokemonItem = await fromUuid(actor.getFlag(MODULE_ID, "pokemonItemUuid"));
+    if (!["deployed", "wild"].includes(actor.getFlag(MODULE_ID, "kind"))) continue;
+    const pokemonItemUuid = actor.getFlag(MODULE_ID, "pokemonItemUuid");
+    const pokemonItem = (pokemonItemUuid ? await fromUuid(pokemonItemUuid) : null) ?? getPokemonItems(actor)[0];
     const species = pokemonItem?.getFlag(MODULE_ID, "species");
     if (!species) continue;
-    const traits = damageTraitsForPokemonTypes(species.type);
+    const instance = pokemonItem.getFlag(MODULE_ID, "instance") ?? {};
+    const types = heldItemEffectiveTypes({
+      sourceId: instance.heldItem?.sourceId,
+      speciesId: species.id,
+      baseTypes: species.type ?? [],
+      abilities: instance.abilities ?? []
+    });
+    const heldAdjustments = heldItemActorAdjustments({
+      sourceId: instance.heldItem?.sourceId,
+      speciesId: species.id,
+      charges: instance.heldItem?.charges,
+      state: instance.heldItem?.state
+    });
+    const traits = damageTraitsForPokemonTypes(types);
+    if (heldAdjustments.groundImmunity && !traits.di.value.includes("ground")) traits.di.value.push("ground");
+    applyAbilityDefenses(traits, instance.abilities);
+    if (pokemonItem.parent?.type === "character") applyTypeMasteryDefense(traits, pokemonItem.parent, types);
     // La migración corre en cada sesión del director: sin esta comparación
     // reescribiría las afinidades de todos los desplegados aunque ya fueran las
     // correctas, con una actualización de base de datos por actor.

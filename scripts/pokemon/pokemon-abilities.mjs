@@ -478,6 +478,12 @@ export function pokemonAbilityDefenses(abilities = []) {
   return { immunities: [...immunities], resistances: [...resistances] };
 }
 
+/** Devuelve la habilidad que hace inmune al tipo de daño indicado. */
+export function abilityDamageImmunity(abilities = [], damageType = null) {
+  if (!damageType) return null;
+  return (abilities ?? []).find(id => IMMUNITY_ABILITIES[id] === damageType) ?? null;
+}
+
 /**
  * Aplica pokemonAbilityDefenses() a los rasgos dr/dv/di que ya construye
  * damageTraitsForPokemonTypes(), mutando `traits` en el sitio igual que el
@@ -1602,7 +1608,7 @@ export function abilityIgnoresNormalFightingImmunity(abilities = [], moveType = 
 /** Rompemoldes y equivalentes atraviesan una inmunidad aportada por habilidad. */
 export function abilityIgnoresAbilityDamageImmunity(sourceAbilities = [], targetAbilities = [], moveType = null) {
   if (!abilitySuppressesTargetAbilities(sourceAbilities)) return false;
-  return (targetAbilities ?? []).some(id => IMMUNITY_ABILITIES[id] === moveType);
+  return Boolean(abilityDamageImmunity(targetAbilities, moveType));
 }
 
 /** Señor Supremo: +1 a impactar por aliado debilitado, hasta +5. */

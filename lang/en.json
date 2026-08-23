@@ -620,6 +620,7 @@
   "POKE5E.Abilities.AssistedHint": "This ability requires a table decision or information that Foundry cannot determine safely.",
   "POKE5E.Abilities.Automatic": "Automatic",
   "POKE5E.Abilities.AutomationTitle": "Ability automation level",
+  "POKE5E.Abilities.DamageImmunity": "{actor} is immune to {move} thanks to {ability}.",
   "POKE5E.Abilities.Use": "Post ability to chat",
   "POKE5E.TrainerClass.Biome": "Biome",
   "POKE5E.TrainerClass.ChooseSpecialization": "Choose specialization",
