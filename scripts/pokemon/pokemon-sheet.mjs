@@ -1372,7 +1372,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
         const burned = damageType !== "healing" && (instance.conditions ?? []).includes("burned") && !abilityIgnoresStatusPenalty(instance.abilities);
         const rollsTwiceLower = burned || vulnerableDamageTwiceLower;
         const criticalProfile = abilityCriticalDamageProfile(instance.abilities, formula, Boolean(attackResult?.critical) && !targetIgnoresCritical, true);
-        const damageOptions = { type: damageType, critical: criticalProfile.systemCritical };
+        const damageOptions = damageRollOptions(damageType, criticalProfile.systemCritical);
         const damageRolls = [await new DamageRoll(criticalProfile.formula, {}, damageOptions).evaluate()];
         if (rollsTwiceLower || rollsTwiceHigher) damageRolls.push(await new DamageRoll(criticalProfile.formula, {}, damageOptions).evaluate());
         const damage = damageRolls.reduce((chosen, candidate) => {
@@ -2342,6 +2342,25 @@ function targetDescriptors() {
 }
 
 /**
+ * Devuelve la versión principal del sistema D&D5e que está ejecutando
+ * Foundry. La API de DamageRoll cambió entre las versiones 5 y 6.
+ */
+function dnd5eSystemMajor() {
+  return Number.parseInt(String(game.system?.version ?? "0").split(".")[0], 10);
+}
+
+/**
+ * Configura una DamageRoll sin mezclar las dos formas incompatibles de marcar
+ * un crítico. D&D5e 5.x espera `critical` como booleano, mientras que 6.x
+ * reserva `critical` para la configuración del daño y usa `isCritical`.
+ */
+function damageRollOptions(type, critical = false) {
+  return dnd5eSystemMajor() >= 6
+    ? { type, isCritical: Boolean(critical) }
+    : { type, critical: Boolean(critical) };
+}
+
+/**
  * Configura un mensaje de DamageRoll para las dos APIs compatibles del sistema:
  * D&D5e 5.x lee flags.dnd5e y D&D5e 6.x usa el tipo de mensaje `damage` junto
  * con system.targets. Conservar ambos formatos evita perder los botones de
@@ -2354,7 +2373,7 @@ function damageRollMessageData({ speaker, flavor, rollType = "damage" }) {
     flavor,
     flags: { dnd5e: { messageType: "roll", roll: { type: rollType }, targets } }
   };
-  const systemMajor = Number.parseInt(String(game.system?.version ?? "0").split(".")[0], 10);
+  const systemMajor = dnd5eSystemMajor();
   if (systemMajor >= 6) {
     data.type = "damage";
     data.system = { targets };
@@ -2370,7 +2389,7 @@ function damageRollMessageData({ speaker, flavor, rollType = "damage" }) {
  */
 async function postDamageRoll(roll, message) {
   const data = damageRollMessageData(message);
-  const systemMajor = Number.parseInt(String(game.system?.version ?? "0").split(".")[0], 10);
+  const systemMajor = dnd5eSystemMajor();
   if (systemMajor >= 6 && typeof roll?.constructor?.toMessage === "function") {
     return roll.constructor.toMessage([roll], data);
   }
