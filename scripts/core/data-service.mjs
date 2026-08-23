@@ -14,6 +14,31 @@ const MODULE_PATH = `modules/${MODULE_ID}`;
 const cache = new Map();
 const SUPPORTED_LANGUAGES = new Set(["en", "es"]);
 
+/** Convenciones usadas por los ids del catálogo para las formas regionales. */
+const REGIONAL_FORM_PATTERNS = [
+  ["alola", /(?:^alolan-|[-]alola(?:-|$))/],
+  ["galar", /(?:^galarian-|[-]galar(?:-|$))/],
+  ["hisui", /(?:^hisuian-|[-]hisui(?:-|$))/],
+  ["paldea", /(?:^paldean-|[-]paldea(?:-|$))/]
+];
+
+/** Devuelve la región codificada en el id de una forma, o null para la normal. */
+export function pokemonRegionalForm(speciesId) {
+  const id = String(speciesId ?? "").toLocaleLowerCase();
+  return REGIONAL_FORM_PATTERNS.find(([, pattern]) => pattern.test(id))?.[0] ?? null;
+}
+
+/**
+ * Impide que una especie normal ofrezca como evolución una forma regional de
+ * su evolución. Los resultados sin marcador regional siguen siendo válidos
+ * para líneas regionales que terminan en una especie nueva (Perrserker,
+ * Cursola, Clodsire, etc.).
+ */
+export function evolutionMatchesRegionalForm(evolution) {
+  const targetForm = pokemonRegionalForm(evolution?.to);
+  return !targetForm || pokemonRegionalForm(evolution?.from) === targetForm;
+}
+
 /**
  * Punto de entrada único al catálogo. Cachea la promesa de load() por idioma,
  * de modo que las llamadas simultáneas comparten una sola carga y las
@@ -73,7 +98,11 @@ async function load(language) {
   }
   const availablePokemon = pokemon.items.filter(isAvailablePokemon);
   const availablePokemonIds = new Set(availablePokemon.map(value => value.id));
-  const availableEvolutions = evolutions.items.filter(evolution => availablePokemonIds.has(evolution.from) && availablePokemonIds.has(evolution.to));
+  const availableEvolutions = evolutions.items.filter(evolution =>
+    availablePokemonIds.has(evolution.from)
+    && availablePokemonIds.has(evolution.to)
+    && evolutionMatchesRegionalForm(evolution)
+  );
   const contestById = new Map(contests.items.map(value => [value.id, value]));
   const contestEffectsById = new Map(contestEffects.items.map(value => [String(value.id), value]));
   // Efectos de estado, traducción y datos de concurso se aplican en una sola

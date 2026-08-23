@@ -32,6 +32,32 @@
     <div>{{#each ongoingEffects}}<span class="poke5e-status-chip" tabindex="0" aria-label="{{name}}: {{description}}"><img src="{{img}}" alt=""><strong>{{name}}</strong><small>{{remaining}}</small>{{#if ../canEdit}}<button type="button" data-action="remove-ongoing-effect" data-effect-id="{{id}}" title="Terminar {{name}}"><i class="fa-solid fa-xmark"></i></button>{{/if}}<span class="poke5e-status-tooltip" role="tooltip"><strong>{{name}}</strong><span>{{description}}</span><span>{{remaining}}</span></span></span>{{/each}}</div>
   </section>{{/if}}
 
+  <nav class="poke5e-pokemon-tabs" aria-label="{{localize "POKE5E.PokemonSheet.Sections"}}">
+    <button type="button" data-action="pokemon-tab" data-tab="details" class="{{#if pokemonTabs.details}}active{{/if}}"><i class="fa-solid fa-address-card"></i> {{localize "POKE5E.PokemonSheet.Details"}}</button>
+    <button type="button" data-action="pokemon-tab" data-tab="skills" class="{{#if pokemonTabs.skills}}active{{/if}}"><i class="fa-solid fa-list-check"></i> {{localize "POKE5E.PokemonSheet.Skills"}}</button>
+    <button type="button" data-action="pokemon-tab" data-tab="moves" class="{{#if pokemonTabs.moves}}active{{/if}}"><i class="fa-solid fa-burst"></i> {{localize "POKE5E.PokemonSheet.MovesTab"}}</button>
+  </nav>
+
+  {{#if pokemonTabs.skills}}
+  <section class="poke5e-skills-page" aria-label="{{localize "POKE5E.PokemonSheet.Skills"}}">
+    <header>
+      <div><h2><i class="fa-solid fa-list-check"></i> {{localize "POKE5E.PokemonSheet.Skills"}}</h2><p>{{localize "POKE5E.PokemonSheet.SkillsHelp"}}</p></div>
+      <span><i class="fa-solid fa-star"></i> {{localize "POKE5E.PokemonSheet.ProficientLegend"}}</span>
+    </header>
+    <div class="poke5e-skill-list">
+      {{#each skills}}
+      <article class="poke5e-skill-row {{#if proficient}}proficient{{/if}}">
+        <span class="poke5e-skill-rank" title="{{#if expertise}}{{localize "POKE5E.PokemonSheet.Expertise"}}{{else}}{{#if proficient}}{{localize "POKE5E.PokemonSheet.Proficient"}}{{else}}{{localize "POKE5E.PokemonSheet.NotProficient"}}{{/if}}{{/if}}"><i class="{{#if proficient}}fa-solid{{else}}fa-regular{{/if}} fa-circle"></i>{{#if expertise}}<i class="fa-solid fa-circle"></i>{{/if}}</span>
+        <div><strong>{{label}}</strong><small title="{{abilityLabel}}">{{ability}}</small></div>
+        <b>{{modifierLabel}}</b>
+        <button type="button" data-action="roll-skill" data-skill-key="{{key}}" title="{{localize "POKE5E.PokemonSheet.RollSkill" skill=label modifier=modifierLabel}}"><i class="fa-solid fa-dice-d20"></i><span>{{localize "POKE5E.PokemonSheet.Roll"}}</span></button>
+      </article>
+      {{/each}}
+    </div>
+  </section>
+  {{else}}
+
+  {{#if pokemonTabs.moves}}
   <nav class="poke5e-sheet-mode" aria-label="Modo de la ficha">
     <button type="button" data-action="sheet-mode" data-mode="combat" class="{{#if sheetMode.combat}}active{{/if}}"><i class="fa-solid fa-shield-halved"></i> {{localize "POKE5E.Common.Combat"}}</button>
     <button type="button" data-action="sheet-mode" data-mode="contest" class="{{#if sheetMode.contest}}active{{/if}}"><i class="fa-solid fa-star"></i> {{localize "POKE5E.Common.Contest"}}</button>
@@ -39,7 +65,9 @@
       <label><span>{{localize "POKE5E.PokemonSheet.CurrentCategory"}}</span><select data-action="contest-type">{{selectOptions contest.typeOptions selected=contest.type}}</select></label>
     {{/if}}
   </nav>
+  {{/if}}
 
+  {{#if pokemonTabs.details}}
   <section class="poke5e-experience-panel" aria-label="Experiencia">
     <div class="poke5e-experience-heading">
       <h2><i class="fa-solid fa-star"></i> {{localize "POKE5E.Common.Experience"}}</h2>
@@ -64,15 +92,6 @@
     {{#each abilityScores}}
       <div><span>{{key}}</span><strong>{{score}}</strong><small>{{modifier}}</small></div>
     {{/each}}
-  </section>
-
-  <section class="poke5e-skill-panel" aria-label="Competencias">
-    <label><span><i class="fa-solid fa-dice-d20"></i> Prueba de competencia</span>
-      <div class="poke5e-skill-roll">
-        <select data-action="pick-skill">{{selectOptions skillOptions}}</select>
-        <button type="button" data-action="roll-skill"><i class="fa-solid fa-dice-d20"></i></button>
-      </div>
-    </label>
   </section>
 
   <section class="poke5e-speed-panel" aria-label="Velocidades de movimiento">
@@ -102,6 +121,9 @@
     {{/if}}
   </section>
 
+  {{/if}}
+
+  {{#if pokemonTabs.moves}}
   {{#if sheetMode.combat}}<section class="poke5e-combat-profile" aria-label="Afinidades de daño">
     <div class="poke5e-defense-group vulnerable">
       <h2><i class="fa-solid fa-heart-crack"></i> {{localize "POKE5E.PokemonSheet.Vulnerabilities"}}</h2>
@@ -122,6 +144,9 @@
   </section>
   {{/if}}
 
+  {{/if}}
+
+  {{#if pokemonTabs.details}}
   <section class="poke5e-evolution-panel" aria-label="Evoluciones">
     <h2><i class="fa-solid fa-dna"></i> {{localize "POKE5E.PokemonSheet.Evolution"}}</h2>
     <div class="poke5e-evolution-list">
@@ -146,7 +171,9 @@
     {{#if canFieldMedicine}}<button type="button" data-action="field-medicine" title="Prueba de Medicina del entrenador (CD 12): cura el estado no volátil de este Pokémon"><i class="fa-solid fa-kit-medical"></i> Médico de campo</button>{{/if}}
     {{#if multitalentChoice}}<label class="poke5e-multitalent-field" title="Multitalento (Hobbyist 15)"><span>Competencia adicional</span><select data-action="select-multitalent">{{selectOptions multitalentChoice.options selected=multitalentChoice.selected blank="—"}}</select></label>{{/if}}{{/if}}
   </nav>
+  {{/if}}
 
+  {{#if pokemonTabs.moves}}
   <section>
     <div class="poke5e-section-title">
       <h2>{{#if sheetMode.contest}}{{localize "POKE5E.PokemonSheet.ContestMoves"}}{{else}}{{localize "POKE5E.PokemonSheet.CombatMoves"}}{{/if}}</h2>
@@ -249,7 +276,9 @@
       {{/each}}
     </div>
   </section>
+  {{/if}}
 
+  {{#if pokemonTabs.details}}
   <section>
     <div class="poke5e-section-title"><h2>{{localize "POKE5E.Common.Abilities"}}</h2></div>
     {{#if canEdit}}<div class="poke5e-drop-hint"><i class="fa-solid fa-hand-pointer"></i> {{localize "POKE5E.PokemonSheet.AbilityDropHint"}}</div>{{/if}}
@@ -262,4 +291,6 @@
       {{/each}}
     </div>
   </section>
+  {{/if}}
+  {{/if}}
 </article>

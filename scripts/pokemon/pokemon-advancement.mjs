@@ -230,7 +230,7 @@ async function promptFeatChoice(item, instance, species, advancement) {
     <fieldset>
       <legend>Dote</legend>
       <label><span>Elige una dote</span>
-        <select name="feat">
+        <select name="feat" class="poke5e-feat-select" size="8">
           <option value="">${game.i18n.localize("POKE5E.Common.Choose")}</option>
           ${optionsHtml}
         </select>

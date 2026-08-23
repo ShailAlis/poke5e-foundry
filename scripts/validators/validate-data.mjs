@@ -12,7 +12,7 @@
 import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { isAvailablePokemon } from "../core/data-service.mjs";
+import { evolutionMatchesRegionalForm, isAvailablePokemon, pokemonRegionalForm } from "../core/data-service.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "data");
 const read = async file => JSON.parse(await readFile(resolve(root, file), "utf8"));
@@ -22,6 +22,13 @@ const [pokemon, moves, abilities, items, evolutions] = await Promise.all([
 
 if (isAvailablePokemon({ number: 0 })) throw new Error("Pokémon numbered 0 must not be available.");
 if (!isAvailablePokemon({ number: 1 })) throw new Error("Numbered Pokémon must remain available.");
+if (pokemonRegionalForm("koffing") !== null) throw new Error("Base Koffing must not be regional.");
+if (pokemonRegionalForm("galarian-weezing") !== "galar") throw new Error("Galarian Weezing form was not detected.");
+if (pokemonRegionalForm("typhlosion-hisui") !== "hisui") throw new Error("Hisuian suffix form was not detected.");
+if (pokemonRegionalForm("wooper-paldea") !== "paldea") throw new Error("Paldean suffix form was not detected.");
+if (evolutionMatchesRegionalForm({ from: "koffing", to: "galarian-weezing" })) throw new Error("Base Koffing must not evolve into Galarian Weezing.");
+if (!evolutionMatchesRegionalForm({ from: "galarian-koffing", to: "galarian-weezing" })) throw new Error("Matching Galarian forms must remain compatible.");
+if (!evolutionMatchesRegionalForm({ from: "galarian-meowth", to: "perrserker" })) throw new Error("Regional evolutions into distinct species must remain compatible.");
 
 const checks = [
   ["Pokémon", pokemon.items, 1000],

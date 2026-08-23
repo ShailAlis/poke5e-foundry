@@ -34,7 +34,7 @@ import { ABILITY_REST_RESOURCES, abilityBlocksBulletproofMove, abilityBlocksInco
 import { batteryDiceMultiplier, costarAdvantage, flowerGiftDamageBonus, nearbyAllyActors, nearbyPokemonActors, plusMinusAttackDamageBonus, powerSpotExtraDie, steelySpiritDamageBonus, supersweetSyrupExtraDie, typeAuraDiceMultiplier, victoryStarAttackBonus, weatherAbilitiesSuppressed } from "../combat/aura-abilities.mjs";
 import { promptSpendTrainerResource, trainerResourceState } from "../trainer/trainer-resources.mjs";
 import { pokemonFeatOptions } from "../trainer/feat-catalog.mjs";
-import { SKILLS } from "../trainer/trainer-creation-data.mjs";
+import { SKILLS, speciesSkillKey } from "../trainer/trainer-creation-data.mjs";
 import { abilityAutomationMode } from "./ability-coverage.mjs";
 import { abilityTriggeredMoveModifierMultiplier } from "./pokemon-abilities.mjs";
 
@@ -85,7 +85,7 @@ const RANDOM_STATUS_TABLE_MOVES = {
   "secret-power": { faces: 6, trigger: "natural", minimum: 15, resolve: roll => ["poisoned", "burned", "confused", "frozen", "paralyzed", "asleep"][roll - 1] },
   "tri-attack": { faces: 6, trigger: "failed-save", margin: 5, resolve: roll => (roll <= 2 ? "burned" : roll <= 4 ? "frozen" : "paralyzed") }
 };
-import { hasTrainerPath, machineConsumption, pokemonPathMoveBonuses, rangerAssistAdvantage, rangerCompanionAttackBonus, rangerCompanionCheckBonus, typeMasteryForcesStab } from "../trainer/trainer-path-rules.mjs";
+import { aceTrainerAbilityBonus, hasTrainerPath, machineConsumption, pokemonPathMoveBonuses, rangerAssistAdvantage, rangerCompanionAttackBonus, rangerCompanionCheckBonus, trainerSpecializationTypes, typeMasteryForcesStab } from "../trainer/trainer-path-rules.mjs";
 import {
   activateHeldItem,
   applyPostMoveHeldItemEffects,
@@ -113,6 +113,57 @@ import { ABILITIES, applyPendingPokemonAdvancements, attachStepperGroup, hasPend
 import { abilityModifier, escapeHtml, formatNumber, signed, titleCase } from "../core/utils.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
+
+/** Característica asociada a cada competencia de D&D 5e. */
+const SKILL_ABILITIES = {
+  acr: "dex", ani: "wis", arc: "int", ath: "str", dec: "cha", his: "int",
+  ins: "wis", itm: "cha", inv: "int", med: "wis", nat: "int", prc: "wis",
+  prf: "cha", per: "cha", rel: "int", slt: "dex", ste: "dex", sur: "wis"
+};
+
+/**
+ * Prepara la lista completa de competencias y su modificador final. Usa la
+ * progresión de competencia por nivel Pokémon que emplean sus ataques y CD,
+ * además de los ajustes de la especie y del entrenador. Si está desplegado,
+ * conserva cualquier cambio activo en su puntuación de característica.
+ */
+function preparePokemonSkills({ combatActor, trainer, pokemonItem, species, instance, effectiveTypes, level }) {
+  const proficiency = 2 + Math.floor((Math.max(1, Number(level) || 1) - 1) / 4);
+  const speciesSkills = new Set((species.skills ?? []).map(speciesSkillKey).filter(Boolean));
+  if (trainer?.type === "character" && hasTrainerPath(trainer, "hobbyist", 15) && instance.multitalentSkill) {
+    speciesSkills.add(instance.multitalentSkill);
+  }
+  const specializedTypes = trainerSpecializationTypes(trainer);
+  const specializationBonus = (effectiveTypes ?? []).filter(type => specializedTypes.has(String(type).toLocaleLowerCase())).length;
+  const companionBonus = trainer?.type === "character" ? rangerCompanionCheckBonus(trainer, pokemonItem) : 0;
+
+  return Object.entries(SKILLS).map(([key, fallbackLabel]) => {
+    const actorSkill = combatActor?.system.skills?.[key];
+    const ability = actorSkill?.ability ?? CONFIG.DND5E.skills?.[key]?.ability ?? SKILL_ABILITIES[key];
+    const rank = actorSkill ? Number(actorSkill.value) || 0 : (speciesSkills.has(key) ? 1 : 0);
+    const proficient = rank >= 1;
+    const hobbyistBonus = trainer?.type === "character" && !proficient && hasTrainerPath(trainer, "hobbyist", 9)
+      ? Math.floor(proficiency / 2)
+      : 0;
+    const projectedScore = (Number(instance.attributes?.[ability] ?? species.attributes?.[ability]) || 10)
+      + (trainer?.type === "character" ? aceTrainerAbilityBonus(trainer, ability) : 0);
+    const abilityScore = Number(combatActor?.system.abilities?.[ability]?.value) || projectedScore;
+    const baseTotal = Math.floor((abilityScore - 10) / 2) + (rank * proficiency) + specializationBonus;
+    const labelKey = CONFIG.DND5E.skills?.[key]?.label;
+    const abilityLabelKey = CONFIG.DND5E.abilities?.[ability]?.label;
+    return {
+      key,
+      label: labelKey ? game.i18n.localize(labelKey) : fallbackLabel,
+      ability: String(ability ?? "").toUpperCase(),
+      abilityLabel: abilityLabelKey ? game.i18n.localize(abilityLabelKey) : String(ability ?? "").toUpperCase(),
+      rank,
+      proficient,
+      expertise: rank >= 2,
+      modifier: baseTotal + hobbyistBonus + companionBonus,
+      modifierLabel: signed(baseTotal + hobbyistBonus + companionBonus)
+    };
+  });
+}
 
 const MOVE_ACCORDION_DURATION = 180;
 
@@ -223,6 +274,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     this.moveFilters = { query: "", category: "available" };
     this.refocusMoveSearch = false;
     this.sheetMode = "combat";
+    this.pokemonTab = "details";
     this.contestType = "cool";
   }
 
@@ -284,6 +336,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const pendingAdvancements = hasPendingPokemonAdvancements(instance);
     const heldActor = heldItemActorAdjustments({ sourceId: heldItem?.sourceId, speciesId: species.id, charges: heldItem?.charges, state: heldItem?.state });
     const combatActor = trainer?.getFlag?.(MODULE_ID, "kind") === "wild" ? trainer : deployedActorFor(this.pokemonItem);
+    const skills = preparePokemonSkills({ combatActor, trainer, pokemonItem: this.pokemonItem, species, instance, effectiveTypes, level });
     const activeConditions = POKEMON_STATUS_IDS.filter(id => combatActor?.statuses?.has(pokemonStatusId(id)));
     const inventoryItems = hasTrainer
       ? trainer.items
@@ -312,7 +365,12 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       species,
       instance,
       level,
-      skillOptions: Object.fromEntries(Object.entries(SKILLS).map(([key, label]) => [key, combatActor?.system.skills?.[key]?.value >= 1 ? `${label} ★` : label])),
+      skills,
+      pokemonTabs: {
+        details: this.pokemonTab === "details",
+        skills: this.pokemonTab === "skills",
+        moves: this.pokemonTab === "moves"
+      },
       experience: {
         ...experience,
         totalLabel: formatNumber(experience.total),
@@ -385,6 +443,11 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       this.sheetMode = event.currentTarget.dataset.mode === "contest" ? "contest" : "combat";
       this.render({ force: true });
     }));
+    this.element.querySelectorAll("[data-action='pokemon-tab']").forEach(button => button.addEventListener("click", event => {
+      const tab = event.currentTarget.dataset.tab;
+      this.pokemonTab = ["details", "skills", "moves"].includes(tab) ? tab : "details";
+      this.render({ force: true });
+    }));
     this.element.querySelector("[data-action='contest-type']")?.addEventListener("change", event => {
       this.contestType = CONTEST_TYPES[event.currentTarget.value] ? event.currentTarget.value : "cool";
       this.render({ force: true });
@@ -429,10 +492,10 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     this.element.querySelector("[data-action='arm-sabotage']")?.addEventListener("click", () => this.#armSabotage());
     this.element.querySelector("[data-action='arm-shadow-dodge']")?.addEventListener("click", () => this.#armShadowDodge());
     this.element.querySelector("[data-action='field-medicine']")?.addEventListener("click", () => this.#fieldMedicine());
-    this.element.querySelector("[data-action='roll-skill']")?.addEventListener("click", () => {
-      const key = this.element.querySelector("[data-action='pick-skill']")?.value;
+    this.element.querySelectorAll("[data-action='roll-skill']").forEach(button => button.addEventListener("click", event => {
+      const key = event.currentTarget.dataset.skillKey;
       if (key) this.#rollSkillCheck(key);
-    });
+    }));
     this.element.querySelector("[data-action='select-multitalent']")?.addEventListener("change", async event => {
       const instance = this.#instance();
       instance.multitalentSkill = event.currentTarget.value || null;
@@ -1753,19 +1816,24 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
    */
   async #rollSkillCheck(skillKey) {
     const combatActor = this.pokemonItem.parent?.getFlag?.(MODULE_ID, "kind") === "wild" ? this.pokemonItem.parent : deployedActorFor(this.pokemonItem);
-    if (!combatActor) return ui.notifications.warn(game.i18n.localize("POKE5E.Notifications.NoActor"));
-    const skill = combatActor.system.skills?.[skillKey];
-    if (!skill) return;
     const trainer = this.pokemonItem.parent?.type === "character" ? this.pokemonItem.parent : null;
-    const proficiency = Number(combatActor.system.attributes?.prof) || 2;
-    const proficient = Number(skill.value) >= 1;
-    const hobbyistBonus = trainer && !proficient && hasTrainerPath(trainer, "hobbyist", 9) ? Math.floor(proficiency / 2) : 0;
-    const companionBonus = trainer ? rangerCompanionCheckBonus(trainer, this.pokemonItem) : 0;
-    const modifier = (Number(skill.total) || 0) + hobbyistBonus + companionBonus;
+    const species = this.pokemonItem.getFlag(MODULE_ID, "species") ?? {};
+    const instance = this.#instance();
+    const effectiveTypes = heldItemEffectiveTypes({
+      sourceId: instance.heldItem?.sourceId,
+      speciesId: species.id,
+      baseTypes: species.type ?? [],
+      abilities: instance.abilities ?? []
+    });
+    const skill = preparePokemonSkills({
+      combatActor, trainer, pokemonItem: this.pokemonItem, species, instance,
+      effectiveTypes, level: Number(instance.level) || 1
+    }).find(entry => entry.key === skillKey);
+    if (!skill) return;
+    const modifier = skill.modifier;
     const name = displayPokemonName(this.pokemonItem);
     const roll = await new Roll("1d20 + @modifier", { modifier }).evaluate();
-    const bonusNote = [hobbyistBonus ? `+${hobbyistBonus} Generalista` : null, companionBonus ? `+${companionBonus} Compañero` : null].filter(Boolean).join(" · ");
-    await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor: combatActor, alias: name }), flavor: `${name} — ${SKILLS[skillKey] ?? skillKey}${bonusNote ? ` (${bonusNote})` : ""}` });
+    await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor: combatActor ?? trainer, alias: name }), flavor: `${name} — ${skill.label}` });
   }
 
   /**
@@ -2715,7 +2783,7 @@ async function promptEvolution({ evolution, target, data, instance, species, asi
   const researcherFeatField = researcherEligible ? `<fieldset>
     <legend>Experto en evolución (Researcher 9)</legend>
     <label><span>Gastar 2 puntos en una dote en vez de característica</span>
-      <select name="researcherFeat" data-action="researcher-feat">
+      <select name="researcherFeat" class="poke5e-feat-select" data-action="researcher-feat" size="8">
         <option value="">Ninguna (repartir todo en características)</option>
         ${[...featGroups.entries()].map(([group, entries]) => `<optgroup label="${escapeHtml(group)}">${entries.map(entry => `<option value="${escapeHtml(entry.name)}">${escapeHtml(entry.name)}</option>`).join("")}</optgroup>`).join("")}
       </select>
