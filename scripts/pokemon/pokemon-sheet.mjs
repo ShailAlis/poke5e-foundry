@@ -333,6 +333,9 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     }));
     const defenses = pokemonDefenses(effectiveTypes);
     const experience = experienceProgress(instance.experience, level);
+    const hpMaximum = Math.max(1, Number(instance.hp?.max) || Number(species.hp) || 1);
+    const hpCurrent = Math.max(0, Math.min(hpMaximum, Number(instance.hp?.value) || 0));
+    const hpFraction = hpCurrent / hpMaximum;
     const pendingAdvancements = hasPendingPokemonAdvancements(instance);
     const heldActor = heldItemActorAdjustments({ sourceId: heldItem?.sourceId, speciesId: species.id, charges: heldItem?.charges, state: heldItem?.state });
     const combatActor = trainer?.getFlag?.(MODULE_ID, "kind") === "wild" ? trainer : deployedActorFor(this.pokemonItem);
@@ -413,7 +416,11 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       abilities,
       abilityScores,
       types: effectiveTypes.map(type => ({ id: type, label: titleCase(type) })),
-      hp: instance.hp,
+      hp: {
+        value: hpCurrent,
+        max: hpMaximum,
+        state: hpFraction < 0.15 ? "critical" : hpFraction < 0.5 ? "warning" : "healthy"
+      },
       ac: (Number(instance.ac ?? species.ac) || 10) + heldActor.ac,
       speeds: prepareSpeeds(species.speed),
       gender: prepareGender(instance.gender, species.gender),
@@ -437,7 +444,12 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
    */
   _onRender(context, options) {
     super._onRender(context, options);
-    this.element.querySelectorAll("[data-action='roll-move']").forEach(button => button.addEventListener("click", event => this.#rollMove(event)));
+    this.element.querySelectorAll("[data-action='roll-move']").forEach(button => button.addEventListener("click", event => {
+      this.#rollMove(event).catch(error => {
+        console.error(`${MODULE_ID} | Pokemon move roll failed`, error);
+        ui.notifications.error(game.i18n.localize("POKE5E.PokemonNotifications.MoveRollFailed"));
+      });
+    }));
     this.element.querySelectorAll("[data-action='roll-contest-move']").forEach(button => button.addEventListener("click", event => this.#rollContestMove(event)));
     this.element.querySelectorAll("[data-action='sheet-mode']").forEach(button => button.addEventListener("click", event => {
       this.sheetMode = event.currentTarget.dataset.mode === "contest" ? "contest" : "combat";
@@ -1370,11 +1382,11 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
         });
         dealtDamageTotal = Number(damage.total) || 0;
         const rollType = damageType === "healing" ? "healing" : "damage";
-        await damage.toMessage(damageRollMessageData({
+        await postDamageRoll(damage, {
           speaker,
           flavor: `${flavor} — ${typeLabel(damageType)}${burned ? ` · Quemado: menor de ${damageRolls.map(roll => roll.total).join("/")}` : ""}${vulnerableDamageTwiceLower ? ` · Armadura Prisma: menor de ${damageRolls.map(roll => roll.total).join("/")}` : ""}${rollsTwiceHigher ? ` · Mayor de ${damageRolls.map(roll => roll.total).join("/")}` : ""}${targetIgnoresCritical ? " · Sin extra de crítico" : ""}`,
           rollType
-        }));
+        });
       } else {
         // Vigor (guts) ignora la tirada doble-quedarse-con-la-menor de Quemado.
         const burned = damageType !== "healing" && (instance.conditions ?? []).includes("burned") && !abilityIgnoresStatusPenalty(instance.abilities);
@@ -1389,11 +1401,11 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
         });
         dealtDamageTotal = Number(damage.total) || 0;
         const rollType = damageType === "healing" ? "healing" : "damage";
-        await damage.toMessage(damageRollMessageData({
+        await postDamageRoll(damage, {
           speaker,
           flavor: `${flavor} — ${typeLabel(damageType)}${burned ? ` · Quemado: menor de ${damageRolls.map(roll => roll.total).join("/")}` : ""}${vulnerableDamageTwiceLower ? ` · Armadura Prisma: menor de ${damageRolls.map(roll => roll.total).join("/")}` : ""}${rollsTwiceHigher ? ` · Mayor de ${damageRolls.map(roll => roll.total).join("/")}` : ""}`,
           rollType
-        }));
+        });
       }
     }
     if (dealtDamageTotal != null) dealtDamageTotal = await this.#offerTrainerRollBoosts({ damageType, dealtDamageTotal, formula, speaker, flavor });
@@ -1707,11 +1719,11 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     if (ace) {
       const bonus = DamageRoll ? await new DamageRoll(aceFormula, {}, { type: damageType }).evaluate() : await new Roll(aceFormula).evaluate();
       total += Number(bonus.total) || 0;
-      await bonus.toMessage(damageRollMessageData({
+      await postDamageRoll(bonus, {
         speaker,
         flavor: `${flavor} — Dado de batalla (Ace Trainer)`,
         rollType
-      }));
+      });
     }
 
     if (healing) {
@@ -1721,11 +1733,11 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
         if (!spent) { more = false; continue; }
         const bonus = DamageRoll ? await new DamageRoll("1d4", {}, { type: "healing" }).evaluate() : await new Roll("1d4").evaluate();
         total += Number(bonus.total) || 0;
-        await bonus.toMessage(damageRollMessageData({
+        await postDamageRoll(bonus, {
           speaker,
           flavor: `${flavor} — Puntos Tácticos (curación extra)`,
           rollType: "healing"
-        }));
+        });
       }
     } else {
       const directed = await promptSpendTrainerResource(trainer, "tactician", { cost: 2, prompt: "¿Gastar 2 Puntos Tácticos (Golpe dirigido) para volver a tirar este daño y quedarte con el mayor?" });
@@ -1736,10 +1748,10 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
           const delta = rerollTotal - total;
           total = rerollTotal;
           const bonus = DamageRoll ? await new DamageRoll(String(delta), {}, { type: damageType }).evaluate() : await new Roll(String(delta)).evaluate();
-          await bonus.toMessage(damageRollMessageData({
+          await postDamageRoll(bonus, {
             speaker,
             flavor: `${flavor} — Golpe dirigido (Tactician): segunda tirada mayor (${rerollTotal})`
-          }));
+          });
         } else {
           await ChatMessage.create({ speaker, content: `<div class="dnd5e chat-card poke5e-status-card"><p>${escapeHtml(flavor)} — Golpe dirigido (Tactician): la segunda tirada (${rerollTotal}) no mejora el daño ya infligido.</p></div>` });
         }
@@ -1891,7 +1903,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const damage = DamageRoll
       ? await new DamageRoll(String(Math.max(1, damageTotal)), {}, { type: "typeless" }).evaluate()
       : await new Roll(String(Math.max(1, damageTotal))).evaluate();
-    await damage.toMessage(damageRollMessageData({ speaker, flavor: `${name} — ${move.name} — Típeless (doble del daño recibido)` }));
+    await postDamageRoll(damage, { speaker, flavor: `${name} — ${move.name} — Típeless (doble del daño recibido)` });
     instance.bideTracking = false;
     instance.bideDamage = 0;
     await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
@@ -1964,7 +1976,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       const damage = DamageRoll
         ? await new DamageRoll(String(damageTotal), {}, { type: "steel" }).evaluate()
         : await new Roll(String(damageTotal)).evaluate();
-      await damage.toMessage(damageRollMessageData({ speaker, flavor: `${name} — ${move.name} — Acero (igual al daño recibido, tope 5× nivel)` }));
+      await postDamageRoll(damage, { speaker, flavor: `${name} — ${move.name} — Acero (igual al daño recibido, tope 5× nivel)` });
     }
     instance.metalBurstTracking = false;
     instance.metalBurstDamage = 0;
@@ -2007,7 +2019,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const damage = DamageRoll
       ? await new DamageRoll(formula, {}, { type: damageType }).evaluate()
       : await new Roll(formula).evaluate();
-    await damage.toMessage(damageRollMessageData({ speaker, flavor: `${name} — ${move.name} — ${typeLabel(damageType)}` }));
+    await postDamageRoll(damage, { speaker, flavor: `${name} — ${move.name} — ${typeLabel(damageType)}` });
     instance[trackingKey] = false;
     await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
     this.render({ force: true });
@@ -2100,7 +2112,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       const damage = DamageRoll
         ? await new DamageRoll(formula, {}, { type: damageType }).evaluate()
         : await new Roll(formula).evaluate();
-      await damage.toMessage(damageRollMessageData({ speaker, flavor: `${flavor} — ${typeLabel(damageType)}` }));
+      await postDamageRoll(damage, { speaker, flavor: `${flavor} — ${typeLabel(damageType)}` });
     }
     if (!hits) await ChatMessage.create({ speaker, content: `<div class="dnd5e chat-card poke5e-status-card"><p>${escapeHtml(flavor)} no llega a impactar ninguna vez.</p></div>` });
     this.render({ force: true });
@@ -2348,6 +2360,21 @@ function damageRollMessageData({ speaker, flavor, rollType = "damage" }) {
     data.system = { targets };
   }
   return data;
+}
+
+/**
+ * Publica una tirada ya evaluada usando la firma nativa de cada versión.
+ * Desde D&D5e 6.x DamageRoll.toMessage() es estático y recibe una lista de
+ * tiradas; llamar al método heredado de Roll crea un mensaje inválido y corta
+ * el flujo justo después de la tirada de impacto.
+ */
+async function postDamageRoll(roll, message) {
+  const data = damageRollMessageData(message);
+  const systemMajor = Number.parseInt(String(game.system?.version ?? "0").split(".")[0], 10);
+  if (systemMajor >= 6 && typeof roll?.constructor?.toMessage === "function") {
+    return roll.constructor.toMessage([roll], data);
+  }
+  return roll.toMessage(data);
 }
 
 /**
@@ -2668,10 +2695,10 @@ async function rollChainMultiHit(move, level, damageType, flavor, speaker, maxEx
   const extraDamage = DamageRoll
     ? await new DamageRoll(extraFormula, {}, { type: damageType }).evaluate()
     : await new Roll(extraFormula).evaluate();
-  await extraDamage.toMessage(damageRollMessageData({
+  await postDamageRoll(extraDamage, {
     speaker,
     flavor: `${flavor} — ${extraHits} golpe${extraHits === 1 ? "" : "s"} adicional${extraHits === 1 ? "" : "es"} (${typeLabel(damageType)})`
-  }));
+  });
 }
 
 /**

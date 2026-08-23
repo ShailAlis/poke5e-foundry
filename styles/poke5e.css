@@ -173,6 +173,25 @@
 .poke5e-vitals strong { font-size: 1.25rem; }
 .poke5e-vitals input { width: 4.75rem; max-width: 100%; margin: auto; text-align: center; }
 .poke5e-vitals label small { color: rgba(255, 255, 255, 0.8); }
+.poke5e-vitals .poke5e-health-bar { grid-column: 1 / -1; display: grid; justify-items: stretch; gap: 0.22rem; width: 100%; }
+.poke5e-health-bar > span { text-align: center; }
+.poke5e-health-track { display: grid; position: relative; width: 100%; min-width: 240px; }
+.poke5e-health-track progress { grid-area: 1 / 1; width: 100%; height: 1.55rem; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.7); border-radius: 99px; background: rgba(24, 33, 43, 0.55); accent-color: #55b96c; }
+.poke5e-health-track progress::-webkit-progress-bar { border-radius: inherit; background: rgba(24, 33, 43, 0.55); }
+.poke5e-health-track progress::-webkit-progress-value { border-radius: inherit; background: linear-gradient(90deg, #369f57, #76d77f); }
+.poke5e-health-track progress::-moz-progress-bar { border-radius: inherit; background: linear-gradient(90deg, #369f57, #76d77f); }
+.poke5e-health-track.warning progress { accent-color: #e0b52f; }
+.poke5e-health-track.warning progress::-webkit-progress-value { background: linear-gradient(90deg, #c99518, #f0d45a); }
+.poke5e-health-track.warning progress::-moz-progress-bar { background: linear-gradient(90deg, #c99518, #f0d45a); }
+.poke5e-health-track.critical progress { accent-color: #d43d45; }
+.poke5e-health-track.critical progress::-webkit-progress-value { background: linear-gradient(90deg, #a91f2d, #ed5960); }
+.poke5e-health-track.critical progress::-moz-progress-bar { background: linear-gradient(90deg, #a91f2d, #ed5960); }
+.poke5e-health-track label { grid-area: 1 / 1; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 0.15rem; pointer-events: none; font-weight: 900; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9); }
+.poke5e-health-track label input { width: 3.25rem; height: 1.25rem; padding: 0 0.15rem; pointer-events: auto; color: white; border: 0; background: transparent; font-weight: 900; }
+.poke5e-health-track label input:focus { outline: 1px solid rgba(255, 255, 255, 0.85); border-radius: 4px; background: rgba(24, 33, 43, 0.4); }
+.poke5e-health-track label input:disabled { color: white; opacity: 1; }
+.poke5e-health-track label input::-webkit-inner-spin-button,
+.poke5e-health-track label input::-webkit-outer-spin-button { margin: 0; appearance: none; }
 .poke5e-species-name { margin: -0.15rem 0 0.35rem; opacity: 0.8; font-style: italic; }
 .poke5e-pokemon-meta { display: flex; gap: 0.4rem; margin-top: 0.5rem; }
 .poke5e-pokemon-meta > span { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.22rem 0.5rem; border-radius: 99px; background: rgba(24, 33, 43, 0.3); font-size: 0.76rem; font-weight: 800; }
@@ -767,6 +786,7 @@ body.poke5e-dark-mode .poke5e-contest-compatibility.incompatible { color: #f1b8b
   .poke5e-dex-header { grid-template-columns: 110px 1fr; }
   .poke5e-dex-header > img { width: 110px; }
   .poke5e-vitals { grid-column: 1 / -1; }
+  .poke5e-health-track { min-width: 0; }
   .poke5e-experience-panel { grid-template-columns: 1fr; }
   .poke5e-experience-controls { grid-column: 1; grid-row: auto; }
   .poke5e-experience-heading { align-items: flex-start; flex-direction: column; }
