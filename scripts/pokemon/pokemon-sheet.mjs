@@ -2343,21 +2343,19 @@ function targetDescriptors() {
 
 /**
  * Devuelve la versión principal del sistema D&D5e que está ejecutando
- * Foundry. La API de DamageRoll cambió entre las versiones 5 y 6.
+ * Foundry. Se usa para adaptar la publicación del mensaje de daño.
  */
 function dnd5eSystemMajor() {
   return Number.parseInt(String(game.system?.version ?? "0").split(".")[0], 10);
 }
 
 /**
- * Configura una DamageRoll sin mezclar las dos formas incompatibles de marcar
- * un crítico. D&D5e 5.x espera `critical` como booleano, mientras que 6.x
- * reserva `critical` para la configuración del daño y usa `isCritical`.
+ * Configura una DamageRoll con la API disponible desde D&D5e 5.3, la versión
+ * mínima compatible con el módulo. `critical` está reservado para un objeto de
+ * configuración; el estado booleano del crítico siempre va en `isCritical`.
  */
 function damageRollOptions(type, critical = false) {
-  return dnd5eSystemMajor() >= 6
-    ? { type, isCritical: Boolean(critical) }
-    : { type, critical: Boolean(critical) };
+  return { type, isCritical: Boolean(critical) };
 }
 
 /**
