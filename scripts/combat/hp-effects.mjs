@@ -17,6 +17,7 @@
  */
 import { MODULE_ID } from "../core/model.mjs";
 import { escapeHtml, isResponsibleGm } from "../core/utils.mjs";
+import { applyMasterTrainerSave } from "../trainer/trainer-class-rules.mjs";
 
 const SOCKET_ACTION = "applyHpEffect";
 const FALSE_SWIPE_FLAG = "falseSwipeFloor";
@@ -150,7 +151,8 @@ export async function rollFailedSaves(selectedTokens, ability, dc, speaker, labe
     const modifier = savingThrowModifier(token.actor, ability);
     const roll = await new Roll("1d20 + @modifier", { modifier }).evaluate();
     await roll.toMessage({ speaker, flavor: `${token.name} — Salvación ${ability.toUpperCase()} contra ${label} (CD ${dc})` });
-    if (Number(roll.total) >= Number(dc)) continue;
+    const masterSuccess = await applyMasterTrainerSave(token.actor, Number(roll.total), Number(dc), { label });
+    if (Number(roll.total) >= Number(dc) || masterSuccess) continue;
     failed.push({ actorUuid: token.actor.uuid, tokenName: token.name, actor: token.actor });
   }
   return failed;

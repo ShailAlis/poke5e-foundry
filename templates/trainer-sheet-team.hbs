@@ -47,6 +47,35 @@
     </section>
   {{/if}}
 
+  {{#if pokemon.specializationProgression}}
+    <section class="poke5e-trainer-progression warning">
+      <div class="poke5e-trainer-progression-heading">
+        <i class="fa-solid fa-medal"></i>
+        <div><strong>{{localize "POKE5E.TrainerClass.SpecializationPending"}}</strong><small>{{localize "POKE5E.TrainerClass.SpecializationsPending" count=pokemon.specializationProgression.pending}}</small></div>
+      </div>
+      {{#if pokemon.canEdit}}<button type="button" class="bright" data-action="chooseSpecialization" {{#unless pokemon.specializationProgression.available}}disabled{{/unless}}><i class="fa-solid fa-list-check"></i> {{localize "POKE5E.TrainerClass.ChooseSpecialization"}}</button>{{/if}}
+    </section>
+  {{/if}}
+
+  {{#if pokemon.pokemonTracker}}
+    <section class="poke5e-trainer-progression">
+      <div class="poke5e-trainer-progression-heading">
+        <i class="fa-solid fa-binoculars"></i>
+        <div><strong>{{localize "POKE5E.TrainerClass.Tracker"}}</strong><small>{{localize "POKE5E.TrainerClass.TrackerUses" remaining=pokemon.pokemonTracker.remaining max=pokemon.pokemonTracker.max}}{{#if pokemon.pokemonTracker.expert}} · {{localize "POKE5E.TrainerClass.TrackerExpert"}}{{/if}}</small></div>
+      </div>
+      {{#if pokemon.canEdit}}<button type="button" data-action="usePokemonTracker" {{#unless pokemon.pokemonTracker.remaining}}disabled{{/unless}}><i class="fa-solid fa-magnifying-glass-location"></i> {{localize "POKE5E.TrainerClass.Search"}}</button>{{/if}}
+    </section>
+  {{/if}}
+
+  {{#if pokemon.masterTrainer}}
+    <section class="poke5e-trainer-progression">
+      <div class="poke5e-trainer-progression-heading">
+        <i class="fa-solid fa-crown"></i>
+        <div><strong>{{localize "POKE5E.TrainerClass.MasterTrainer"}}</strong><small>{{localize "POKE5E.TrainerClass.MasterTrainerUses" remaining=pokemon.masterTrainer.remaining max=pokemon.masterTrainer.max}}</small></div>
+      </div>
+    </section>
+  {{/if}}
+
   {{#if pokemon.hasPathResources}}
     <section class="poke5e-trainer-progression">
       <div class="poke5e-trainer-progression-heading"><i class="fa-solid fa-road"></i><div><strong>{{localize "POKE5E.TrainerPaths.Resources"}}</strong><small>{{localize "POKE5E.TrainerPaths.ResourcesHint"}}</small></div></div>

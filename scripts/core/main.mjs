@@ -38,6 +38,7 @@ import { configurePokedollarEconomy } from "../world/economy.mjs";
 import { synchronizePrimaryParty } from "../trainer/primary-party.mjs";
 import { migrateMoveMachineIcons } from "../pokemon/move-machines.mjs";
 import { registerTrainerExperienceAutomation } from "../trainer/trainer-progression.mjs";
+import { registerTrainerClassAutomation, synchronizeTrainerClassRules } from "../trainer/trainer-class-rules.mjs";
 
 /**
  * Arranque temprano: delega el registro de tipos de daño (combat.mjs), fichas
@@ -53,6 +54,7 @@ Hooks.once("init", () => {
   registerPokemonActorSheet();
   registerPokemonTokenMovement();
   registerTrainerExperienceAutomation();
+  registerTrainerClassAutomation();
   game.settings.register(MODULE_ID, "darkMode", {
     name: "POKE5E.Settings.DarkMode.Name",
     hint: "POKE5E.Settings.DarkMode.Hint",
@@ -151,6 +153,9 @@ Hooks.once("ready", async () => {
     migratePokemonCombatData().catch(error => console.error(`${MODULE_ID} | Combat data migration failed`, error));
     migrateTrainerFeatureGroups().catch(error => console.error(`${MODULE_ID} | Trainer feature grouping migration failed`, error));
     migrateTrainerClassAdvancements().catch(error => console.error(`${MODULE_ID} | Trainer advancement migration failed`, error));
+    for (const actor of game.actors.filter(entry => entry.type === "character")) {
+      synchronizeTrainerClassRules(actor).catch(error => console.error(`${MODULE_ID} | Trainer class rules migration failed`, error));
+    }
     synchronizePrimaryParty().catch(error => console.error(`${MODULE_ID} | Primary Party synchronization failed`, error));
     migrateMoveMachineIcons().catch(error => console.error(`${MODULE_ID} | Move-machine icon migration failed`, error));
     migrateNpcTrainerSprites().catch(error => console.error(`${MODULE_ID} | NPC Trainer sprite migration failed`, error));
@@ -201,6 +206,9 @@ Hooks.on("preCreateItem", item => {
 
 /** Fuerza la especie Humano en los personajes nuevos (trainer-creator.mjs). */
 Hooks.on("preCreateActor", actor => enforceHumanActorSource(actor));
+Hooks.on("createItem", item => {
+  if (item.parent?.type === "character") synchronizeTrainerClassRules(item.parent).catch(error => console.error(`${MODULE_ID} | Trainer class resource synchronization failed`, error));
+});
 /** Abre el asistente de creación de Entrenador tras crear un personaje sin completar. */
 Hooks.on("createActor", (actor, options, userId) => {
   if (game.user.isGM && actor.type === "character") synchronizePrimaryParty().catch(error => console.error(`${MODULE_ID} | Primary Party synchronization failed`, error));

@@ -16,6 +16,7 @@ import { pokemonEffectIcon } from "../core/effect-icons.mjs";
 import { advanceHeldItemTurn, heldItemEndTurnEffect, postHeldItemMessage } from "../pokemon/held-items.mjs";
 import { pokemonCombatModifiers } from "./move-modifiers.mjs";
 import { applyNurseStatusSaveAdvantage } from "../trainer/trainer-resources.mjs";
+import { applyMasterTrainerSave } from "../trainer/trainer-class-rules.mjs";
 import { applyEndTurnAbilityEffects } from "./ability-turn-effects.mjs";
 import { escapeHtml, isResponsibleGm } from "../core/utils.mjs";
 
@@ -486,7 +487,8 @@ async function checkConcentration(actor, damage) {
   const modifier = savingThrowModifier(actor, "con");
   const roll = await new Roll("1d20 + @modifier", { modifier }).evaluate();
   await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${actor.name} · Concentración CD ${dc}` });
-  if (Number(roll.total) < dc) await actor.deleteEmbeddedDocuments("ActiveEffect", effects.map(effect => effect.id));
+  const masterSuccess = await applyMasterTrainerSave(actor, Number(roll.total), dc, { label: "Concentración" });
+  if (Number(roll.total) < dc && !masterSuccess) await actor.deleteEmbeddedDocuments("ActiveEffect", effects.map(effect => effect.id));
 }
 
 async function cascadeDeletedEffect(effect) {
@@ -603,13 +605,15 @@ async function rollTargetSave(actor, move, dc) {
   const chosen = choices[0];
   const roll = await rollSaveWithStatus(actor, chosen.key, chosen.modifier);
   await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${actor.name} · Salvación ${chosen.key.toUpperCase()} contra ${move.name} (CD ${dc})` });
-  return { success: Number(roll.total) >= Number(dc) };
+  const masterSuccess = await applyMasterTrainerSave(actor, Number(roll.total), Number(dc), { label: move.name });
+  return { success: Number(roll.total) >= Number(dc) || masterSuccess };
 }
 
 async function rollOngoingSave(actor, ongoing) {
   const key = ongoing.repeatSave;
   const roll = await rollSaveWithStatus(actor, key, savingThrowModifier(actor, key));
-  const success = Number(roll.total) >= Number(ongoing.saveDc);
+  const masterSuccess = await applyMasterTrainerSave(actor, Number(roll.total), Number(ongoing.saveDc), { label: ongoing.moveName });
+  const success = Number(roll.total) >= Number(ongoing.saveDc) || masterSuccess;
   await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${actor.name} · ${ongoing.moveName}: salvación ${key.toUpperCase()} CD ${ongoing.saveDc}${success ? " · Escapa" : " · Continúa"}` });
   return success;
 }

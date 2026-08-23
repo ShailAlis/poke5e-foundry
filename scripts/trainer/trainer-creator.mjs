@@ -15,7 +15,7 @@
 import { loadPoke5eData } from "../core/data-service.mjs";
 import {
   MODULE_ID, MODULE_PATH, gearItemSource, getPack, pokemonItemSourceFromSpecies, portraitUrl,
-  speciesItemSource, trainerClassSource, trainerFeatureSources
+  speciesItemSource, trainerClassSource
 } from "../core/model.mjs";
 import { ABILITIES, CLASS_SKILLS, NATURES, ORIGINS, POINT_BUY_COSTS, SKILLS, SPECIALIZATIONS, STANDARD_ARRAY, resolveBaseAbilities, resolveTrainerCreation } from "./trainer-creation-data.mjs";
 import { pokedollarCurrency } from "../world/economy.mjs";
@@ -295,12 +295,15 @@ export async function applyTrainerCreation(actor, selection, rules) {
     "system.details.age": String(selection.age ?? ""),
     "system.details.biography.value": `<p><strong>Origen:</strong> ${escapeHtml(rules.origin.name)}. <strong>Especie:</strong> Humano.</p>`,
     "system.attributes.hp.value": rules.hp,
-    "system.attributes.hp.max": rules.hp,
+    // En D&D 5e `hp.max` es un override, no el máximo calculado. Debe quedar
+    // nulo para que el Advancement de Hit Points sume cada nivel de clase.
+    "system.attributes.hp.max": null,
     "system.attributes.movement.walk": 30,
     "system.attributes.movement.swim": selection.environment === "coast" ? 30 : 0,
     "system.attributes.movement.climb": selection.environment === "mountain" ? 10 : 0,
     ...Object.fromEntries(Object.entries(initialCurrency).map(([denomination, value]) => [`system.currency.${denomination}`, value])),
-    [`flags.${MODULE_ID}.trainerCreation`]: { ...selection, completed: true, version: 1, human: true }
+    [`flags.${MODULE_ID}.trainerCreation`]: { ...selection, completed: true, version: 1, human: true },
+    [`flags.${MODULE_ID}.trainerHpOverrideMigrated`]: true
   };
   for (const [ability, value] of Object.entries(rules.abilities)) updates[`system.abilities.${ability}.value`] = value;
   for (const ability of Object.keys(ABILITIES)) updates[`system.abilities.${ability}.proficient`] = rules.savingThrows.includes(ability) ? 1 : 0;
@@ -331,7 +334,7 @@ export async function applyTrainerCreation(actor, selection, rules) {
   const trainerClass = await trainerClassCreationSource(selection);
   const sources = [
     humanSpeciesSource(), originSource(rules), originFeat, specializationSource(rules),
-    trainerClass, ...levelOneFeatureSources(), ...gear, pokemon
+    trainerClass, ...gear, pokemon
   ];
   await actor.createEmbeddedDocuments("Item", sources, { poke5eTrainerCreation: true });
 }
@@ -405,9 +408,8 @@ function specializationSource(rules) {
 
 /**
  * Clase Entrenador para el asistente: enlaza los rasgos del compendio y conserva
- * todos los avances nativos futuros. Los PG y competencias de nivel 1 se marcan
- * como ya aplicados, y se omite solo el ItemGrant de nivel 1 porque esos rasgos
- * los entrega levelOneFeatureSources() dentro del mismo asistente.
+ * todos los avances nativos futuros. Los PG, competencias y elecciones de nivel
+ * 1 se resuelven en el asistente, por lo que se omite su ItemGrant genérico.
  */
 async function trainerClassCreationSource(selection) {
   const source = trainerClassSource(await trainerFeatureUuids());
@@ -437,23 +439,6 @@ async function trainerFeatureUuids() {
     if (sourceId) uuids.set(sourceId, `Compendium.${pack.collection}.Item.${entry._id}`);
   }
   return uuids;
-}
-
-/**
- * Rasgos de nivel 1: los de TRAINER_FEATURES que devuelve trainerFeatureSources()
- * más los propios del asistente (licencia, Pokédex, competencia con Poké Balls y
- * los tres Pokéslots iniciales).
- */
-function levelOneFeatureSources() {
-  const features = trainerFeatureSources().filter(source => source.flags[MODULE_ID].level === 1);
-  for (const source of features) source.flags[MODULE_ID].kind = `${CREATION_KIND_PREFIX}feature`;
-  return [
-    ...features,
-    trainerClassFeatureSource(creationItem("Licencia de Entrenador", "feat", "license", "<p>Autoriza a capturar Pokémon y permite acceder a servicios de Centros Pokémon y Poké Mart.</p>")),
-    trainerClassFeatureSource(creationItem("Pokédex", "feat", "pokedex", "<p>Como acción adicional, identifica un Pokémon a 60 pies, registra su especie y revela su SR base y datos breves.</p>")),
-    trainerClassFeatureSource(creationItem("Competencia con Poké Balls", "feat", "pokeball-proficiency", "<p>Eres competente con Poké Balls y puedes utilizarlas para realizar intentos de captura.</p>")),
-    trainerClassFeatureSource(creationItem("Pokéslots (3)", "feat", "pokeslots", "<p>Puedes llevar a tu Pokémon inicial y otros dos Pokémon en el equipo activo.</p>"))
-  ];
 }
 
 function trainerClassFeatureSource(source) {

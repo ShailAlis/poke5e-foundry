@@ -20,6 +20,7 @@ import { confirmHeldItemReaction, consumeHeldItem, heldItemId, postHeldItemMessa
 import { currentField } from "./terrain-effects.mjs";
 import { hasTrainerPath } from "../trainer/trainer-path-rules.mjs";
 import { applyGruntSaveAdvantage, applyHobbyistSaveBoost, applyNurseStatusSaveAdvantage, applyTacticianDcBoost } from "../trainer/trainer-resources.mjs";
+import { applyMasterTrainerSave } from "../trainer/trainer-class-rules.mjs";
 import { escapeHtml, isResponsibleGm } from "../core/utils.mjs";
 
 /** Acción del socket con la que un jugador pide al director aplicar estados. */
@@ -674,7 +675,8 @@ async function rollTargetSave(actor, move, dc, sourceModifiers = {}, sourceActor
   await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${actor.name} — Salvación ${chosen.key.toUpperCase()} contra ${move.name} (CD ${dc})` });
   const total = await applyHobbyistSaveBoost(actor, Number(roll.total) || 0, chosen.key);
   const finalDc = await applyTacticianDcBoost(sourceActor, actor.name, total, Number(dc));
-  return { total, dc: finalDc, success: total >= finalDc };
+  const masterSuccess = await applyMasterTrainerSave(actor, total, finalDc, { label: move.name });
+  return { total, dc: finalDc, success: total >= finalDc || masterSuccess };
 }
 
 /**

@@ -12,7 +12,7 @@
 import { MODULE_ID, POKEMON_TOKEN_SCALE, displayPokemonName, portraitUrl, remoteAssetUrl } from "../core/model.mjs";
 import { loadPoke5eData } from "../core/data-service.mjs";
 import { damageTraitsForPokemonTypes } from "../combat/combat.mjs";
-import { aceTrainerAbilityBonus, applyTypeMasteryDefense, hasTrainerPath } from "../trainer/trainer-path-rules.mjs";
+import { aceTrainerAbilityBonus, applyTypeMasteryDefense, hasTrainerPath, trainerSpecializationTypes } from "../trainer/trainer-path-rules.mjs";
 import { speciesSkillKey } from "../trainer/trainer-creation-data.mjs";
 import { abilityAutoConsumesHealingBerry, abilityBerryHealBonus, abilityGrantsUnburdenSpeed, abilityMaximumHp, applyAbilityDefenses, applyAbilityDeployWeather, hpThresholdSwitchTrigger, recallAbilityAdjustment } from "../pokemon/pokemon-abilities.mjs";
 import { opponentBlocksBerryEating, opponentBlocksVoluntarySwitch } from "../combat/aura-abilities.mjs";
@@ -649,8 +649,10 @@ async function deployedActorSource(pokemonItem) {
   if (heldAdjustments.groundImmunity && !damageTraits.di.value.includes("ground")) damageTraits.di.value.push("ground");
   applyAbilityDefenses(damageTraits, instance.abilities);
   if (trainer?.type === "character") applyTypeMasteryDefense(damageTraits, trainer, effectiveTypes);
-  const trainerSpecialization = trainer.getFlag(MODULE_ID, "trainerCreation")?.specialization;
-  const specializationBonus = effectiveTypes.includes(trainerSpecialization) ? 1 : 0;
+  // Cada especialización elegida es un beneficio real. Un Pokémon de dos
+  // tipos puede coincidir con dos especializaciones distintas y acumularlas.
+  const specializedTypes = trainerSpecializationTypes(trainer);
+  const specializationBonus = effectiveTypes.filter(type => specializedTypes.has(String(type).toLocaleLowerCase())).length;
   const moveItems = (instance.moves ?? []).map(entry => data.movesById.get(entry.moveId)).filter(Boolean).map(move => ({
     name: move.name,
     type: "feat",

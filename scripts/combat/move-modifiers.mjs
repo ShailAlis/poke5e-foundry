@@ -8,6 +8,7 @@ import { pokemonEffectIcon } from "../core/effect-icons.mjs";
 import { MOVE_MODIFIER_EFFECTS, modifierTriggerMatches, nextModifierStacks, scaledMoveModifiers } from "./move-modifier-rules.mjs";
 import { abilityAdjustedMoveModifiers, abilityGrantsDebuffImmunity, abilityGrantsMeleeAttackAdvantage, abilityGrantsSelfAttackAdvantage, abilityLowHpCombatModifiers, abilityProtectsAttackDamageBonuses, abilitySlowStartActive } from "../pokemon/pokemon-abilities.mjs";
 import { applyGruntSaveAdvantage, applyHobbyistSaveBoost, applyNurseStatusSaveAdvantage, applyTacticianDcBoost } from "../trainer/trainer-resources.mjs";
+import { applyMasterTrainerSave } from "../trainer/trainer-class-rules.mjs";
 import { escapeHtml, isResponsibleGm } from "../core/utils.mjs";
 
 const SOCKET_ACTION = "applyMoveModifiers";
@@ -494,7 +495,8 @@ async function rollModifierSave(actor, move, dc, sourceModifiers = {}, sourceOwn
   await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${actor.name} — Salvación ${chosen.key.toUpperCase()} contra ${move.name} (CD ${dc})` });
   const total = await applyHobbyistSaveBoost(actor, Number(roll.total) || 0, chosen.key);
   const finalDc = await applyTacticianDcBoost(sourceOwnerActor, actor.name, total, Number(dc));
-  return { total, dc: finalDc, success: total >= finalDc };
+  const masterSuccess = await applyMasterTrainerSave(actor, total, finalDc, { label: move.name });
+  return { total, dc: finalDc, success: total >= finalDc || masterSuccess };
 }
 
 function savingThrowModifier(actor, key) {
@@ -537,7 +539,8 @@ async function processModifierRepeatSaves(actor) {
     const state = effect.getFlag(MODULE_ID, "modifier");
     const modifier = savingThrowModifier(actor, state.repeatSave) + (pokemonCombatModifiers(actor).saves[state.repeatSave] ?? 0);
     const roll = await new Roll("1d20 + @modifier", { modifier }).evaluate();
-    const success = Number(roll.total) >= Number(state.saveDc);
+    const masterSuccess = await applyMasterTrainerSave(actor, Number(roll.total), Number(state.saveDc), { label: state.moveName });
+    const success = Number(roll.total) >= Number(state.saveDc) || masterSuccess;
     await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${actor.name} — ${state.moveName}: salvación ${state.repeatSave.toUpperCase()} CD ${state.saveDc}${success ? " · Termina" : " · Continúa"}` });
     if (success) await actor.deleteEmbeddedDocuments("ActiveEffect", [effect.id]);
   }
@@ -558,7 +561,8 @@ async function checkModifierConcentration(actor, damage) {
   const modifier = savingThrowModifier(actor, "con") + (pokemonCombatModifiers(actor).saves.con ?? 0);
   const roll = await new Roll("1d20 + @modifier", { modifier }).evaluate();
   await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${actor.name} — Concentración CD ${dc}` });
-  if (Number(roll.total) < dc) await removeModifierConcentration(actor.uuid);
+  const masterSuccess = await applyMasterTrainerSave(actor, Number(roll.total), dc, { label: "Concentración" });
+  if (Number(roll.total) < dc && !masterSuccess) await removeModifierConcentration(actor.uuid);
 }
 
 async function removeModifierConcentration(sourceActorUuid) {

@@ -67,28 +67,28 @@ export const PACKS = {
  * de groupFeaturesByLevel().
  */
 export const TRAINER_FEATURES = [
-  feature(1, "starter-pokemon", "Pokémon inicial", "Elige un Pokémon sin evolucionar de SR 1/2 o inferior. Empieza con sus estadísticas base; puedes elegir su naturaleza y una habilidad que no sea oculta."),
+  feature(1, "starter-pokemon", "Pokémon inicial", "Elige un Pokémon sin evolucionar de SR 1/2 o inferior. Empieza con sus estadísticas base; puedes elegir su naturaleza y una habilidad que no sea oculta.", false),
   feature(1, "specialization-1", "Especialización de Entrenador", "Elige tu primera especialización de Entrenador. Sus beneficios representan el ámbito en el que has centrado tu formación."),
   feature(2, "trainer-path-1", "Camino de Entrenador", "Elige un Camino de Entrenador. Este camino concede rasgos adicionales a los niveles 2, 5, 9 y 15.", false),
-  feature(3, "control-upgrade-5", "Mejora de control (SR 5)", "Puedes dar órdenes con normalidad a Pokémon de hasta SR 5. Los Pokémon que superen tu límite de control pueden negarse a obedecer."),
+  feature(3, "control-upgrade-5", "Mejora de control (SR 5)", "Puedes dar órdenes con normalidad a Pokémon de hasta SR 5. Los Pokémon que superen tu límite de control pueden negarse a obedecer.", false),
   feature(4, "ability-score-improvement-4", "Mejora de característica", "Aumenta tus puntuaciones de característica o elige una dote para la que cumplas los requisitos, según las reglas de D&D 5e.", false),
   feature(5, "trainer-path-5", "Rasgo del Camino de Entrenador", "Obtienes el rasgo de nivel 5 de tu Camino de Entrenador.", false),
-  feature(5, "pokeslot-4", "Pokéslot adicional (4)", "Tu capacidad aumenta a cuatro Pokéslots. Los Pokémon que no estén en el equipo activo permanecen en tu reserva."),
-  feature(6, "control-upgrade-8", "Mejora de control (SR 8)", "Tu límite de control aumenta a SR 8."),
+  feature(5, "pokeslot-4", "Pokéslot adicional (4)", "Tu capacidad aumenta a cuatro Pokéslots. Los Pokémon que no estén en el equipo activo permanecen en tu reserva.", false),
+  feature(6, "control-upgrade-8", "Mejora de control (SR 8)", "Tu límite de control aumenta a SR 8.", false),
   feature(7, "specialization-2", "Especialización de Entrenador adicional", "Obtienes una segunda especialización de Entrenador."),
-  feature(8, "control-upgrade-10", "Mejora de control (SR 10)", "Tu límite de control aumenta a SR 10."),
+  feature(8, "control-upgrade-10", "Mejora de control (SR 10)", "Tu límite de control aumenta a SR 10.", false),
   feature(8, "ability-score-improvement-8", "Mejora de característica", "Aumenta tus puntuaciones de característica o elige una dote para la que cumplas los requisitos, según las reglas de D&D 5e.", false),
   feature(9, "trainer-path-9", "Rasgo del Camino de Entrenador", "Obtienes el rasgo de nivel 9 de tu Camino de Entrenador.", false),
-  feature(10, "trainers-resolve", "Determinación del Entrenador", "Eres inmune a la condición Asustado y obtienes competencia en una segunda tirada de salvación a tu elección."),
-  feature(10, "pokeslot-5", "Pokéslot adicional (5)", "Tu capacidad aumenta a cinco Pokéslots."),
-  feature(11, "control-upgrade-12", "Mejora de control (SR 12)", "Tu límite de control aumenta a SR 12."),
+  feature(10, "trainers-resolve", "Determinación del Entrenador", "Eres inmune a la condición Asustado y obtienes competencia en una segunda tirada de salvación a tu elección.", false),
+  feature(10, "pokeslot-5", "Pokéslot adicional (5)", "Tu capacidad aumenta a cinco Pokéslots.", false),
+  feature(11, "control-upgrade-12", "Mejora de control (SR 12)", "Tu límite de control aumenta a SR 12.", false),
   feature(12, "ability-score-improvement-12", "Mejora de característica", "Aumenta tus puntuaciones de característica o elige una dote para la que cumplas los requisitos, según las reglas de D&D 5e.", false),
   feature(13, "pokemon-tracker", "Rastreador Pokémon", "Una vez por descanso largo puedes buscar Pokémon cercanos y conocer qué especies pueden encontrarse en la zona. Además, obtienes Pericia en Trato con Animales."),
-  feature(14, "control-upgrade-14", "Mejora de control (SR 14)", "Tu límite de control aumenta a SR 14."),
+  feature(14, "control-upgrade-14", "Mejora de control (SR 14)", "Tu límite de control aumenta a SR 14.", false),
   feature(15, "trainer-path-15", "Rasgo del Camino de Entrenador", "Obtienes el rasgo de nivel 15 de tu Camino de Entrenador.", false),
-  feature(15, "pokeslot-6", "Pokéslot adicional (6)", "Tu capacidad aumenta a seis Pokéslots, el tamaño máximo de tu equipo activo."),
+  feature(15, "pokeslot-6", "Pokéslot adicional (6)", "Tu capacidad aumenta a seis Pokéslots, el tamaño máximo de tu equipo activo.", false),
   feature(16, "ability-score-improvement-16", "Mejora de característica", "Aumenta tus puntuaciones de característica o elige una dote para la que cumplas los requisitos, según las reglas de D&D 5e.", false),
-  feature(17, "control-upgrade-15", "Mejora de control (SR 15)", "Tu límite de control aumenta a SR 15."),
+  feature(17, "control-upgrade-15", "Mejora de control (SR 15)", "Tu límite de control aumenta a SR 15.", false),
   feature(18, "specialization-3", "Especialización de Entrenador adicional", "Obtienes una tercera especialización de Entrenador."),
   feature(19, "epic-boon", "Don épico", "Obtienes un Don Épico u otra dote para la que cumplas los requisitos. El Don del Destino es una opción recomendada.", false),
   feature(20, "master-trainer", "Maestro Entrenador", "Cuando tú o uno de tus Pokémon falléis una salvación, puedes convertir el fallo en éxito. Puedes hacerlo dos veces y recuperas todos los usos con un descanso largo.")
@@ -291,10 +291,17 @@ export function trainerFeatureSources() {
       description: { value: `<p>${escapeHtml(entry.description)}</p>`, chat: "" },
       identifier: `trainer-${entry.id}`,
       requirements: `Entrenador ${entry.level}`,
-      type: { value: "class", subtype: "" }
+      type: { value: "class", subtype: "" },
+      ...trainerClassFeatureUses(entry.id)
     },
     flags: { [MODULE_ID]: { kind: "trainer-feature", sourceId: `trainer-feature-${entry.id}`, level: entry.level, featureOrigin: "trainer" } }
   }));
+}
+
+/** Recursos nativos de los rasgos de clase que se recuperan con descanso largo. */
+function trainerClassFeatureUses(featureId) {
+  const maximum = featureId === "pokemon-tracker" ? "1" : featureId === "master-trainer" ? "2" : null;
+  return maximum ? { uses: { spent: 0, max: maximum, recovery: [{ period: "lr", type: "recoverAll" }] } } : {};
 }
 
 /** Convierte cada rasgo de camino en una dote de clase enlazable por UUID. */
@@ -706,8 +713,8 @@ function paragraphs(values) {
 
 /**
  * Constructor abreviado de las entradas de TRAINER_FEATURES. `grant: false`
- * marca los rasgos que no generan Item porque los cubre D&D 5e (mejoras de
- * característica y don épico).
+ * marca los rasgos que no necesitan Item porque su efecto lo cubre D&D 5e o
+ * se calcula directamente desde el nivel (control, Pokéslots, PG, etc.).
  */
 function feature(level, id, name, description, grant = true) {
   return { level, id, name, description, grant };

@@ -7,7 +7,7 @@
  * registerTrainerActorSheet()) y ofrece las mismas acciones que la ventana de
  * trainer-team.mjs. Su plantilla es `templates/trainer-sheet-team.hbs`.
  */
-import { MODULE_ID, MODULE_PATH, displayAssetUrl, displayPokemonName, getPack, getPokemonItems, trainerClassSource, trainerLevel, trainerPathFeatureSources, trainerPathSources, trainerPokeslotLimit } from "../core/model.mjs";
+import { MODULE_ID, MODULE_PATH, displayAssetUrl, displayPokemonName, getPack, getPokemonItems, trainerClassSource, trainerFeatureSources, trainerLevel, trainerPathFeatureSources, trainerPathSources, trainerPokeslotLimit } from "../core/model.mjs";
 import { Poke5ePokemonSheet } from "../pokemon/pokemon-sheet.mjs";
 import { Poke5eSpeciesBrowser } from "../ui/species-browser.mjs";
 import { deployPokemon, deployedActorFor, recallPokemon } from "../world/deployment.mjs";
@@ -20,8 +20,22 @@ import { promptSpendTrainerResource, spendTrainerResource, trainerResourceState 
 import { applyDynamicModifier } from "../combat/move-modifiers.mjs";
 import { typeLabel } from "../combat/combat.mjs";
 import { trainerControlSr } from "./npc-trainer-rules.mjs";
+import { availableTrainerSpecializations, chooseTrainerSpecialization, masterTrainerState, pendingTrainerSpecializations, pokemonTrackerState, spendPokemonTracker } from "./trainer-class-rules.mjs";
+import { SKILLS } from "./trainer-creation-data.mjs";
+import { loadPoke5eData } from "../core/data-service.mjs";
+import { filterEncounterSpecies } from "../world/encounter-generator.mjs";
 
 const CharacterActorSheet = dnd5e.applications.actor.CharacterActorSheet;
+
+/** Feats descriptivos antiguos cuyo efecto ya vive en la ficha o en un Trait nativo. */
+const OBSOLETE_TRAINER_FEATURES = new Set([
+  "trainer-feature-starter-pokemon",
+  "trainer-feature-control-upgrade-5", "trainer-feature-control-upgrade-8", "trainer-feature-control-upgrade-10",
+  "trainer-feature-control-upgrade-12", "trainer-feature-control-upgrade-14", "trainer-feature-control-upgrade-15",
+  "trainer-feature-pokeslot-4", "trainer-feature-pokeslot-5", "trainer-feature-pokeslot-6",
+  "trainer-feature-trainers-resolve",
+  "trainer-creation-license", "trainer-creation-pokedex", "trainer-creation-pokeball-proficiency", "trainer-creation-pokeslots"
+]);
 
 /**
  * Ficha de personaje con pestaña de equipo Pokémon. Declara sus acciones en
@@ -44,7 +58,9 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
       recallPokemon: Poke5eTrainerActorSheet.#recallPokemon,
       togglePokemonTeam: Poke5eTrainerActorSheet.#togglePokemonTeam,
       givePokechef: Poke5eTrainerActorSheet.#givePokechef,
-      guruSpirit: Poke5eTrainerActorSheet.#guruSpirit
+      guruSpirit: Poke5eTrainerActorSheet.#guruSpirit,
+      chooseSpecialization: Poke5eTrainerActorSheet.#chooseSpecialization,
+      usePokemonTracker: Poke5eTrainerActorSheet.#usePokemonTracker
     }
   };
 
@@ -114,6 +130,9 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
     // Espíritu (Guru 15): botón único, se aplica a todo el equipo desplegado
     // a la vez (ver #guruSpirit()).
     const guruSpiritResource = (state => state?.remaining ? state : null)(trainerResourceState(this.actor, "guru"));
+    const pendingSpecializations = pendingTrainerSpecializations(this.actor);
+    const tracker = pokemonTrackerState(this.actor);
+    const masterTrainer = masterTrainerState(this.actor);
     return {
       ...context,
       pokemon: {
@@ -128,6 +147,12 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
         aceTrainerAbilityChoice,
         pokechefAvailable,
         guruSpiritResource,
+        specializationProgression: pendingSpecializations ? {
+          pending: pendingSpecializations,
+          available: availableTrainerSpecializations(this.actor).length
+        } : null,
+        pokemonTracker: tracker ? { remaining: tracker.remaining, max: tracker.max, expert: tracker.expert } : null,
+        masterTrainer: masterTrainer ? { remaining: masterTrainer.remaining, max: masterTrainer.max } : null,
         maxControlSr,
         overControlSr,
         maxTeamSize,
@@ -344,6 +369,73 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
     await advanceTrainerClassFromExperience(this.actor, { sheet: this });
   }
 
+  /** Resuelve una de las elecciones de especialización pendientes y aplica su efecto. */
+  static async #chooseSpecialization() {
+    const sheet = this;
+    const choices = availableTrainerSpecializations(sheet.actor);
+    if (!choices.length) return;
+    const options = choices.map(entry => `<option value="${entry.type}">${foundry.utils.escapeHTML(entry.name)} · ${foundry.utils.escapeHTML(typeLabel(entry.type))}</option>`).join("");
+    let selected = null;
+    try {
+      selected = await foundry.applications.api.DialogV2.prompt({
+        window: { title: game.i18n.localize("POKE5E.TrainerClass.ChooseSpecialization") },
+        content: `<p>${game.i18n.localize("POKE5E.TrainerClass.ChooseSpecializationHint")}</p><label><span>${game.i18n.localize("POKE5E.TrainerClass.Specialization")}</span><select name="specialization">${options}</select></label>`,
+        modal: true,
+        rejectClose: false,
+        ok: { label: game.i18n.localize("POKE5E.Common.Choose"), icon: "fa-solid fa-medal", callback: (_event, button) => button.form.elements.specialization.value }
+      });
+    } catch { selected = null; }
+    if (!selected || !await chooseTrainerSpecialization(sheet.actor, selected)) return;
+    const specialized = trainerSpecializationTypes(sheet.actor);
+    for (const item of getPokemonItems(sheet.actor)) {
+      const deployed = deployedActorFor(item);
+      if (!deployed) continue;
+      const types = deployed.getFlag(MODULE_ID, "pokemonTypes") ?? item.getFlag(MODULE_ID, "species")?.type ?? [];
+      const bonus = types.filter(type => specialized.has(String(type).toLocaleLowerCase())).length;
+      await deployed.update({ "system.bonuses.abilities.skill": bonus ? String(bonus) : "" });
+    }
+    ui.notifications.info(game.i18n.localize("POKE5E.TrainerClass.SpecializationApplied"));
+    sheet.render({ force: true });
+  }
+
+  /** Consume Rastreador Pokémon y muestra las especies de la zona elegida. */
+  static async #usePokemonTracker() {
+    const sheet = this;
+    const state = pokemonTrackerState(sheet.actor);
+    if (!state?.remaining) return;
+    const data = await loadPoke5eData();
+    const regions = [...new Set(data.pokemon.flatMap(entry => [...(entry.habitat?.regions ?? []), entry.habitat?.nativeRegion].filter(Boolean)))].sort();
+    const biomes = [...new Set(data.pokemon.flatMap(entry => entry.habitat?.biomes ?? []))].sort();
+    const optionHtml = values => values.map(value => `<option value="${foundry.utils.escapeHTML(value)}">${foundry.utils.escapeHTML(value)}</option>`).join("");
+    let selection = null;
+    try {
+      selection = await foundry.applications.api.DialogV2.prompt({
+        window: { title: game.i18n.localize("POKE5E.TrainerClass.Tracker") },
+        content: `<p>${game.i18n.localize("POKE5E.TrainerClass.TrackerPrompt")}</p><label><span>${game.i18n.localize("POKE5E.TrainerClass.Region")}</span><select name="region"><option value=""></option>${optionHtml(regions)}</select></label><label><span>${game.i18n.localize("POKE5E.TrainerClass.Biome")}</span><select name="biome"><option value=""></option>${optionHtml(biomes)}</select></label>${state.expert ? `<label><span>${game.i18n.localize("POKE5E.TrainerClass.SpecificSpecies")}</span><input name="species" type="text"></label><label><span>${game.i18n.localize("POKE5E.TrainerClass.TrackerSkill")}</span><select name="skill"><option value="inv">${SKILLS.inv}</option><option value="nat">${SKILLS.nat}</option></select></label>` : ""}`,
+        modal: true,
+        rejectClose: false,
+        ok: { label: game.i18n.localize("POKE5E.TrainerClass.Search"), icon: "fa-solid fa-magnifying-glass", callback: (_event, button) => ({ region: button.form.elements.region.value, biome: button.form.elements.biome.value, species: button.form.elements.species?.value?.trim() ?? "", skill: button.form.elements.skill?.value ?? "" }) }
+      });
+    } catch { selection = null; }
+    if (!selection || (!selection.region && !selection.biome)) return;
+    const pool = filterEncounterSpecies(data.pokemon, { region: selection.region, biome: selection.biome });
+    if (!await spendPokemonTracker(sheet.actor)) return;
+    let specific = "";
+    if (state.expert && selection.species) {
+      const skill = sheet.actor.system?.skills?.[selection.skill] ?? {};
+      const modifier = Number(skill.total ?? skill.mod ?? skill.value) || 0;
+      const roll = await new Roll("1d20 + @modifier", { modifier }).evaluate();
+      await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor: sheet.actor }), flavor: `${game.i18n.localize("POKE5E.TrainerClass.TrackerExpert")} · ${SKILLS[selection.skill]} CD 11` });
+      const match = pool.find(entry => entry.name.toLocaleLowerCase() === selection.species.toLocaleLowerCase());
+      specific = Number(roll.total) >= 11
+        ? `<p><strong>${game.i18n.localize(match ? "POKE5E.TrainerClass.SpeciesFound" : "POKE5E.TrainerClass.SpeciesNotFound")}</strong>${match ? ` ${foundry.utils.escapeHTML(match.name)}` : ""}</p>`
+        : `<p><strong>${game.i18n.localize("POKE5E.TrainerClass.TrackerCheckFailed")}</strong></p>`;
+    }
+    const names = pool.map(entry => foundry.utils.escapeHTML(entry.name)).join(", ") || game.i18n.localize("POKE5E.Common.NoneYet");
+    await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: sheet.actor }), content: `<div class="dnd5e chat-card poke5e-status-card"><h3>${game.i18n.localize("POKE5E.TrainerClass.Tracker")}</h3><p>${names}</p>${specific}</div>` });
+    sheet.render({ force: true });
+  }
+
   static async #spendPathResource(event, target) {
     const item = this.actor.items.get(target.dataset.itemId);
     if (!item) return;
@@ -398,8 +490,8 @@ export async function migrateTrainerFeatureGroups() {
  * Sincroniza la progresión canónica con las clases Entrenador antiguas. Actualiza
  * primero la copia maestra del compendio y después las clases ya embebidas en PJ,
  * que Foundry mantiene como copias independientes y no actualiza por sí solo.
- * Conserva los avances existentes, sus elecciones y cualquier avance
- * personalizado; solo incorpora las entradas canónicas que falten.
+ * Conserva las elecciones y avances personalizados, incorpora las entradas
+ * canónicas que falten y retira los ItemGrant descriptivos obsoletos.
  */
 export async function migrateTrainerClassAdvancements() {
   if (!game.user.isGM) return;
@@ -459,7 +551,16 @@ export async function migrateTrainerClassAdvancements() {
       const sourceId = String(item.getFlag(MODULE_ID, "sourceId") ?? "");
       return /^trainer-feature-trainer-path-(?:1|5|9|15)$/.test(sourceId);
     });
-    if (obsoletePathFeatures.length) await actor.deleteEmbeddedDocuments("Item", obsoletePathFeatures.map(item => item.id));
+    const obsoleteClassFeatures = actor.items.filter(item => OBSOLETE_TRAINER_FEATURES.has(String(item.getFlag(MODULE_ID, "sourceId") ?? "")));
+    // Una especialización elegida sustituye a su marcador. De actores antiguos
+    // solo se conservan tantos marcadores sin configurar como elecciones falten.
+    const pendingSpecializationCount = pendingTrainerSpecializations(actor);
+    const unusedSpecializationMarkers = actor.items
+      .filter(item => /^trainer-feature-specialization-[123]$/.test(String(item.getFlag(MODULE_ID, "sourceId") ?? "")) && !item.getFlag(MODULE_ID, "specializationType"))
+      .sort((a, b) => Number(b.getFlag(MODULE_ID, "level")) - Number(a.getFlag(MODULE_ID, "level")))
+      .slice(pendingSpecializationCount);
+    const obsoleteIds = [...new Set([...obsoletePathFeatures, ...obsoleteClassFeatures, ...unusedSpecializationMarkers].map(item => item.id))];
+    if (obsoleteIds.length) await actor.deleteEmbeddedDocuments("Item", obsoleteIds);
   }
 }
 
@@ -468,9 +569,19 @@ async function ensureTrainerPathDocuments(pack) {
   if (pack.locked) await pack.configure({ locked: false });
   let index = await pack.getIndex({ fields: [`flags.${MODULE_ID}.sourceId`, `flags.${MODULE_ID}.kind`] });
   const bySourceId = new Map([...index.values()].map(entry => [foundry.utils.getProperty(entry, `flags.${MODULE_ID}.sourceId`), entry]));
-  const obsolete = new Set([1, 5, 9, 15].map(level => `trainer-feature-trainer-path-${level}`));
+  const obsolete = new Set([...OBSOLETE_TRAINER_FEATURES, ...[1, 5, 9, 15].map(level => `trainer-feature-trainer-path-${level}`)]);
   const obsoleteIds = [...bySourceId.entries()].filter(([sourceId]) => obsolete.has(sourceId)).map(([, entry]) => entry._id);
   if (obsoleteIds.length) await Item.implementation.deleteDocuments(obsoleteIds, { pack: pack.collection });
+
+  // Mantiene en el compendio solo los cinco Items que sí respaldan una
+  // elección, acción o recurso de clase, actualizados con su esquema actual.
+  const classFeatureSources = trainerFeatureSources();
+  const classFeatureUpdates = classFeatureSources
+    .filter(source => bySourceId.has(source.flags[MODULE_ID].sourceId))
+    .map(source => ({ ...source, _id: bySourceId.get(source.flags[MODULE_ID].sourceId)._id }));
+  const missingClassFeatures = classFeatureSources.filter(source => !bySourceId.has(source.flags[MODULE_ID].sourceId));
+  if (classFeatureUpdates.length) await Item.implementation.updateDocuments(classFeatureUpdates, { pack: pack.collection });
+  if (missingClassFeatures.length) await Item.implementation.createDocuments(missingClassFeatures, { pack: pack.collection });
 
   const pathFeatureSources = trainerPathFeatureSources();
   const missingFeatures = pathFeatureSources.filter(source => !bySourceId.has(source.flags[MODULE_ID].sourceId));
@@ -507,12 +618,16 @@ async function updateTrainerClassAdvancements(item, expected, icon, { updateHitD
   const expectedEntries = Array.isArray(expected) ? expected : Object.values(expected ?? {});
   const byId = new Map(current.filter(entry => entry?._id).map(entry => [entry._id, entry]));
   const expectedIds = new Set(expectedEntries.map(entry => entry._id));
-  // Si ya existe una entrada con ese id se deja completamente intacta (configuración
-  // incluida): prioriza no perder ediciones manuales del GM sobre re-sincronizar con
-  // la plantilla canónica. Solo se crean entradas nuevas para ids que faltan.
-  const mergedEntries = expectedEntries.map(entry => foundry.utils.deepClone(byId.get(entry._id) ?? entry));
+  // Los ItemGrant canónicos adoptan la lista actual de objetos, conservando el
+  // historial aplicado. El resto mantiene intacta cualquier edición del GM.
+  const mergedEntries = expectedEntries.map(entry => {
+    const existing = byId.get(entry._id);
+    if (!existing) return foundry.utils.deepClone(entry);
+    if (entry.type !== "ItemGrant" || !/^P5eGrant/.test(entry._id)) return foundry.utils.deepClone(existing);
+    return { ...foundry.utils.deepClone(entry), value: foundry.utils.deepClone(existing.value ?? entry.value) };
+  });
   mergedEntries.push(...current
-    .filter(entry => entry?._id && !expectedIds.has(entry._id))
+    .filter(entry => entry?._id && !expectedIds.has(entry._id) && !(entry.type === "ItemGrant" && /^P5eGrant/.test(entry._id)))
     .map(entry => foundry.utils.deepClone(entry)));
   const merged = Object.fromEntries(mergedEntries.map(entry => [entry._id, entry]));
   const currentMapping = Object.fromEntries(current.filter(entry => entry?._id).map(entry => [entry._id, entry]));
