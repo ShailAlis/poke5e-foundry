@@ -41,10 +41,10 @@ async function recordTrackedDamage(actor, lost) {
   const pokemonItem = await pokemonItemForActor(actor);
   const instance = pokemonItem?.getFlag(MODULE_ID, "instance");
   if (!instance?.bideTracking && !instance?.metalBurstTracking) return;
-  const next = foundry.utils.deepClone(instance);
-  if (next.bideTracking) next.bideDamage = accumulateBideDamage(instance.bideDamage, lost);
-  if (next.metalBurstTracking) next.metalBurstDamage = accumulateBideDamage(instance.metalBurstDamage, lost);
-  await pokemonItem.setFlag(MODULE_ID, "instance", next);
+  const updates = {};
+  if (instance.bideTracking) updates[`flags.${MODULE_ID}.instance.bideDamage`] = accumulateBideDamage(instance.bideDamage, lost);
+  if (instance.metalBurstTracking) updates[`flags.${MODULE_ID}.instance.metalBurstDamage`] = accumulateBideDamage(instance.metalBurstDamage, lost);
+  if (Object.keys(updates).length) await pokemonItem.update(updates);
 }
 
 async function pokemonItemForActor(actor) {

@@ -280,7 +280,7 @@ Hooks.on("updateActor", (actor, changes, options, userId) => {
  */
 Hooks.on("updateItem", (item, changes) => {
   if (item.getFlag(MODULE_ID, "kind") !== "pokemon") return;
-  if (foundry.utils.hasProperty(changes, `flags.${MODULE_ID}.instance.hp`) || foundry.utils.hasProperty(changes, `flags.${MODULE_ID}.instance`)) {
+  if (foundry.utils.hasProperty(changes, `flags.${MODULE_ID}.instance.hp`)) {
     syncPokemonHpToDeployment(item).catch(error => console.error(`${MODULE_ID} | Pokémon HP sync failed`, error));
   }
   if (foundry.utils.hasProperty(changes, `flags.${MODULE_ID}.instance.heldItem`) || foundry.utils.hasProperty(changes, `flags.${MODULE_ID}.instance`)) {

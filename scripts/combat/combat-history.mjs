@@ -47,19 +47,17 @@ async function markDamaged(actor) {
   const pokemonItem = await pokemonItemForActor(actor);
   const instance = pokemonItem?.getFlag(MODULE_ID, "instance");
   if (!instance) return;
-  const next = foundry.utils.deepClone(instance);
-  next.damagedSinceLastTurn = true;
-  next.damagedThisRound = true;
-  await pokemonItem.setFlag(MODULE_ID, "instance", next);
+  const updates = {};
+  if (instance.damagedSinceLastTurn !== true) updates[`flags.${MODULE_ID}.instance.damagedSinceLastTurn`] = true;
+  if (instance.damagedThisRound !== true) updates[`flags.${MODULE_ID}.instance.damagedThisRound`] = true;
+  if (Object.keys(updates).length) await pokemonItem.update(updates);
 }
 
 async function clearHistoryFlag(actor, flag) {
   const pokemonItem = await pokemonItemForActor(actor);
   const instance = pokemonItem?.getFlag(MODULE_ID, "instance");
   if (!instance?.[flag]) return;
-  const next = foundry.utils.deepClone(instance);
-  next[flag] = false;
-  await pokemonItem.setFlag(MODULE_ID, "instance", next);
+  await pokemonItem.update({ [`flags.${MODULE_ID}.instance.${flag}`]: false });
 }
 
 async function pokemonItemForActor(actor) {
