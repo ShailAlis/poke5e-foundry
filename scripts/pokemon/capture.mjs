@@ -16,6 +16,7 @@ import { removeDeployment } from "../world/deployment.mjs";
 import { MODULE_ID, displayPokemonName, getPokemonItems, trainerLevel, trainerPokeslotLimit } from "../core/model.mjs";
 import { experienceAtLevel, experienceAward } from "./progression.mjs";
 import { escapeHtml, formatNumber, isResponsibleGm } from "../core/utils.mjs";
+import { isCapturedLegendary } from "./legendary-species.mjs";
 
 /** Canal de socket del módulo, compartido con status-effects.mjs. */
 const SOCKET = `module.${MODULE_ID}`;
@@ -187,6 +188,7 @@ export async function completeCapture(payload) {
   const species = pokemonItem?.getFlag(MODULE_ID, "species");
   const originalInstance = pokemonItem?.getFlag(MODULE_ID, "instance");
   if (!pokemonItem || !species || !originalInstance) throw new Error("La ficha salvaje está incompleta.");
+  if (isCapturedLegendary(species)) throw new Error(game.i18n.format("POKE5E.Legendary.AlreadyCaptured", { pokemon: species.name }));
   const level = Math.max(1, Number(originalInstance.level) || 1);
   if (level > trainerLevel(trainer)) throw new Error("El nivel del Pokémon supera el del entrenador.");
   if (Number(wildActor.system.attributes?.hp?.value) <= 0) throw new Error("Un Pokémon debilitado no puede ser capturado.");
@@ -283,7 +285,7 @@ async function promptCaptureOptions({ species, instance, hp, balls, trainerLevel
   // Capturador (Ranger 5): casilla de confianza, no verificación real de
   // movimiento — ver el comentario de pokeballAdjustment() en capture-rules.mjs.
   const rangerField = hasTrainerPath(trainer, "ranger", 5)
-    ? `<label><input type="checkbox" name="rangerCircled"> Completé la vuelta completa con el Capture Styler (Capturador, Ranger 5: +10)</label>`
+    ? `<label><input type="checkbox" name="rangerCircled"> Completé la vuelta completa con el Capturador (Guardabosques 5: +10)</label>`
     : "";
   try {
     return await foundry.applications.api.DialogV2.prompt({

@@ -16,16 +16,25 @@ import {
   naturalMovesAtLevel,
   withEggMoveChance
 } from "../world/encounter-generator.mjs";
+import { UNIQUE_LEGENDARY_NUMBERS, capturedLegendaryNumbers, uniqueLegendaryNumber } from "../pokemon/legendary-species.mjs";
 
 const pokemon = JSON.parse(await readFile(new URL("../../data/pokemon.json", import.meta.url), "utf8")).items;
 const moves = JSON.parse(await readFile(new URL("../../data/moves.json", import.meta.url), "utf8")).moves;
 const movesById = new Map(moves.map(move => [move.id, move]));
 const bulbasaur = pokemon.find(entry => entry.id === "bulbasaur");
 const unnumbered = pokemon.find(entry => Number(entry.number) === 0);
+const mewtwo = pokemon.find(entry => Number(entry.number) === 150);
 
 assert(filterEncounterSpecies(pokemon, { biome: "forest", type: "grass", levelMax: 5 }).includes(bulbasaur));
 assert(!filterEncounterSpecies(pokemon, { levelMax: 20 }).includes(unnumbered));
 assert(!filterEncounterSpecies(pokemon, { biome: "ocean", type: "grass", levelMax: 5 }).includes(bulbasaur));
+assert(!filterEncounterSpecies(pokemon, { levelMax: 20, excludedLegendaryNumbers: new Set([150]) }).includes(mewtwo));
+assert.equal(uniqueLegendaryNumber(mewtwo), 150);
+assert([...UNIQUE_LEGENDARY_NUMBERS].every(number => pokemon.some(species => Number(species.number) === number)), "Every configured unique Legendary must exist in the species catalog.");
+const ownedMewtwo = { getFlag: (_module, key) => key === "kind" ? "pokemon" : key === "species" ? mewtwo : null };
+const playerActor = { id: "player", type: "character", hasPlayerOwner: true, items: [ownedMewtwo], getFlag: () => null };
+const npcActor = { id: "npc", type: "character", hasPlayerOwner: true, items: [ownedMewtwo], getFlag: (_module, key) => key === "kind" ? "npc-trainer" : null };
+assert.deepEqual([...capturedLegendaryNumbers([playerActor, npcActor], [])], [150]);
 assert(naturalMovesAtLevel(bulbasaur, 1).includes("tackle"));
 assert(naturalMovesAtLevel(bulbasaur, 6).includes("vine-whip"));
 assert(adjustedHitPoints(bulbasaur, 2) > bulbasaur.hp);
@@ -41,6 +50,7 @@ assert.equal(instance.experience, 12000);
 assert(instance.moves.length <= 4);
 assert(instance.moves.every(entry => entry.pp.max === movesById.get(entry.moveId).pp));
 assert.equal(instance.inTeam, false);
+assert.equal(instance.nature, "Hardy");
 
 // Los movimientos huevo no se pueden elegir al subir de nivel (move-learning.mjs);
 // la generación aleatoria es su única vía de aparición, con una probabilidad baja.

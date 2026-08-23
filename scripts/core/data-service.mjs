@@ -8,6 +8,7 @@
  * wild-deployment.mjs, trainer-creator.mjs y los dos generadores.
  */
 import { inferMoveStatusEffects } from "../combat/status-effects.mjs";
+import { typeLabel } from "../combat/combat.mjs";
 
 const MODULE_ID = "poke5e-foundry";
 const MODULE_PATH = `modules/${MODULE_ID}`;
@@ -61,7 +62,14 @@ export function clearPoke5eDataCache() {
 /** Evita solicitar rutas inexistentes si un mundo conserva un valor antiguo. */
 export function normalizeDataLanguage(language) {
   const normalized = String(language ?? "").toLowerCase();
-  return SUPPORTED_LANGUAGES.has(normalized) ? normalized : "en";
+  return SUPPORTED_LANGUAGES.has(normalized) ? normalized : "es";
+}
+
+/** Nombre localizado de un bioma conservando su identificador para los filtros. */
+export function biomeLabel(biome) {
+  const key = `POKE5E.Biomes.${String(biome ?? "").toLowerCase()}`;
+  const translated = globalThis.game?.i18n?.localize?.(key);
+  return translated && translated !== key ? translated : String(biome ?? "");
 }
 
 /**
@@ -85,18 +93,23 @@ async function load(language) {
   ]);
   let abilities = abilitiesEn.items;
   let items = itemsEn.items;
+  let localizedContestEffects = contestEffects.items;
   let moveTranslations = null;
   if (language !== "en") {
-    const [movesLocal, abilitiesLocal, itemsLocal] = await Promise.all([
+    const [movesLocal, abilitiesLocal, itemsLocal, contestEffectsLocal] = await Promise.all([
       fetchJson(`${language}/moves.json`),
       fetchJson(`${language}/abilities.json`),
-      fetchJson(`${language}/items.json`)
+      fetchJson(`${language}/items.json`),
+      fetchJson(`${language}/contest-effects.json`)
     ]);
     moveTranslations = new Map(movesLocal.moves.map(value => [value.id, value]));
     abilities = mergeTranslation(abilities, abilitiesLocal.items);
     items = mergeTranslation(items, itemsLocal.items);
+    localizedContestEffects = mergeTranslation(localizedContestEffects, contestEffectsLocal.items);
   }
-  const availablePokemon = pokemon.items.filter(isAvailablePokemon);
+  const availablePokemon = pokemon.items.filter(isAvailablePokemon).map(species => language === "es"
+    ? { ...species, name: spanishSpeciesName(species.name), description: spanishSpeciesDescription(species) }
+    : species);
   const availablePokemonIds = new Set(availablePokemon.map(value => value.id));
   const availableEvolutions = evolutions.items.filter(evolution =>
     availablePokemonIds.has(evolution.from)
@@ -104,12 +117,14 @@ async function load(language) {
     && evolutionMatchesRegionalForm(evolution)
   );
   const contestById = new Map(contests.items.map(value => [value.id, value]));
-  const contestEffectsById = new Map(contestEffects.items.map(value => [String(value.id), value]));
+  const contestEffectsById = new Map(localizedContestEffects.map(value => [String(value.id), value]));
   // Efectos de estado, traducción y datos de concurso se aplican en una sola
   // pasada: el catálogo tiene más de ochocientos movimientos y encadenar tres
   // `map()` construía dos copias intermedias completas de todos ellos.
   const moves = movesEn.moves.map(move => {
-    const assembled = { ...move, ...(moveTranslations?.get(move.id) ?? {}), statusEffects: inferMoveStatusEffects(move) };
+    const localized = moveTranslations?.get(move.id) ?? {};
+    const assembled = { ...move, ...localized, statusEffects: inferMoveStatusEffects(move) };
+    if (language === "es") Object.assign(assembled, spanishMoveMetadata(assembled));
     const contest = contestById.get(move.id);
     if (contest) assembled.contest = { ...contest, effect: contestEffectsById.get(String(contest.effect)) ?? contest.effect };
     return assembled;
@@ -125,7 +140,7 @@ async function load(language) {
     moves,
     abilities,
     items,
-    contestEffects: contestEffects.items,
+    contestEffects: localizedContestEffects,
     evolutions: availableEvolutions,
     evolutionsByFrom,
     pokemonById: new Map(availablePokemon.map(value => [value.id, value])),
@@ -134,6 +149,43 @@ async function load(language) {
     itemsById: new Map(items.map(value => [value.id, value])),
     contestEffectsById
   };
+}
+
+/** Traduce únicamente los campos descriptivos; los ids mecánicos no cambian. */
+export function spanishMoveMetadata(move) {
+  const time = {
+    "1 action": "1 acción", "1 action, charge": "1 acción, carga", "1 action, recharge": "1 acción, recarga",
+    "1 bonus action": "1 acción adicional", "1 reaction": "1 reacción"
+  }[move.time] ?? move.time;
+  const range = String(move.range ?? "")
+    .replace(/self/gi, "personal").replace(/melee/gi, "cuerpo a cuerpo").replace(/varies/gi, "variable")
+    .replace(/radius/gi, "radio").replace(/reach/gi, "alcance").replace(/line/gi, "línea").replace(/cone/gi, "cono")
+    .replace(/\bft\b/gi, "pies").replace(/(\d)ft\b/gi, "$1 pies").replace(/(\d)f\b/gi, "$1 pies")
+    .replace(/(\d+) pies (radio|cono|línea|alcance)/gi, "$2 de $1 pies");
+  const duration = String(move.duration ?? "")
+    .replace(/instantaneous/gi, "instantánea").replace(/while in battle/gi, "mientras permanezca en combate").replace(/varies/gi, "variable")
+    .replace(/minutes?/gi, match => match.toLowerCase().endsWith("s") ? "minutos" : "minuto")
+    .replace(/rounds?/gi, match => match.toLowerCase().endsWith("s") ? "asaltos" : "asalto")
+    .replace(/turns?/gi, match => match.toLowerCase().endsWith("s") ? "turnos" : "turno")
+    .replace(/concentration/gi, "concentración").replace(/charge/gi, "carga");
+  return { time, range, duration };
+}
+
+/** Sustituye la prosa inglesa de origen por un resumen reglamentario en español. */
+export function spanishSpeciesDescription(species) {
+  const types = (species.type ?? []).map(typeLabel);
+  const typeText = types.length > 1 ? `${types.slice(0, -1).join(", ")} y ${types.at(-1)}` : types[0] ?? "desconocido";
+  const region = species.habitat?.nativeRegion ? ` Es originario de ${species.habitat.nativeRegion}.` : "";
+  return `Pokémon de tipo ${typeText}. Su nivel mínimo es ${Number(species.minLevel) || 1}.${region}`;
+}
+
+/** Adapta al uso español los adjetivos ingleses de las formas regionales. */
+export function spanishSpeciesName(name) {
+  return String(name ?? "")
+    .replace(/^Alolan (.+)$/i, "$1 de Alola")
+    .replace(/^Galarian (.+)$/i, "$1 de Galar")
+    .replace(/^Hisuian (.+)$/i, "$1 de Hisui")
+    .replace(/^Paldean (.+)$/i, "$1 de Paldea");
 }
 
 /** Las entradas sin número oficial de Pokédex no se ofrecen como especies jugables. */

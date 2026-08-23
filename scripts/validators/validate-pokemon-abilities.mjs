@@ -18,11 +18,18 @@ import {
 } from "../pokemon/pokemon-abilities.mjs";
 import { plusMinusAttackDamageBonus } from "../combat/aura-abilities.mjs";
 import { badDreamsDamage, END_TURN_ABILITY_IDS, shedSkinStatus } from "../combat/ability-turn-effects.mjs";
-import { AUTOMATED_ABILITY_IDS, abilityAutomationMode } from "../pokemon/ability-coverage.mjs";
+import { AUTOMATED_ABILITY_IDS, abilityAutomationMode, visiblePokemonAbilities } from "../pokemon/ability-coverage.mjs";
 import { POKEMON_STATUS_EFFECTS } from "../combat/status-effects.mjs";
 
 const abilities = JSON.parse(fs.readFileSync(new URL("../../data/abilities.json", import.meta.url), "utf8")).items;
 const abilityIds = new Set(abilities.map(entry => entry.id));
+const speciesAbilities = [{ id: "levitate" }, { id: "hidden-power-test", hidden: true }];
+assert.deepEqual(visiblePokemonAbilities(speciesAbilities, ["levitate", "hidden-power-test"], { isGM: false }), [{ id: "levitate", hidden: false, known: true }]);
+assert.deepEqual(visiblePokemonAbilities(speciesAbilities, ["levitate"], { isGM: true }), [
+  { id: "levitate", hidden: false, known: true },
+  { id: "hidden-power-test", hidden: true, known: false }
+]);
+assert.deepEqual(visiblePokemonAbilities(speciesAbilities, ["hidden-power-test"], { isGM: true }), [{ id: "hidden-power-test", hidden: true, known: true }]);
 const MOVE_PROFILE_ABILITY_IDS = ["compound-eyes", "gale-wings", "steelworker", "rivalry", "super-luck"];
 const CURSED_BODY_ABILITY_ID = "cursed-body";
 const SELF_STATUS_ABILITY_IDS = ["guts", "competitive", "flare-boost"];

@@ -17,11 +17,13 @@ import {
   MODULE_ID, MODULE_PATH, gearItemSource, getPack, pokemonItemSourceFromSpecies, portraitUrl,
   speciesItemSource, trainerClassSource
 } from "../core/model.mjs";
-import { ABILITIES, CLASS_SKILLS, NATURES, ORIGINS, POINT_BUY_COSTS, SKILLS, SPECIALIZATIONS, STANDARD_ARRAY, resolveBaseAbilities, resolveTrainerCreation } from "./trainer-creation-data.mjs";
+import { ABILITIES, CLASS_SKILLS, ORIGINS, POINT_BUY_COSTS, SKILLS, SPECIALIZATIONS, STANDARD_ARRAY, resolveBaseAbilities, resolveTrainerCreation } from "./trainer-creation-data.mjs";
+import { NATURES, natureLabel, randomNature } from "../pokemon/natures.mjs";
 import { pokedollarCurrency } from "../world/economy.mjs";
 import { withEggMoveChance } from "../world/encounter-generator.mjs";
 import { trainerFeatOptions } from "./feat-catalog.mjs";
 import { escapeHtml, titleCase } from "../core/utils.mjs";
+import { typeLabel } from "../combat/combat.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 /**
@@ -97,11 +99,11 @@ export class Poke5eTrainerCreator extends HandlebarsApplicationMixin(Application
       .sort((a, b) => String(a.name).localeCompare(String(b.name)))
       .map(species => option(species.id, `${species.name} (SR ${species.sr})`, this.selection.starter));
     const starter = data.pokemonById.get(this.selection.starter);
-    const abilities = (starter?.abilities ?? []).filter(entry => !entry.hidden).map(entry => ({
-      value: entry.id,
-      label: data.abilitiesById.get(entry.id)?.name ?? titleCase(entry.id),
-      selected: entry.id === this.selection.ability
-    }));
+    const availableAbilities = (starter?.abilities ?? []).filter(entry => !entry.hidden);
+    if (starter && !NATURES.includes(this.selection.nature)) this.selection.nature = randomNature();
+    if (starter && !availableAbilities.some(entry => entry.id === this.selection.ability)) {
+      this.selection.ability = availableAbilities[Math.floor(Math.random() * availableAbilities.length)]?.id ?? "";
+    }
     let resolved = null;
     let resolutionError = "";
     try { resolved = resolveTrainerCreation(this.selection); } catch (error) { resolutionError = error.message; }
@@ -111,6 +113,8 @@ export class Poke5eTrainerCreator extends HandlebarsApplicationMixin(Application
       step1: this.step === 1, step2: this.step === 2, step3: this.step === 3, step4: this.step === 4,
       canBack: this.step > 1, isLast: this.step === 4, saving: this.saving,
       selection: this.selection,
+      selectedNatureLabel: natureLabel(this.selection.nature),
+      selectedAbilityLabel: data.abilitiesById.get(this.selection.ability)?.name ?? this.selection.ability,
       baseAbilityStandard: this.selection.baseAbilityMethod === "standard",
       baseAbilityPointBuy: this.selection.baseAbilityMethod === "point-buy",
       baseAbilityManual: this.selection.baseAbilityMethod === "manual",
@@ -147,7 +151,7 @@ export class Poke5eTrainerCreator extends HandlebarsApplicationMixin(Application
       specializationAbilityBonus: specialization?.ability ? game.i18n.format("POKE5E.Creator.SpecializationAbilityBonus", { ability: ABILITIES[specialization.ability] }) : "",
       extraSkillOptions: Object.entries(SKILLS).map(([value, label]) => ({ value, label, selected: this.selection.extraSkills.includes(value) })),
       specializations: SPECIALIZATIONS.map(entry => ({
-        ...option(entry.type, game.i18n.format("POKE5E.Creator.SpecializationLabel", { name: entry.name, type: titleCase(entry.type) }), this.selection.specialization),
+        ...option(entry.type, game.i18n.format("POKE5E.Creator.SpecializationLabel", { name: entry.name, type: typeLabel(entry.type) }), this.selection.specialization),
         effect: entry.ability ? `+1 ${ABILITIES[entry.ability]}` : game.i18n.format("POKE5E.Creator.ProficiencyOrExpertise", { skill: SKILLS[entry.skill] })
       })),
       isHoenn: origin?.id === "hoennian", isKanto: origin?.id === "kantoan", isUnova: origin?.id === "unovan",
@@ -158,8 +162,7 @@ export class Poke5eTrainerCreator extends HandlebarsApplicationMixin(Application
         ["coast", game.i18n.localize("POKE5E.Creator.EnvironmentCoast")], ["desert", game.i18n.localize("POKE5E.Creator.EnvironmentDesert")],
         ["forest", game.i18n.localize("POKE5E.Creator.EnvironmentForest")], ["mountain", game.i18n.localize("POKE5E.Creator.EnvironmentMountain")]
       ].map(([value, label]) => option(value, label, this.selection.environment)),
-      starters, starter: starter ? { ...starter, img: portraitUrl(starter) } : null, starterAbilities: abilities,
-      natures: NATURES.map(value => option(value, value, this.selection.nature)),
+      starters, starter: starter ? { ...starter, img: portraitUrl(starter) } : null,
       resolved,
       hasConstitutionSave: resolved?.savingThrows.includes("con") ?? false,
       resolutionError,
@@ -194,7 +197,10 @@ export class Poke5eTrainerCreator extends HandlebarsApplicationMixin(Application
     if (["origin", "starter", "specialization", "baseAbilityMethod"].includes(input.name)) {
       this.#captureAll();
       this.selection[changedName] = changedValue;
-      if (changedName === "starter") this.selection.ability = "";
+      if (changedName === "starter") {
+        this.selection.nature = "";
+        this.selection.ability = "";
+      }
       if (changedName === "specialization") this.#removeGrantedClassSkills();
       this.render({ force: true });
     } else if (input.name === "classSkills" || input.name.startsWith("baseAbility")) {

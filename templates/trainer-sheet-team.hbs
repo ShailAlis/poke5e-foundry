@@ -93,7 +93,7 @@
 
   {{#if pokemon.typeMasteryChoice}}
     <section class="poke5e-trainer-progression">
-      <div class="poke5e-trainer-progression-heading"><i class="fa-solid fa-shield-halved"></i><div><strong>Almacenar poder (Type Master 9)</strong><small>Los Pokémon de tus especializaciones ganan resistencia al tipo elegido; una vulnerabilidad previa a ese tipo pasa a daño normal.</small></div></div>
+      <div class="poke5e-trainer-progression-heading"><i class="fa-solid fa-shield-halved"></i><div><strong>Almacenar poder (Maestro de Tipo 9)</strong><small>Los Pokémon de tus especializaciones ganan resistencia al tipo elegido; una vulnerabilidad previa a ese tipo pasa a daño normal.</small></div></div>
       {{#if pokemon.canEdit}}
         <label><span>Tipo elegido</span><select data-action="selectTypeMastery">{{selectOptions pokemon.typeMasteryChoice.options selected=pokemon.typeMasteryChoice.selected}}</select></label>
       {{else}}
@@ -104,7 +104,7 @@
 
   {{#if pokemon.rangerCompanionChoice}}
     <section class="poke5e-trainer-progression">
-      <div class="poke5e-trainer-progression-heading"><i class="fa-solid fa-paw"></i><div><strong>Compañero (Ranger 9)</strong><small>Sumas tu modificador de Sabiduría a los ataques de tu compañero contra Pokémon salvajes. Con Poké Assist (Ranger 15), sus tipos también dan ventaja a movimientos y capturas.</small></div></div>
+      <div class="poke5e-trainer-progression-heading"><i class="fa-solid fa-paw"></i><div><strong>Compañero (Guardabosques 9)</strong><small>Sumas tu modificador de Sabiduría a los ataques de tu compañero contra Pokémon salvajes. Con Poké Assist (Guardabosques 15), sus tipos también dan ventaja a movimientos y capturas.</small></div></div>
       {{#if pokemon.canEdit}}
         <label><span>Compañero</span><select data-action="selectRangerCompanion">{{selectOptions pokemon.rangerCompanionChoice.options selected=pokemon.rangerCompanionChoice.selected blank="—"}}</select></label>
       {{else}}
@@ -115,7 +115,7 @@
 
   {{#if pokemon.aceTrainerAbilityChoice}}
     <section class="poke5e-trainer-progression">
-      <div class="poke5e-trainer-progression-heading"><i class="fa-solid fa-arrow-up-wide-short"></i><div><strong>Maestría táctica (Ace Trainer 9)</strong><small>+1 a la característica elegida para todos tus Pokémon, incluidos los que captures después.</small></div></div>
+      <div class="poke5e-trainer-progression-heading"><i class="fa-solid fa-arrow-up-wide-short"></i><div><strong>Maestría táctica (Entrenador de Élite 9)</strong><small>+1 a la característica elegida para todos tus Pokémon, incluidos los que captures después.</small></div></div>
       {{#if pokemon.canEdit}}
         <label><span>Característica</span><select data-action="selectAceTrainerAbility">{{selectOptions pokemon.aceTrainerAbilityChoice.options selected=pokemon.aceTrainerAbilityChoice.selected blank="—"}}</select></label>
       {{/if}}
@@ -124,7 +124,7 @@
 
   {{#if pokemon.guruSpiritResource}}
     <section class="poke5e-trainer-progression">
-      <div class="poke5e-trainer-progression-heading"><i class="fa-solid fa-hand-sparkles"></i><div><strong>Espíritu (Guru 15)</strong><small>Suma tu modificador de Sabiduría a los ataques o al daño de todo tu equipo desplegado hasta tu próximo turno ({{pokemon.guruSpiritResource.remaining}}/{{pokemon.guruSpiritResource.max}} usos).</small></div></div>
+      <div class="poke5e-trainer-progression-heading"><i class="fa-solid fa-hand-sparkles"></i><div><strong>Espíritu (Gurú 15)</strong><small>Suma tu modificador de Sabiduría a los ataques o al daño de todo tu equipo desplegado hasta tu próximo turno ({{pokemon.guruSpiritResource.remaining}}/{{pokemon.guruSpiritResource.max}} usos).</small></div></div>
       {{#if pokemon.canEdit}}<button type="button" data-action="guruSpirit"><i class="fa-solid fa-hand-sparkles"></i> Usar Espíritu</button>{{/if}}
     </section>
   {{/if}}
@@ -171,7 +171,7 @@
                 <button type="button" data-action="deployPokemon" title="{{localize "POKE5E.Team.Deploy"}}"><i class="fa-solid fa-location-dot"></i></button>
               {{/if}}
               <button type="button" data-action="togglePokemonTeam" title="{{localize "POKE5E.Team.SendReserve"}}"><i class="fa-solid fa-box-archive"></i></button>
-              {{#if ../pokemon.pokechefAvailable}}<button type="button" data-action="givePokechef" title="Pokéchef (Nurse): prepara y da una golosina que cura PG"><i class="fa-solid fa-cookie-bite"></i></button>{{/if}}
+              {{#if ../pokemon.pokechefAvailable}}<button type="button" data-action="givePokechef" title="Pokéchef (Enfermero Pokémon): prepara y da una golosina que cura PG"><i class="fa-solid fa-cookie-bite"></i></button>{{/if}}
             </div>
           {{/if}}
         </article>

@@ -57,15 +57,7 @@ export function speciesSkillKey(name) {
  */
 export const CLASS_SKILLS = ["acr", "ath", "ins", "itm", "inv", "med", "nat", "prc", "prf", "per", "slt", "ste", "sur"];
 
-/**
- * Las 25 naturalezas Pokémon. Las ofrece trainer-creator.mjs para el inicial y
- * las sortea npc-trainer-actor.mjs para los equipos de los NPC.
- */
-export const NATURES = [
-  "Hardy", "Lonely", "Brave", "Adamant", "Naughty", "Bold", "Docile", "Relaxed",
-  "Impish", "Lax", "Timid", "Hasty", "Serious", "Jolly", "Naive", "Modest",
-  "Mild", "Quiet", "Bashful", "Rash", "Calm", "Gentle", "Sassy", "Careful", "Quirky"
-];
+export { NATURES, natureLabel } from "../pokemon/natures.mjs";
 
 /** Conjunto estándar de puntuaciones; resolveBaseAbilities() exige usarlo entero. */
 export const STANDARD_ARRAY = [15, 14, 13, 12, 10, 8];

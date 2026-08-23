@@ -11,11 +11,12 @@
  * `templates/pokemon-sheet.hbs`.
  */
 import { loadPoke5eData } from "../core/data-service.mjs";
-import { MODULE_ID, MODULE_PATH, displayPokemonName, gearItemSource, portraitUrl } from "../core/model.mjs";
+import { natureDefinition, natureLabel, pokemonAttributesWithNature } from "./natures.mjs";
+import { MODULE_ID, MODULE_PATH, displayPokemonName, evolutionRequirementLabel, gearItemSource, portraitUrl } from "../core/model.mjs";
 import { pokedollars, updatePokedollars } from "../world/economy.mjs";
 import { MAX_KNOWN_MOVES, applyLearnedMove, filterMoveCatalog, moveEligibility } from "./move-learning.mjs";
 import { normalizeMoveDamageTypes, pokemonDefenses, typeLabel } from "../combat/combat.mjs";
-import { deployedActorFor, recallPokemon, syncPokemonHeldItemToDeployment, syncPokemonIdentityToDeployment } from "../world/deployment.mjs";
+import { deployedActorFor, recallPokemon, setPokemonCombatantsDefeated, syncPokemonHeldItemToDeployment, syncPokemonIdentityToDeployment } from "../world/deployment.mjs";
 import { CONTEST_TYPES, contestAppealOutcome, contestCompatibility, contestDetailsForMove, contestTypeOptions } from "../world/contests.mjs";
 import { POKEMON_STATUS_EFFECTS, applyMoveStatuses, applyPokemonStatus, inferMoveStatusEffects, pokemonIncapacitatingStatus, pokemonStatusEntries, pokemonStatusId, removePokemonStatus } from "../combat/status-effects.mjs";
 import { applyMoveOngoingEffects, moveHasImmediateDamage, ongoingEffectEntries, removeOngoingEffect } from "../combat/ongoing-effects.mjs";
@@ -35,7 +36,7 @@ import { batteryDiceMultiplier, costarAdvantage, flowerGiftDamageBonus, nearbyAl
 import { promptSpendTrainerResource, trainerResourceState } from "../trainer/trainer-resources.mjs";
 import { pokemonFeatOptions } from "../trainer/feat-catalog.mjs";
 import { SKILLS, speciesSkillKey } from "../trainer/trainer-creation-data.mjs";
-import { abilityAutomationMode } from "./ability-coverage.mjs";
+import { abilityAutomationMode, visiblePokemonAbilities } from "./ability-coverage.mjs";
 import { abilityTriggeredMoveModifierMultiplier } from "./pokemon-abilities.mjs";
 
 const DAMAGE_SHIELD_MOVES = new Set([...FULL_NEGATION_MOVES, ...HALF_NEGATION_MOVES, ...SURVIVE_MOVES]);
@@ -136,6 +137,7 @@ function preparePokemonSkills({ combatActor, trainer, pokemonItem, species, inst
   const specializedTypes = trainerSpecializationTypes(trainer);
   const specializationBonus = (effectiveTypes ?? []).filter(type => specializedTypes.has(String(type).toLocaleLowerCase())).length;
   const companionBonus = trainer?.type === "character" ? rangerCompanionCheckBonus(trainer, pokemonItem) : 0;
+  const effectiveAttributes = pokemonAttributesWithNature(species, instance);
 
   return Object.entries(SKILLS).map(([key, fallbackLabel]) => {
     const actorSkill = combatActor?.system.skills?.[key];
@@ -145,7 +147,7 @@ function preparePokemonSkills({ combatActor, trainer, pokemonItem, species, inst
     const hobbyistBonus = trainer?.type === "character" && !proficient && hasTrainerPath(trainer, "hobbyist", 9)
       ? Math.floor(proficiency / 2)
       : 0;
-    const projectedScore = (Number(instance.attributes?.[ability] ?? species.attributes?.[ability]) || 10)
+    const projectedScore = (Number(effectiveAttributes[ability]) || 10)
       + (trainer?.type === "character" ? aceTrainerAbilityBonus(trainer, ability) : 0);
     const abilityScore = Number(combatActor?.system.abilities?.[ability]?.value) || projectedScore;
     const baseTotal = Math.floor((abilityScore - 10) / 2) + (rank * proficiency) + specializationBonus;
@@ -307,7 +309,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       baseTypes: species.type ?? [],
       abilities: instance.abilities ?? []
     });
-    const combatSpecies = { ...species, type: effectiveTypes, attributes: instance.attributes ?? species.attributes ?? {} };
+    const combatSpecies = { ...species, type: effectiveTypes, attributes: pokemonAttributesWithNature(species, instance) };
     const level = Number(instance.level) || 1;
     const moves = (instance.moves ?? []).map(entry => {
       const move = data.movesById.get(entry.moveId);
@@ -318,16 +320,20 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const catalog = this.moveManagerOpen
       ? filterMoveCatalog(data.moves, species, level, knownMoveIds, { ...this.moveFilters, machineIds })
       : [];
-    const abilities = (instance.abilities ?? []).map(id => data.abilitiesById.get(id)).filter(Boolean).map(ability => {
+    const abilities = visiblePokemonAbilities(species.abilities, instance.abilities, { isGM: game.user.isGM }).map(entry => {
+      const ability = data.abilitiesById.get(entry.id);
+      if (!ability) return null;
       const automation = abilityAutomationMode(ability.id);
       return {
         id: ability.id,
         name: ability.name,
         description: `<p>${escapeHtml(ability.description)}</p>`,
+        hidden: entry.hidden,
+        known: entry.known,
         automation,
         automatic: automation === "automatic"
       };
-    });
+    }).filter(Boolean);
     const abilityScores = Object.entries(combatSpecies.attributes).map(([key, score]) => ({
       key: key.toUpperCase(), score, modifier: signed(Math.floor((Number(score) - 10) / 2))
     }));
@@ -339,6 +345,20 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const pendingAdvancements = hasPendingPokemonAdvancements(instance);
     const heldActor = heldItemActorAdjustments({ sourceId: heldItem?.sourceId, speciesId: species.id, charges: heldItem?.charges, state: heldItem?.state });
     const combatActor = trainer?.getFlag?.(MODULE_ID, "kind") === "wild" ? trainer : deployedActorFor(this.pokemonItem);
+    const death = combatActor?.system?.attributes?.death;
+    const deathSuccess = Math.max(0, Math.min(3, Number(death?.success) || 0));
+    const deathFailure = Math.max(0, Math.min(3, Number(death?.failure) || 0));
+    const deathSaves = hasTrainer && combatActor?.getFlag(MODULE_ID, "kind") === "deployed" && hpCurrent <= 0 && death
+      ? {
+          success: deathSuccess,
+          failure: deathFailure,
+          successes: Array.from({ length: 3 }, (_, index) => ({ filled: index < deathSuccess })),
+          failures: Array.from({ length: 3 }, (_, index) => ({ filled: index < deathFailure })),
+          canRoll: deathSuccess < 3 && deathFailure < 3,
+          stabilized: deathSuccess >= 3,
+          dead: deathFailure >= 3
+        }
+      : null;
     const skills = preparePokemonSkills({ combatActor, trainer, pokemonItem: this.pokemonItem, species, instance, effectiveTypes, level });
     const activeConditions = POKEMON_STATUS_IDS.filter(id => combatActor?.statuses?.has(pokemonStatusId(id)));
     const inventoryItems = hasTrainer
@@ -352,6 +372,11 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       ? (state => state?.remaining ? state : null)(trainerResourceState(trainer, "grunt"))
       : null;
     const award = experienceAward(level, species.sr);
+    const natureEffect = natureDefinition(instance.nature);
+    const abilityLabel = key => {
+      const labelKey = CONFIG.DND5E.abilities?.[key]?.label;
+      return labelKey ? game.i18n.localize(labelKey) : String(key ?? "").toUpperCase();
+    };
     return {
       item: this.pokemonItem,
       trainer,
@@ -367,6 +392,12 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       img: portraitUrl(species, instance.shiny),
       species,
       instance,
+      nature: {
+        ...natureEffect,
+        label: natureLabel(instance.nature),
+        increaseLabel: natureEffect.increase ? abilityLabel(natureEffect.increase) : "",
+        decreaseLabel: natureEffect.decrease ? abilityLabel(natureEffect.decrease) : ""
+      },
       level,
       skills,
       pokemonTabs: {
@@ -386,6 +417,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
         awardLabel: formatNumber(award)
       },
       pendingAdvancements,
+      deathSaves,
       heldItem: heldItem ? { ...heldItem, hasCharges: heldItem.charges != null } : null,
       statuses: pokemonStatusEntries({ conditions: [...new Set([...(instance.conditions ?? []), ...activeConditions])] }),
       ongoingEffects: [...ongoingEffectEntries(combatActor), ...moveModifierEntries(combatActor)],
@@ -415,7 +447,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       },
       abilities,
       abilityScores,
-      types: effectiveTypes.map(type => ({ id: type, label: titleCase(type) })),
+      types: effectiveTypes.map(type => ({ id: type, label: typeLabel(type) })),
       hp: {
         value: hpCurrent,
         max: hpMaximum,
@@ -495,6 +527,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     this.element.querySelector("[data-action='apply-advancements']")?.addEventListener("click", () => this.#applyAdvancements());
     this.element.querySelectorAll("[data-action='evolve-pokemon']").forEach(button => button.addEventListener("click", event => this.#evolve(event)));
     this.element.querySelector("[data-action='change-hp']")?.addEventListener("change", event => this.#changeHp(event));
+    this.element.querySelector("[data-action='roll-death-save']")?.addEventListener("click", event => this.#rollDeathSave(event));
     this.element.querySelector("[data-action='change-nickname']")?.addEventListener("change", event => this.#changeNickname(event));
     this.element.querySelector("[data-action='equip-held-item']")?.addEventListener("change", event => this.#equipHeldItem(event));
     this.element.querySelector("[data-action='use-held-item']")?.addEventListener("click", () => this.#useHeldItem());
@@ -654,6 +687,22 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     }
     instance.hp.value = nextHp;
     await this.pokemonItem.setFlag(MODULE_ID, "instance", instance);
+    this.render({ force: true });
+  }
+
+  /**
+   * Ejecuta la salvación contra muerte nativa de D&D5e sobre el actor temporal
+   * del Pokémon. Un tercer fallo lo marca como derrotado en el combate; un 20
+   * natural devuelve 1 PG mediante la propia regla del sistema y se sincroniza
+   * de vuelta a la ficha Pokémon por el hook de updateActor.
+   */
+  async #rollDeathSave(event) {
+    const actor = deployedActorFor(this.pokemonItem);
+    const death = actor?.system?.attributes?.death;
+    if (!actor || actor.getFlag(MODULE_ID, "kind") !== "deployed" || Number(actor.system.attributes?.hp?.value) > 0 || !death) return;
+    if (Number(death.success) >= 3 || Number(death.failure) >= 3) return;
+    await actor.rollDeathSave({ event, legacy: false });
+    if (Number(actor.system.attributes?.death?.failure) >= 3) await setPokemonCombatantsDefeated(actor, true);
     this.render({ force: true });
   }
 
@@ -920,7 +969,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       sourceId: instance.heldItem?.sourceId, speciesId: storedSpecies.id,
       baseTypes: storedSpecies.type ?? [], abilities: instance.abilities ?? []
     });
-    const species = { ...storedSpecies, type: effectiveTypes, attributes: instance.attributes ?? storedSpecies.attributes ?? {} };
+    const species = { ...storedSpecies, type: effectiveTypes, attributes: pokemonAttributesWithNature(storedSpecies, instance) };
     const heldMove = heldItemEffectiveMove(catalogMove, { sourceId: instance.heldItem?.sourceId, speciesId: storedSpecies.id });
     const move = { ...heldMove, time: abilityMoveActivationTime(instance.abilities, { moveId: heldMove.id, time: heldMove.time, healing: moveIsHealing(heldMove) }) };
     const temporaryUserType = abilityMoveUserTypeChange(instance.abilities, move.type);
@@ -1195,7 +1244,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       const meleeAdvantage = combatModifiers.meleeAttackAdvantage && move.attack.scope === "melee";
       const terrainAdvantage = move.id === "psyblade" && currentField(game.combat).terrain?.id === "electric-terrain";
       const weatherAdvantage = move.id === "hydro-steam" && activeWeather === "sun";
-      const darkAdvantage = trainer ? Boolean(await promptSpendTrainerResource(trainer, "grunt", { cost: 3, title: "Ventaja oscura (Grunt 5)", prompt: "¿Gastar 3 Puntos de Sombra para tener ventaja en este ataque?" })) : false;
+      const darkAdvantage = trainer ? Boolean(await promptSpendTrainerResource(trainer, "grunt", { cost: 3, title: "Ventaja oscura (Recluta 5)", prompt: "¿Gastar 3 Puntos de Sombra para tener ventaja en este ataque?" })) : false;
       const assistAdvantage = trainer ? rangerAssistAdvantage(trainer, move.type) : false;
       // Sin Reparos/Escudo Intrépido (lotes 35/36): el objetivo también puede
       // dar ventaja o desventaja a quien le ataca por su propia habilidad,
@@ -1214,7 +1263,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       const targetsAreWild = Boolean(selectedTokens.length) && selectedTokens.every(token => token.actor?.getFlag?.(MODULE_ID, "kind") === "wild");
       const companionBonus = trainer ? rangerCompanionAttackBonus(trainer, this.pokemonItem, targetsAreWild) : 0;
       const attack = await new Roll(`${die} + @mod + @prof + @effect${effectDice}`, { mod: attackMoveModifier, prof: effectProficiency, effect: combatModifiers.attack + heldProfile.attack + pathProfile.attack + companionBonus + abilityProfile.attack + victoryStarBonus + plusMinusBonus + supremeOverlordBonus }).evaluate();
-      await attack.toMessage({ speaker, flavor: `${flavor} (${titleCase(move.attack.scope)})` });
+      await attack.toMessage({ speaker, flavor: `${flavor} (${attackScopeLabel(move.attack.scope)})` });
       const rolledNatural = Number(attack.dice?.[0]?.results?.find(result => result.active)?.result ?? attack.dice?.[0]?.total) || 0;
       const guaranteed = combatModifiers.guaranteedHit || combatModifiers.guaranteedCritical;
       const natural = guaranteed ? 20 : rolledNatural;
@@ -1238,7 +1287,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
             const targetPokemonItem = await pokemonItemForActor(targetToken.actor);
             const targetTrainer = targetPokemonItem?.parent?.type === "character" ? targetPokemonItem.parent : null;
             const spent = targetTrainer && hasTrainerPath(targetTrainer, "tactician", 9)
-              ? await promptSpendTrainerResource(targetTrainer, "tactician", { cost: needed, title: "Alza tus defensas (Tactician 9)", prompt: `¿Gastar ${needed} Puntos Tácticos para que ${escapeHtml(targetToken.name)} evite este golpe?` })
+              ? await promptSpendTrainerResource(targetTrainer, "tactician", { cost: needed, title: "Alza tus defensas (Estratega 9)", prompt: `¿Gastar ${needed} Puntos Tácticos para que ${escapeHtml(targetToken.name)} evite este golpe?` })
               : null;
             if (spent) {
               attackResult.total = targetAc - 1;
@@ -1479,7 +1528,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     if (recoilFraction && selectedHit && dealtDamageTotal != null) {
       const recoilHp = recoilAmount(dealtDamageTotal, recoilFraction);
       const infamous = trainer && hasTrainerPath(trainer, "grunt", 15)
-        ? await promptSpendTrainerResource(trainer, "grunt", { cost: 2, title: "Golpe infame (Grunt 15)", prompt: `¿Gastar 2 Puntos de Sombra para que ${escapeHtml(name)} quede Aturdido en vez de sufrir ${recoilHp} de retroceso?` })
+        ? await promptSpendTrainerResource(trainer, "grunt", { cost: 2, title: "Golpe infame (Recluta 15)", prompt: `¿Gastar 2 Puntos de Sombra para que ${escapeHtml(name)} quede Aturdido en vez de sufrir ${recoilHp} de retroceso?` })
         : null;
       if (infamous) {
         const stunnedConfig = CONFIG.statusEffects?.find?.(entry => entry.id === "stunned");
@@ -1525,7 +1574,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       // sería letal, porque el tope no hace nada si el golpe no bajaba a 0 PG.
       for (const token of selectedTokens) {
         if (!attackHitsPokemonTarget(attackResult, token.actor)) continue;
-        const spare = await confirmHeldItemReaction("Golpes disciplinados (Pokémon Collector 9)", `<p>¿Dejar a ${escapeHtml(token.name)} en 1 PG en vez de debilitarlo?</p>`);
+        const spare = await confirmHeldItemReaction("Golpes disciplinados (Coleccionista Pokémon 9)", `<p>¿Dejar a ${escapeHtml(token.name)} en 1 PG en vez de debilitarlo?</p>`);
         if (spare) await markFalseSwipeTarget(token.actor);
       }
     }
@@ -1721,7 +1770,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       total += Number(bonus.total) || 0;
       await postDamageRoll(bonus, {
         speaker,
-        flavor: `${flavor} — Dado de batalla (Ace Trainer)`,
+        flavor: `${flavor} — Dado de batalla (Entrenador de Élite)`,
         rollType
       });
     }
@@ -1750,10 +1799,10 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
           const bonus = DamageRoll ? await new DamageRoll(String(delta), {}, { type: damageType }).evaluate() : await new Roll(String(delta)).evaluate();
           await postDamageRoll(bonus, {
             speaker,
-            flavor: `${flavor} — Golpe dirigido (Tactician): segunda tirada mayor (${rerollTotal})`
+            flavor: `${flavor} — Golpe dirigido (Estratega): segunda tirada mayor (${rerollTotal})`
           });
         } else {
-          await ChatMessage.create({ speaker, content: `<div class="dnd5e chat-card poke5e-status-card"><p>${escapeHtml(flavor)} — Golpe dirigido (Tactician): la segunda tirada (${rerollTotal}) no mejora el daño ya infligido.</p></div>` });
+          await ChatMessage.create({ speaker, content: `<div class="dnd5e chat-card poke5e-status-card"><p>${escapeHtml(flavor)} — Golpe dirigido (Estratega): la segunda tirada (${rerollTotal}) no mejora el daño ya infligido.</p></div>` });
         }
       }
     }
@@ -1775,7 +1824,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const combatActor = this.pokemonItem.parent?.getFlag?.(MODULE_ID, "kind") === "wild" ? this.pokemonItem.parent : deployedActorFor(this.pokemonItem);
     if (!trainer || !combatActor) return;
     const spent = await promptSpendTrainerResource(trainer, "grunt", {
-      title: "Sabotaje (Grunt 2)",
+      title: "Sabotaje (Recluta 2)",
       prompt: `¿Gastar 1 Punto de Sombra para que el próximo golpe que reciba ${escapeHtml(displayPokemonName(this.pokemonItem))} se convierta en fallo (salvo un 20 natural)?`
     });
     if (!spent) return;
@@ -1802,7 +1851,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     if (!trainer || !combatActor) return;
     const spent = await promptSpendTrainerResource(trainer, "grunt", {
       cost: 4,
-      title: "Esquiva siniestra (Grunt 9)",
+      title: "Esquiva siniestra (Recluta 9)",
       prompt: `¿Gastar 4 Puntos de Sombra para que el próximo golpe que reciba ${escapeHtml(displayPokemonName(this.pokemonItem))} se reduzca a la mitad?`
     });
     if (!spent) return;
@@ -1830,7 +1879,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     if (!statusId) return ui.notifications.info(game.i18n.format("POKE5E.StatusEffects.NoTarget", { move: "Médico de campo" }));
     const modifier = Number(trainer.system.skills?.med?.total) || 0;
     const roll = await new Roll("1d20 + @modifier", { modifier }).evaluate();
-    await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor: trainer }), flavor: `Médico de campo (Nurse 9) — Medicina CD 12 sobre ${name}` });
+    await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor: trainer }), flavor: `Médico de campo (Enfermero Pokémon 9) — Medicina CD 12 sobre ${name}` });
     if (Number(roll.total) >= 12) {
       await removePokemonStatus(this.pokemonItem, statusId);
       await ChatMessage.create({ content: `<div class="dnd5e chat-card poke5e-status-card"><p><strong>Médico de campo</strong> tiene éxito: ${escapeHtml(name)} se cura de ${escapeHtml(POKEMON_STATUS_EFFECTS[statusId]?.name ?? statusId)}.</p></div>` });
@@ -1894,7 +1943,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const level = Number(instance.level) || 1;
     const proficiency = 2 + Math.floor((level - 1) / 4);
     const storedSpecies = this.pokemonItem.getFlag(MODULE_ID, "species") ?? {};
-    const species = { ...storedSpecies, attributes: instance.attributes ?? storedSpecies.attributes ?? {} };
+    const species = { ...storedSpecies, attributes: pokemonAttributesWithNature(storedSpecies, instance) };
     const attackMoveModifier = getMoveModifier(species, move);
     const attack = await new Roll("1d20 + @mod + @prof", { mod: attackMoveModifier, prof: proficiency }).evaluate();
     await attack.toMessage({ speaker, flavor: `${name} — ${move.name} (Ranged)` });
@@ -1966,7 +2015,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const level = Number(instance.level) || 1;
     const proficiency = 2 + Math.floor((level - 1) / 4);
     const storedSpecies = this.pokemonItem.getFlag(MODULE_ID, "species") ?? {};
-    const species = { ...storedSpecies, attributes: instance.attributes ?? storedSpecies.attributes ?? {} };
+    const species = { ...storedSpecies, attributes: pokemonAttributesWithNature(storedSpecies, instance) };
     const attackMoveModifier = getMoveModifier(species, move);
     const attack = await new Roll("2d20kl + @mod + @prof", { mod: attackMoveModifier, prof: proficiency }).evaluate();
     await attack.toMessage({ speaker, flavor: `${name} — ${move.name} (Melee, con desventaja)` });
@@ -2010,7 +2059,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const level = Number(instance.level) || 1;
     const proficiency = 2 + Math.floor((level - 1) / 4);
     const storedSpecies = this.pokemonItem.getFlag(MODULE_ID, "species") ?? {};
-    const species = { ...storedSpecies, attributes: instance.attributes ?? storedSpecies.attributes ?? {} };
+    const species = { ...storedSpecies, attributes: pokemonAttributesWithNature(storedSpecies, instance) };
     const attackMoveModifier = getMoveModifier(species, move);
     const attack = await new Roll("1d20 + @mod + @prof", { mod: attackMoveModifier, prof: proficiency }).evaluate();
     await attack.toMessage({ speaker, flavor: `${name} — ${move.name} (${label})` });
@@ -2084,7 +2133,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const level = Number(instance.level) || 1;
     const proficiency = 2 + Math.floor((level - 1) / 4);
     const storedSpecies = this.pokemonItem.getFlag(MODULE_ID, "species") ?? {};
-    const species = { ...storedSpecies, attributes: instance.attributes ?? storedSpecies.attributes ?? {} };
+    const species = { ...storedSpecies, attributes: pokemonAttributesWithNature(storedSpecies, instance) };
     const moveModifier = getMoveModifier(species, move);
     const flavor = `${name} — ${move.name}`;
     const damageType = await chooseDamageType(move);
@@ -2171,7 +2220,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const move = data.movesById.get(entry?.moveId);
     if (!entry || !move) return;
     const storedSpecies = this.pokemonItem.getFlag(MODULE_ID, "species") ?? {};
-    const species = { ...storedSpecies, attributes: instance.attributes ?? storedSpecies.attributes ?? {} };
+    const species = { ...storedSpecies, attributes: pokemonAttributesWithNature(storedSpecies, instance) };
     const level = Number(instance.level) || 1;
     const proficiency = 2 + Math.floor((level - 1) / 4);
     const methods = contestRollMethods(species, move, proficiency);
@@ -2446,13 +2495,21 @@ function prepareEvolutions(evolutions, data, instance) {
  */
 function evolutionConditionLabel(condition, data) {
   if (condition.type === "level") return `Nivel ${condition.value}`;
-  if (condition.type === "item") return `Usar ${data.itemsById.get(condition.value)?.name ?? condition.value}`;
+  if (condition.type === "item") return `Usar ${data.itemsById.get(condition.value)?.name ?? evolutionRequirementLabel(condition.value, "item")}`;
   if (condition.type === "loyalty") return `Vínculo +${condition.value}`;
-  if (condition.type === "move") return `Conocer ${data.movesById.get(condition.value)?.name ?? condition.value}`;
+  if (condition.type === "move") return `Conocer ${data.movesById.get(condition.value)?.name ?? evolutionRequirementLabel(condition.value, "move")}`;
   if (condition.type === "move-type") return `Conocer un movimiento de tipo ${typeLabel(condition.value)}`;
   if (condition.type === "gender") return condition.value === "female" ? "Solo hembras" : "Solo machos";
-  if (condition.type === "time") return `Durante: ${titleCase(condition.value)}`;
+  if (condition.type === "time") return `Durante: ${evolutionTimeLabel(condition.value)}`;
   return String(condition.value ?? "Condición especial");
+}
+
+function evolutionTimeLabel(value) {
+  return { morning: "la mañana", day: "el día", afternoon: "la tarde", night: "la noche" }[value] ?? String(value ?? "un momento especial");
+}
+
+function attackScopeLabel(scope) {
+  return { melee: "cuerpo a cuerpo", ranged: "a distancia" }[String(scope ?? "").toLowerCase()] ?? String(scope ?? "ataque");
 }
 
 /**
@@ -2868,7 +2925,7 @@ async function promptEvolution({ evolution, target, data, instance, species, asi
   const featGroups = new Map();
   for (const entry of featOptions) featGroups.set(entry.group, [...(featGroups.get(entry.group) ?? []), entry]);
   const researcherFeatField = researcherEligible ? `<fieldset>
-    <legend>Experto en evolución (Researcher 9)</legend>
+    <legend>Experto en evolución (Investigador 9)</legend>
     <label><span>Gastar 2 puntos en una dote en vez de característica</span>
       <select name="researcherFeat" class="poke5e-feat-select" data-action="researcher-feat" size="8">
         <option value="">Ninguna (repartir todo en características)</option>

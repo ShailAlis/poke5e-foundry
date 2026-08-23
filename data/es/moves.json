@@ -7041,6 +7041,22 @@
 				"Una fuerte descarga eléctrica cae sobre dos objetivos distintos a tu alcance, dándoles una sacudida eléctrica. Realiza dos ataques a distancia, infligiendo 2d6 + MOV de daño de tipo Eléctrico si impactas. Si el resultado natural de la tirada de ataque es 18 o superior, el objetivo retrocede."
 			],
 			"higherLevels": "La tirada de dados de daño para este movimiento pasa a ser 2d8 al nivel 5, 4d6 al nivel 10 y 6d6 al nivel 17."
+		},
+		{
+			"id": "clangorous-soul",
+			"name": "Estruendo Escama",
+			"description": ["Haces chocar tus manos escamadas para fortalecerte. Sufres 3d6 de daño sin tipo y, a cambio, obtienes +1 a las tiradas de ataque, +1 a la CA y +1 a las tiradas de daño durante el resto del encuentro o hasta que abandones el combate. Este efecto puede acumularse hasta cinco veces, para una bonificación total de +5."]
+		},
+		{
+			"id": "snap-trap",
+			"name": "Presa Maxilar",
+			"description": ["Intentas atrapar al objetivo con una trampa. Una criatura a alcance cuerpo a cuerpo debe superar una salvación de Destreza contra tu CD de Movimiento. Si falla, recibe 1d6 + MOV de daño de tipo Planta y queda apresada por ti.", "Cuando usas este movimiento como ataque de oportunidad contra una criatura que sale de tu alcance, el objetivo realiza la salvación con desventaja."],
+			"higherLevels": "El dado de daño de este movimiento pasa a ser 1d10 al nivel 5, 2d8 al nivel 10 y 5d4 al nivel 17."
+		},
+		{
+			"id": "tidy-up",
+			"name": "Limpieza General",
+			"description": ["Haces todo lo necesario para mantener limpio el lugar. Hasta el final de tu siguiente turno, realizas con ventaja la próxima tirada de ataque que hagas. Las criaturas que elijas, que puedas ver a 80 pies o menos y estén bajo los efectos de Sustituto, deben superar una salvación de Constitución contra tu CD de Movimiento; si fallan, Sustituto termina.", "Durante el siguiente minuto, cuando una criatura que puedas ver a 80 pies o menos use Púas, Trampa Rocas, Red Viscosa, Púas Tóxicas o Sustituto, puedes usar tu reacción para obligarla a realizar una salvación de Constitución contra tu CD de Movimiento. Si falla, el movimiento se disipa sin efecto, aunque la criatura gasta sus PP.", "Los efectos de Limpieza General sobre su usuario persisten aunque abandone el combate. Puedes usar su reacción incluso mientras entras o sales del combate."]
 		}
 	]
 }

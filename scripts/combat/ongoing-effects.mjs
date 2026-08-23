@@ -103,6 +103,15 @@ export function moveHasImmediateDamage(move) {
   return !NO_IMMEDIATE_DAMAGE.has(move?.id);
 }
 
+/**
+ * Distingue un contador real de una duración indefinida. `Number(null)` y
+ * `Number("")` valen 0, por lo que una comprobación numérica directa haría
+ * caducar Drenadoras y otros efectos permanentes tras su primer pulso.
+ */
+export function hasOngoingTurnLimit(remaining) {
+  return remaining !== null && remaining !== undefined && remaining !== "" && Number.isFinite(Number(remaining));
+}
+
 /** Devuelve una regla resuelta para el nivel y la variante del usuario. */
 export function resolveOngoingMoveEffect(move, { level = 1, moveModifier = 0, proficiency = 2, sourceTypes = [] } = {}) {
   const base = ONGOING_MOVE_EFFECTS[move?.id];
@@ -249,7 +258,7 @@ export async function applyMoveOngoingEffects({ move, attack = null, saveDc, sou
 export function ongoingEffectEntries(actor) {
   return (actor?.effects ?? []).filter(effect => [KIND, CONCENTRATION_KIND].includes(effect.getFlag(MODULE_ID, "kind"))).map(effect => {
     const ongoing = effect.getFlag(MODULE_ID, "ongoing") ?? {};
-    const remaining = Number.isFinite(Number(ongoing.remaining)) ? `${ongoing.remaining} turno${Number(ongoing.remaining) === 1 ? "" : "s"}` : "Hasta que termine";
+    const remaining = hasOngoingTurnLimit(ongoing.remaining) ? `${ongoing.remaining} turno${Number(ongoing.remaining) === 1 ? "" : "s"}` : "Hasta que termine";
     return { id: effect.id, name: effect.name, img: effect.img ?? effect.icon, description: effect.description ?? ongoing.description, remaining };
   });
 }
@@ -404,7 +413,7 @@ async function processOngoingEffects(actor, timing) {
       if (actor.effects.has(effect.id)) await actor.deleteEmbeddedDocuments("ActiveEffect", [effect.id]);
       continue;
     }
-    if (Number.isFinite(Number(ongoing.remaining))) {
+    if (hasOngoingTurnLimit(ongoing.remaining)) {
       const remaining = Math.max(0, Number(ongoing.remaining) - 1);
       if (!remaining) {
         if (ongoing.faintOnExpire && Number(actor.system.attributes?.hp?.value) > 0) {

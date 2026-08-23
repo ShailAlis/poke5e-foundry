@@ -8,12 +8,14 @@
  * de ajustes, el control de escena y la macro `game.poke5e.openEncounterBuilder`,
  * todos registrados en main.mjs. Su plantilla es `templates/encounter-builder.hbs`.
  */
-import { loadPoke5eData } from "../core/data-service.mjs";
+import { biomeLabel, loadPoke5eData } from "../core/data-service.mjs";
 import { filterEncounterSpecies, generateEncounter, MAX_ENCOUNTER_POKEMON } from "./encounter-generator.mjs";
 import { MODULE_PATH, portraitUrl } from "../core/model.mjs";
 import { experienceAward } from "../pokemon/progression.mjs";
 import { deployWildPokemon } from "./wild-deployment.mjs";
-import { formatNumber, titleCase } from "../core/utils.mjs";
+import { formatNumber } from "../core/utils.mjs";
+import { typeLabel } from "../combat/combat.mjs";
+import { capturedLegendaryNumbers } from "../pokemon/legendary-species.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -51,9 +53,9 @@ export class Poke5eEncounterBuilder extends HandlebarsApplicationMixin(Applicati
   async _prepareContext() {
     if (!game.user.isGM) return { unauthorized: true };
     const data = await loadPoke5eData();
-    const pool = filterEncounterSpecies(data.pokemon, this.filters).sort((a, b) => Number(a.number) - Number(b.number));
-    const typeOptions = optionsFrom(data.pokemon.flatMap(entry => entry.type ?? []), titleCase);
-    const biomeOptions = optionsFrom(data.pokemon.flatMap(entry => entry.habitat?.biomes ?? []), value => titleCase(value));
+    const pool = filterEncounterSpecies(data.pokemon, availableFilters(this.filters)).sort((a, b) => Number(a.number) - Number(b.number));
+    const typeOptions = optionsFrom(data.pokemon.flatMap(entry => entry.type ?? []), typeLabel);
+    const biomeOptions = optionsFrom(data.pokemon.flatMap(entry => entry.habitat?.biomes ?? []), biomeLabel);
     const regionOptions = optionsFrom(data.pokemon.flatMap(entry => [...(entry.habitat?.regions ?? []), entry.habitat?.nativeRegion].filter(Boolean)), value => value);
     const entries = this.encounter.map(entry => {
       const species = data.pokemonById.get(entry.speciesId);
@@ -63,7 +65,7 @@ export class Poke5eEncounterBuilder extends HandlebarsApplicationMixin(Applicati
         img: species ? portraitUrl(species) : "icons/svg/mystery-man.svg",
         number: species?.number ?? "—",
         sr: species?.sr ?? 0,
-        types: species?.type ?? [],
+        types: (species?.type ?? []).map(typeLabel),
         minLevel: species?.minLevel ?? 1,
         experienceLabel: formatNumber(entry.experience)
       };
@@ -84,8 +86,8 @@ export class Poke5eEncounterBuilder extends HandlebarsApplicationMixin(Applicati
         number: species.number,
         sr: species.sr,
         minLevel: species.minLevel,
-        types: species.type ?? [],
-        biomes: (species.habitat?.biomes ?? []).map(titleCase).join(" · ")
+        types: (species.type ?? []).map(typeLabel),
+        biomes: (species.habitat?.biomes ?? []).map(biomeLabel).join(" · ")
       })),
       entries,
       encounterCount: entries.length,
@@ -142,7 +144,7 @@ export class Poke5eEncounterBuilder extends HandlebarsApplicationMixin(Applicati
    */
   async #generate() {
     const data = await loadPoke5eData();
-    const pool = filterEncounterSpecies(data.pokemon, this.filters);
+    const pool = filterEncounterSpecies(data.pokemon, availableFilters(this.filters));
     if (!pool.length) return ui.notifications.warn(game.i18n.localize("POKE5E.Common.NoMatchingSpecies"));
     this.encounter = generateEncounter(pool, {
       count: this.filters.count,
@@ -239,6 +241,11 @@ export class Poke5eEncounterBuilder extends HandlebarsApplicationMixin(Applicati
  */
 function defaultFilters() {
   return { query: "", type: "", biome: "", region: "", srMin: "", srMax: "", levelMin: 1, levelMax: 20, count: 3, targetExperience: "" };
+}
+
+/** Añade a los filtros los legendarios que ya pertenecen a algún PJ. */
+function availableFilters(filters) {
+  return { ...filters, excludedLegendaryNumbers: capturedLegendaryNumbers() };
 }
 
 /**

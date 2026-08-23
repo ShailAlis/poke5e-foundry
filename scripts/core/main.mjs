@@ -11,7 +11,7 @@ import { Poke5ePokemonSheet } from "../pokemon/pokemon-sheet.mjs";
 import { Poke5eReference } from "../ui/reference.mjs";
 import { Poke5eTrainerTeam } from "../trainer/trainer-team.mjs";
 import { MODULE_ID, displayAssetUrl, getPokemonItems, normalizeDroppedSpecies, randomGenderForRatio, trainerPokeslotLimit } from "./model.mjs";
-import { cleanDeploymentActor, ensureDeploymentPermissions, recallPokemon, registerPokemonTokenMovement, syncDeploymentHp, syncPokemonHeldItemToDeployment, syncPokemonHpToDeployment } from "../world/deployment.mjs";
+import { cleanDeploymentActor, ensureDeploymentPermissions, recallPokemon, registerPokemonTokenMovement, setPokemonCombatantsDefeated, syncDeploymentHp, syncPokemonHeldItemToDeployment, syncPokemonHpToDeployment } from "../world/deployment.mjs";
 import { migrateTrainerClassAdvancements, migrateTrainerFeatureGroups, registerTrainerActorSheet } from "../trainer/trainer-actor-sheet.mjs";
 import { migratePokemonActorSheets, registerPokemonActorSheet } from "../pokemon/pokemon-actor-sheet.mjs";
 import { damageTraitsForPokemonTypes, registerPokemonDamageTypes } from "../combat/combat.mjs";
@@ -40,6 +40,7 @@ import { migrateMoveMachineIcons } from "../pokemon/move-machines.mjs";
 import { registerTrainerExperienceAutomation } from "../trainer/trainer-progression.mjs";
 import { registerTrainerClassAutomation, synchronizeTrainerClassRules } from "../trainer/trainer-class-rules.mjs";
 import { applyTypeMasteryDefense } from "../trainer/trainer-path-rules.mjs";
+import { migratePokemonNatures } from "../pokemon/natures.mjs";
 
 /**
  * Arranque temprano: delega el registro de tipos de daño (combat.mjs), fichas
@@ -67,7 +68,7 @@ Hooks.once("init", () => {
     hint: "POKE5E.Settings.Language.Hint",
     scope: "world", config: true, type: String,
     choices: { es: "POKE5E.Language.Spanish", en: "POKE5E.Language.English" },
-    default: game.i18n.lang === "es" ? "es" : "en",
+    default: "es",
     onChange: changeDataLanguage
   });
   game.settings.register(MODULE_ID, "assetBaseUrl", {
@@ -160,6 +161,7 @@ Hooks.once("ready", async () => {
     synchronizePrimaryParty().catch(error => console.error(`${MODULE_ID} | Primary Party synchronization failed`, error));
     migrateMoveMachineIcons().catch(error => console.error(`${MODULE_ID} | Move-machine icon migration failed`, error));
     migrateNpcTrainerSprites().catch(error => console.error(`${MODULE_ID} | NPC Trainer sprite migration failed`, error));
+    migratePokemonNatures().catch(error => console.error(`${MODULE_ID} | Pokémon nature migration failed`, error));
   }
 });
 
@@ -270,6 +272,11 @@ Hooks.on("updateActor", (actor, changes, options, userId) => {
   if (userId && userId !== game.user.id) return;
   if (foundry.utils.hasProperty(changes, "system.attributes.hp") || foundry.utils.hasProperty(changes, "system.attributes.hp.value") || foundry.utils.hasProperty(changes, "system.attributes.hp.max")) {
     syncDeploymentHp(actor).catch(error => console.error(`${MODULE_ID} | HP sync failed`, error));
+  }
+  if (actor.getFlag(MODULE_ID, "kind") === "deployed"
+    && foundry.utils.hasProperty(changes, "system.attributes.death.failure")
+    && Number(actor.system.attributes?.death?.failure) >= 3) {
+    setPokemonCombatantsDefeated(actor, true).catch(error => console.error(`${MODULE_ID} | Death-save defeat synchronization failed`, error));
   }
 });
 

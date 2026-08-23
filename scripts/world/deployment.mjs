@@ -18,6 +18,7 @@ import { abilityAutoConsumesHealingBerry, abilityBerryHealBonus, abilityGrantsUn
 import { opponentBlocksBerryEating, opponentBlocksVoluntarySwitch } from "../combat/aura-abilities.mjs";
 import { pokemonStatusEffectSource } from "../combat/status-effects.mjs";
 import { actorHasRecallLock } from "../combat/ongoing-effects.mjs";
+import { pokemonAttributesWithNature } from "../pokemon/natures.mjs";
 import {
   confirmHeldItemReaction,
   heldItemActorAdjustments,
@@ -95,6 +96,56 @@ export function actorReturnsUpright(actor) {
   return actor.type === "character" || ["deployed", "wild", "npc-trainer"].includes(kind);
 }
 
+/** Resultado reglamentario de llegar a 0 PG según el origen del Pokémon. */
+export function pokemonZeroHpOutcome(kind) {
+  if (kind === "wild") return "defeated";
+  if (kind === "deployed") return "death-saves";
+  return null;
+}
+
+/** Encuentro al que pertenece el token del entrenador, priorizando el activo. */
+export function trainerCombatForToken(trainerToken, combats = game.combats?.contents ?? []) {
+  const tokenId = trainerToken?.document?.id ?? trainerToken?.id;
+  if (!tokenId) return null;
+  const sceneId = trainerToken?.document?.parent?.id ?? trainerToken?.scene?.id ?? canvas.scene?.id;
+  const candidates = [game.combat, ...combats].filter((combat, index, all) => combat && all.indexOf(combat) === index);
+  return candidates.find(combat => {
+    const combatSceneId = combat.scene?.id ?? combat.sceneId;
+    if (sceneId && combatSceneId && sceneId !== combatSceneId) return false;
+    return [...combat.combatants].some(combatant => combatant.tokenId === tokenId || combatant.token?.id === tokenId);
+  }) ?? null;
+}
+
+/** Añade el Pokémon al combate de su entrenador y tira su iniciativa una vez. */
+export async function joinTrainerCombat(trainerToken, pokemonToken, actor) {
+  const combat = trainerCombatForToken(trainerToken);
+  if (!combat) return null;
+  const tokenId = pokemonToken?.id ?? pokemonToken?.document?.id;
+  if (!tokenId) return null;
+  let combatant = [...combat.combatants].find(entry => entry.tokenId === tokenId || entry.token?.id === tokenId);
+  if (!combatant) {
+    [combatant] = await combat.createEmbeddedDocuments("Combatant", [{
+      tokenId,
+      sceneId: pokemonToken?.parent?.id ?? pokemonToken?.document?.parent?.id ?? canvas.scene?.id,
+      actorId: actor?.id,
+      hidden: Boolean(pokemonToken?.hidden ?? pokemonToken?.document?.hidden)
+    }]);
+  }
+  if (combatant && combatant.initiative == null) await combat.rollInitiative([combatant.id]);
+  return combatant ?? null;
+}
+
+/** Conserva el despliegue aunque Foundry rechace la incorporación al combate. */
+async function tryJoinTrainerCombat(trainerToken, pokemonToken, actor, pokemonItem) {
+  try {
+    return await joinTrainerCombat(trainerToken, pokemonToken, actor);
+  } catch (error) {
+    console.error(`${MODULE_ID} | Automatic combat entry failed`, error);
+    ui.notifications.warn(localizeFormat("POKE5E.Deployment.CombatEntryFailed", { pokemon: displayPokemonName(pokemonItem) }, `No se pudo añadir a ${displayPokemonName(pokemonItem)} al encuentro ni tirar su iniciativa.`));
+    return null;
+  }
+}
+
 function localize(key, fallback) { return globalThis.game?.i18n?.localize?.(key) ?? fallback; }
 function localizeFormat(key, data, fallback) { return globalThis.game?.i18n?.format?.(key, data) ?? fallback; }
 
@@ -119,8 +170,10 @@ export function deploymentActorName(pokemonItem) {
  * Saca un Pokémon al mapa. Exige escena abierta, permisos, que conserve PG y
  * que el token del entrenador esté presente; si ya estaba desplegado se limita a seleccionarlo y centrar la vista.
  * Si no, crea el actor con deployedActorSource(), pide la casilla con
- * chooseDeploymentPosition() y coloca el token, deshaciendo el actor recién
- * creado ante cualquier error. Su inversa es recallPokemon().
+ * chooseDeploymentPosition() y coloca el token. Si el entrenador participa en
+ * un encuentro, añade el Pokémon al mismo y tira su iniciativa automáticamente.
+ * Deshace el actor recién creado ante errores de colocación. Su inversa es
+ * recallPokemon().
  */
 export async function deployPokemon(pokemonItem) {
   if (!canvas?.ready || !canvas.scene) return ui.notifications.warn(localize("POKE5E.Deployment.OpenScene", "Abre una escena antes de desplegar un Pokémon."));
@@ -135,6 +188,7 @@ export async function deployPokemon(pokemonItem) {
   const deployedToken = actor ? deployedTokenFor(actor) : null;
   if (deployedToken) {
     if (deployedToken.parent?.id !== canvas.scene.id) return ui.notifications.warn(localizeFormat("POKE5E.Deployment.OtherScene", { pokemon: displayPokemonName(pokemonItem) }, `${displayPokemonName(pokemonItem)} ya está desplegado en otra escena.`));
+    await tryJoinTrainerCombat(trainerToken, deployedToken, actor, pokemonItem);
     deployedToken.object?.control({ releaseOthers: true });
     if (deployedToken.object) canvas.pan({ x: deployedToken.object.center.x, y: deployedToken.object.center.y });
     return actor;
@@ -150,6 +204,7 @@ export async function deployPokemon(pokemonItem) {
     const [createdToken] = await canvas.scene.createEmbeddedDocuments("Token", [token.toObject()]);
     createdToken?.object?.control({ releaseOthers: true });
     ui.notifications.info(localizeFormat("POKE5E.Deployment.Deployed", { pokemon: displayPokemonName(pokemonItem) }, `${displayPokemonName(pokemonItem)} ha salido al combate.`));
+    await tryJoinTrainerCombat(trainerToken, createdToken, actor, pokemonItem);
     await applyAbilityDeployWeather(instance.abilities, { sourceName: displayPokemonName(pokemonItem) });
     return actor;
   } catch (error) {
@@ -166,6 +221,7 @@ export async function deployPokemon(pokemonItem) {
 export async function recallPokemon(pokemonItem, { fainted = false, forced = false } = {}) {
   const actor = deployedActorFor(pokemonItem);
   if (!actor) return;
+  fainted ||= Number(actor.system.attributes?.hp?.value) <= 0;
   if (!fainted && !forced && actorHasRecallLock(actor)) {
     ui.notifications.warn(localizeFormat("POKE5E.Deployment.Immobilized", { pokemon: displayPokemonName(pokemonItem) }, `${displayPokemonName(pokemonItem)} está inmovilizado por un efecto mantenido y no puede ser retirado voluntariamente.`));
     return false;
@@ -201,8 +257,10 @@ export async function recallPokemon(pokemonItem, { fainted = false, forced = fal
  * bajada por heldItemHpResolution(): reduce daño con Mineral Evolutivo, rompe
  * Globo Helio, aplica Banda Focus y ofrece las reacciones de bayas curativas y
  * Botón Escape. Después sincroniza la corrección al actor o retira al Pokémon
- * debilitado. La dispara `updateActor` de main.mjs; el sentido contrario lo
- * cubre syncPokemonHpToDeployment().
+ * debilitado. Al llegar a 0 PG marca derrotado al salvaje o conserva al
+ * Pokémon de entrenador para sus salvaciones contra muerte. La dispara
+ * `updateActor` de main.mjs; el sentido contrario lo cubre
+ * syncPokemonHpToDeployment().
  */
 export async function syncDeploymentHp(actor) {
   const kind = actor.getFlag(MODULE_ID, "kind");
@@ -262,6 +320,16 @@ export async function syncDeploymentHp(actor) {
   }
   await item.setFlag(MODULE_ID, "instance", instance);
   if (resolvedHp !== actorHp) await actor.update({ "system.attributes.hp.value": resolvedHp });
+  if (resolvedHp > 0) {
+    const recoveryUpdates = {};
+    if (actor.getFlag(MODULE_ID, "zeroHpOutcome")) {
+      await setPokemonCombatantsDefeated(actor, false);
+      recoveryUpdates[`flags.${MODULE_ID}.-=zeroHpOutcome`] = null;
+    }
+    if (kind === "deployed" && Number(actor.system.attributes?.death?.success)) recoveryUpdates["system.attributes.death.success"] = 0;
+    if (kind === "deployed" && Number(actor.system.attributes?.death?.failure)) recoveryUpdates["system.attributes.death.failure"] = 0;
+    if (Object.keys(recoveryUpdates).length) await actor.update(recoveryUpdates);
+  }
   for (const event of resolution.events) {
     if (event.type === "damage-reduction") await postHeldItemMessage(item, held, `Reduce el daño recibido en ${event.amount}.`);
     if (event.type === "air-balloon-popped") await postHeldItemMessage(item, held, "El Globo Helio se rompe al recibir daño y pierde su inmunidad a Tierra.");
@@ -291,7 +359,46 @@ export async function syncDeploymentHp(actor) {
     }
   }
   if (resolution.events.some(event => event.type === "air-balloon-popped")) await syncPokemonHeldItemToDeployment(item);
-  if (kind === "deployed" && resolvedHp <= 0) await recallPokemon(item, { fainted: true });
+  if (resolvedHp <= 0) await applyZeroHpOutcome(actor, kind);
+}
+
+/**
+ * Los salvajes quedan derrotados en todos los combates que los contengan. Los
+ * Pokémon de entrenador permanecen desplegados como NPC importantes para que
+ * D&D5e habilite sus salvaciones contra muerte. La bandera evita repetir los
+ * avisos si otra sincronización vuelve a escribir 0 PG.
+ */
+async function applyZeroHpOutcome(actor, kind) {
+  const outcome = pokemonZeroHpOutcome(kind);
+  if (!outcome) return;
+  const previous = actor.getFlag(MODULE_ID, "zeroHpOutcome");
+  if (outcome === "defeated") await setPokemonCombatantsDefeated(actor, true);
+  const updates = { [`flags.${MODULE_ID}.zeroHpOutcome`]: outcome };
+  if (outcome === "death-saves" && actor.system.traits?.important !== true) updates["system.traits.important"] = true;
+  if (previous !== outcome) {
+    await actor.update(updates);
+    const key = outcome === "defeated" ? "POKE5E.Deployment.WildDefeated" : "POKE5E.Deployment.DeathSavesStarted";
+    const fallback = outcome === "defeated"
+      ? `${actor.name} ha caído derrotado.`
+      : `${actor.name} ha caído a 0 PG y debe realizar salvaciones contra muerte.`;
+    ui.notifications.info(localizeFormat(key, { pokemon: actor.name }, fallback));
+  } else if (Object.keys(updates).length > 1) await actor.update(updates);
+}
+
+/** Marca o reincorpora al Pokémon en todos los encuentros donde participe. */
+export async function setPokemonCombatantsDefeated(actor, defeated = true) {
+  const combats = game.combats?.contents ?? (game.combat ? [game.combat] : []);
+  for (const combat of combats) {
+    const updates = [...combat.combatants]
+      .filter(combatant => combatant.actor?.id === actor.id || combatant.actorId === actor.id)
+      .filter(combatant => Boolean(combatant.defeated) !== Boolean(defeated))
+      .map(combatant => ({ _id: combatant.id, defeated: Boolean(defeated) }));
+    if (updates.length) await combat.updateEmbeddedDocuments("Combatant", updates);
+  }
+  const defeatedStatus = globalThis.CONFIG?.specialStatusEffects?.DEFEATED;
+  if (defeatedStatus && typeof actor.toggleStatusEffect === "function") {
+    await actor.toggleStatusEffect(defeatedStatus, { active: Boolean(defeated), overlay: true });
+  }
 }
 
 /**
@@ -305,6 +412,8 @@ export async function syncPokemonHpToDeployment(item) {
     ? item.parent : deployedActorFor(item);
   if (!actor) return;
   const instance = item.getFlag(MODULE_ID, "instance") ?? {};
+  const species = item.getFlag(MODULE_ID, "species") ?? {};
+  const effectiveAttributes = pokemonAttributesWithNature(species, instance);
   const hp = instance.hp;
   if (!hp) return;
   const abilityMax = abilityMaximumHp(instance.abilities, hp.max);
@@ -314,7 +423,7 @@ export async function syncPokemonHpToDeployment(item) {
   if (Number(current.value) !== abilityValue) updates["system.attributes.hp.value"] = abilityValue;
   if (Number(current.max) !== abilityMax) updates["system.attributes.hp.max"] = abilityMax;
   for (const key of ["str", "dex", "con", "int", "wis", "cha"]) {
-    const value = Number(instance.attributes?.[key]);
+    const value = Number(effectiveAttributes[key]) + (item.parent?.type === "character" ? aceTrainerAbilityBonus(item.parent, key) : 0);
     if (Number.isFinite(value) && Number(actor.system.abilities?.[key]?.value) !== value) updates[`system.abilities.${key}.value`] = value;
   }
   if (Object.keys(updates).length) await actor.update(updates);
@@ -605,7 +714,7 @@ async function deployedActorSource(pokemonItem) {
   const heldAdjustments = heldItemActorAdjustments({
     sourceId: instance.heldItem?.sourceId, speciesId: species.id, charges: instance.heldItem?.charges, state: instance.heldItem?.state
   });
-  const pokemonAttributes = instance.attributes ?? species.attributes ?? {};
+  const pokemonAttributes = pokemonAttributesWithNature(species, instance);
   const abilities = {};
   for (const key of ["str", "dex", "con", "int", "wis", "cha"]) {
     abilities[key] = {
@@ -701,7 +810,7 @@ async function deployedActorSource(pokemonItem) {
         type: { value: "custom", custom: `Pokémon (${effectiveTypes.join(" / ")})` },
         biography: { value: `<p>${foundry.utils.escapeHTML(species.description ?? "")}</p>` }
       },
-      traits: { size, ...damageTraits }
+      traits: { size, important: true, ...damageTraits }
     },
     items: heldItem ? [...moveItems, heldItem] : moveItems,
     effects: statusEffects,

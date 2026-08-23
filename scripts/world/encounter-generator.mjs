@@ -9,6 +9,7 @@
  * wild-deployment.mjs, que también usa buildWildInstance().
  */
 import { experienceAtLevel, experienceAward } from "../pokemon/progression.mjs";
+import { randomNature } from "../pokemon/natures.mjs";
 
 /**
  * Nivel mínimo y clave del JSON de especie de cada tramo de movimientos. Solo la
@@ -30,8 +31,10 @@ export const MAX_ENCOUNTER_POKEMON = 20;
  */
 export function filterEncounterSpecies(species, filters = {}) {
   const query = String(filters.query ?? "").trim().toLocaleLowerCase();
+  const excludedLegendaryNumbers = new Set(filters.excludedLegendaryNumbers ?? []);
   return species.filter(entry => {
     if (Number(entry.number) <= 0) return false;
+    if (excludedLegendaryNumbers.has(Number(entry.number))) return false;
     const types = entry.type ?? [];
     const biomes = entry.habitat?.biomes ?? [];
     const regions = [...(entry.habitat?.regions ?? []), entry.habitat?.nativeRegion].filter(Boolean);
@@ -103,7 +106,7 @@ export function buildWildInstance(species, movesById, options = {}) {
     hp: { value: hp, max: hp },
     ac: Number(species.ac) || 10,
     attributes: structuredCloneSafe(species.attributes ?? {}),
-    nature: "",
+    nature: randomNature(random),
     gender: randomGender(species.gender, random),
     shiny: false,
     inTeam: false,

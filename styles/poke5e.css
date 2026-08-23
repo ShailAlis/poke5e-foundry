@@ -192,6 +192,16 @@
 .poke5e-health-track label input:disabled { color: white; opacity: 1; }
 .poke5e-health-track label input::-webkit-inner-spin-button,
 .poke5e-health-track label input::-webkit-outer-spin-button { margin: 0; appearance: none; }
+.poke5e-death-saves { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 0.8rem; padding: 0.65rem 0.8rem; border: 1px solid rgba(169, 31, 42, 0.55); border-radius: 10px; background: linear-gradient(90deg, rgba(169, 31, 42, 0.15), rgba(24, 33, 43, 0.08)); }
+.poke5e-death-saves h2,
+.poke5e-death-saves p { margin: 0; }
+.poke5e-death-saves p { margin-top: 0.2rem; color: var(--poke-muted); }
+.poke5e-death-tracks { display: grid; gap: 0.3rem; }
+.poke5e-death-tracks span { display: grid; grid-template-columns: minmax(4.5rem, auto) repeat(3, 1rem); align-items: center; gap: 0.18rem; font-weight: 800; }
+.poke5e-death-tracks span:first-child i { color: #369f57; }
+.poke5e-death-tracks span:last-child i { color: #c52f3b; }
+.poke5e-death-saves.stabilized { border-color: rgba(54, 159, 87, 0.65); background: rgba(54, 159, 87, 0.12); }
+.poke5e-death-saves.dead { background: rgba(72, 19, 24, 0.2); }
 .poke5e-species-name { margin: -0.15rem 0 0.35rem; opacity: 0.8; font-style: italic; }
 .poke5e-pokemon-meta { display: flex; gap: 0.4rem; margin-top: 0.5rem; }
 .poke5e-pokemon-meta > span { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.22rem 0.5rem; border-radius: 99px; background: rgba(24, 33, 43, 0.3); font-size: 0.76rem; font-weight: 800; }
@@ -224,6 +234,15 @@
 .poke5e-stat-grid span { grid-column: 1 / -1; font-size: 0.68rem; font-weight: 800; color: var(--poke-red-dark); }
 .poke5e-stat-grid strong { font-size: 1.1rem; }
 .poke5e-stat-grid small { align-self: center; }
+.poke5e-nature-panel { display: flex; align-items: center; gap: 1rem; padding: 0.55rem 0.7rem; border-radius: 8px; background: var(--poke-card); box-shadow: 0 1px 4px rgba(24, 33, 43, 0.12); }
+.poke5e-nature-panel > div:first-child { display: grid; min-width: 9rem; }
+.poke5e-nature-panel > div:first-child span { color: var(--poke-red-dark); font-size: 0.68rem; font-weight: 800; text-transform: uppercase; }
+.poke5e-nature-panel > div:first-child strong { font-size: 1rem; }
+.poke5e-nature-panel p { margin: 0; opacity: 0.72; }
+.poke5e-nature-effects { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.poke5e-nature-effects span { padding: 0.28rem 0.55rem; border-radius: 99px; font-size: 0.74rem; font-weight: 800; }
+.poke5e-nature-effects .increase { color: #176b38; background: rgba(72, 168, 104, 0.16); }
+.poke5e-nature-effects .decrease { color: #9b2730; background: rgba(217, 54, 62, 0.14); }
 .poke5e-speed-panel { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 0.8rem; padding: 0.55rem 0.7rem; border-radius: 8px; background: var(--poke-card); box-shadow: 0 1px 4px rgba(24, 33, 43, 0.12); }
 .poke5e-speed-panel h2 { margin: 0; color: var(--poke-red-dark); font-size: 0.9rem; white-space: nowrap; }
 .poke5e-pokemon-tabs { display: flex; gap: 0.4rem; margin: 0 0 0.85rem; padding: 0.35rem; border: 1px solid rgba(24, 33, 43, 0.18); border-radius: 11px; background: var(--poke-card); }
@@ -375,6 +394,7 @@
 .poke5e-description { margin-top: 0.6rem; }
 .poke5e-ability-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.55rem; }
 .poke5e-ability { padding: 0.7rem; border-radius: 8px; background: var(--poke-card); box-shadow: 0 1px 4px rgba(24, 33, 43, 0.11); }
+.poke5e-ability.locked { border: 1px dashed rgba(217, 54, 62, 0.45); opacity: 0.78; }
 .poke5e-ability h3 { margin-bottom: 0.3rem; }
 .poke5e-ability h3 button { float: right; min-height: 1.5rem; width: 1.6rem; padding: 0; }
 .poke5e-ability h3 span { padding: 0.12rem 0.3rem; border-radius: 4px; color: white; background: var(--poke-ink); font-size: 0.62rem; text-transform: uppercase; }
@@ -787,6 +807,7 @@ body.poke5e-dark-mode .poke5e-contest-compatibility.incompatible { color: #f1b8b
   .poke5e-dex-header > img { width: 110px; }
   .poke5e-vitals { grid-column: 1 / -1; }
   .poke5e-health-track { min-width: 0; }
+  .poke5e-death-saves { grid-template-columns: 1fr; }
   .poke5e-experience-panel { grid-template-columns: 1fr; }
   .poke5e-experience-controls { grid-column: 1; grid-row: auto; }
   .poke5e-experience-heading { align-items: flex-start; flex-direction: column; }

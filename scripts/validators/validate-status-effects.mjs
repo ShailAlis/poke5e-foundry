@@ -8,7 +8,7 @@
  */
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { POKEMON_STATUS_EFFECTS, applyPokemonStatus, inferMoveStatusEffects, pokemonIncapacitatingStatus, pokemonStatusEffectSource, removePokemonStatus } from "../combat/status-effects.mjs";
+import { POKEMON_STATUS_EFFECTS, applyPokemonStatus, inferMoveStatusEffects, pokemonIncapacitatingStatus, pokemonStatusEffectSource, removePokemonStatus, statusDamageTick } from "../combat/status-effects.mjs";
 
 const moves = JSON.parse(fs.readFileSync(new URL("../../data/moves.json", import.meta.url))).moves;
 const translated = JSON.parse(fs.readFileSync(new URL("../../data/es/moves.json", import.meta.url))).moves;
@@ -20,6 +20,7 @@ assert.deepEqual(effects("will-o-wisp"), [{ id: "burned", trigger: "hit", minimu
 assert.deepEqual(effects("ice-punch"), [{ id: "frozen", trigger: "natural", minimum: 19 }]);
 assert.deepEqual(effects("thunder-punch"), [{ id: "paralyzed", trigger: "natural", minimum: 19 }]);
 assert.deepEqual(effects("poison-fang"), [{ id: "badly-poisoned", trigger: "failed-save", minimum: null }]);
+assert.deepEqual(effects("toxic"), [{ id: "badly-poisoned", trigger: "failed-save", minimum: null, target: "selected", requiresHit: false, margin: 0 }]);
 assert.deepEqual(effects("alluring-voice"), [{ id: "confused", trigger: "failed-save", minimum: null, target: "selected", requiresHit: true, margin: 0 }]);
 assert.equal(effects("blizzard")[0].margin, 5);
 assert.equal(effects("rest")[0].target, "self");
@@ -34,8 +35,17 @@ assert.deepEqual(effects("fake-out"), [{ id: "flinched", trigger: "hit", minimum
 assert.deepEqual(effects("mountain-gale"), [{ id: "flinched", trigger: "failed-save", minimum: null, target: "selected", requiresHit: true, margin: 0 }]);
 assert.equal(inferMoveStatusEffects(translated.find(move => move.id === "fire-punch"))[0]?.minimum, 19);
 assert.deepEqual(inferMoveStatusEffects(translated.find(move => move.id === "ember")), [{ id: "burned", trigger: "natural", minimum: 19 }]);
+assert.deepEqual(inferMoveStatusEffects(translated.find(move => move.id === "toxic")), [{ id: "badly-poisoned", trigger: "failed-save", minimum: null, target: "selected", requiresHit: false, margin: 0 }]);
 assert.equal(POKEMON_STATUS_EFFECTS.burned.immuneTypes.includes("fire"), true);
 assert.equal(POKEMON_STATUS_EFFECTS.frozen.immuneTypes.includes("ice"), true);
+let toxicTurns = 0;
+for (let expected = 1; expected <= 4; expected++) {
+  const tick = statusDamageTick("badly-poisoned", toxicTurns);
+  assert.equal(tick.multiplier, expected);
+  toxicTurns = tick.turn;
+}
+assert.equal(statusDamageTick("poisoned", 9).multiplier, 1);
+assert.match(POKEMON_STATUS_EFFECTS["badly-poisoned"].description, /multiplicador aumenta en 1/i);
 globalThis.CONST = { ACTIVE_EFFECT_MODES: { MULTIPLY: 1, ADD: 2 } };
 globalThis.game = { combat: null };
 globalThis.CONFIG = { statusEffects: [{ id: "bloodied", name: "Bloodied" }] };

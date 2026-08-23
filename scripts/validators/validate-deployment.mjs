@@ -23,7 +23,7 @@ const scene = {
 
 const settings = new Map([["core.permissions", { ACTOR_CREATE: [3, 4], TOKEN_CREATE: [3, 4] }], ["poke5e-foundry.grantedDeploymentPermissions", false]]);
 globalThis.game = {
-  actors, scenes: [scene],
+  actors, scenes: [scene], combats: { contents: [] },
   settings: {
     get: (scope, key) => settings.get(`${scope}.${key}`),
     set: async (scope, key, value) => { settings.set(`${scope}.${key}`, value); }
@@ -51,7 +51,38 @@ globalThis.canvas = {
   },
   tokens: { placeables: [] }
 };
-const { actorReturnsUpright, cleanDeploymentActor, deployPokemon, deploymentActorName, deploymentPosition, ensureDeploymentPermissions, isAllowedDeployment, removeDeployment, syncDeploymentHp } = await import("../world/deployment.mjs");
+const { actorReturnsUpright, cleanDeploymentActor, deployPokemon, deploymentActorName, deploymentPosition, ensureDeploymentPermissions, isAllowedDeployment, joinTrainerCombat, pokemonZeroHpOutcome, removeDeployment, syncDeploymentHp, trainerCombatForToken } = await import("../world/deployment.mjs");
+
+if (pokemonZeroHpOutcome("wild") !== "defeated") throw new Error("Wild Pokémon should be defeated at 0 HP.");
+if (pokemonZeroHpOutcome("deployed") !== "death-saves") throw new Error("Trainer Pokémon should make death saves at 0 HP.");
+
+const combatTrainerToken = { id: "trainer-token", parent: { id: "scene" } };
+const combatPokemonToken = { id: "deployed-token", parent: { id: "scene" }, hidden: false };
+const trainerCombatant = { id: "trainer-combatant", tokenId: combatTrainerToken.id, initiative: 14 };
+const combatPokemonCombatants = [];
+const trainerCombat = {
+  scene: { id: "scene" },
+  combatants: [trainerCombatant],
+  async createEmbeddedDocuments(type, sources) {
+    if (type !== "Combatant") throw new Error("Unexpected embedded combat document type.");
+    const created = sources.map((source, index) => ({ id: `pokemon-combatant-${index}`, ...source, initiative: null }));
+    this.combatants.push(...created);
+    combatPokemonCombatants.push(...created);
+    return created;
+  },
+  async rollInitiative(ids) {
+    for (const combatant of this.combatants) if (ids.includes(combatant.id)) combatant.initiative = 12;
+  }
+};
+game.combat = trainerCombat;
+game.combats.contents = [trainerCombat];
+if (trainerCombatForToken(combatTrainerToken) !== trainerCombat) throw new Error("The Trainer's encounter was not detected.");
+const joinedCombatant = await joinTrainerCombat(combatTrainerToken, combatPokemonToken, { id: "deployed-pokemon" });
+if (!joinedCombatant || joinedCombatant.initiative !== 12 || combatPokemonCombatants.length !== 1) throw new Error("The deployed Pokémon did not join combat and roll initiative.");
+await joinTrainerCombat(combatTrainerToken, combatPokemonToken, { id: "deployed-pokemon" });
+if (combatPokemonCombatants.length !== 1) throw new Error("The deployed Pokémon was added to combat more than once.");
+game.combat = null;
+game.combats.contents = [];
 
 await ensureDeploymentPermissions();
 const grantedPermissions = settings.get("core.permissions");
@@ -119,8 +150,19 @@ const pokemonItem = {
 if (deploymentActorName(pokemonItem) !== "Pikachu [Ash]") throw new Error("The deployed actor name does not include its Trainer.");
 const faintedActor = {
   id: "fainted-pokemon",
-  system: { attributes: { hp: { value: 0, max: 12 } } },
-  getFlag: (scope, key) => key === "kind" ? "deployed" : key === "pokemonItemUuid" ? pokemonItem.uuid : null,
+  name: "Pikachu [Ash]",
+  system: { attributes: { hp: { value: 0, max: 12 }, death: { success: 0, failure: 0 } }, traits: { important: false } },
+  zeroHpOutcome: null,
+  getFlag(scope, key) {
+    return key === "kind" ? "deployed" : key === "pokemonItemUuid" ? pokemonItem.uuid : key === "zeroHpOutcome" ? this.zeroHpOutcome : null;
+  },
+  async update(changes) {
+    if (changes["system.traits.important"] != null) this.system.traits.important = changes["system.traits.important"];
+    if (changes["flags.poke5e-foundry.zeroHpOutcome"]) this.zeroHpOutcome = changes["flags.poke5e-foundry.zeroHpOutcome"];
+    if (changes["flags.poke5e-foundry.-=zeroHpOutcome"] === null) this.zeroHpOutcome = null;
+    if (changes["system.attributes.death.success"] != null) this.system.attributes.death.success = changes["system.attributes.death.success"];
+    if (changes["system.attributes.death.failure"] != null) this.system.attributes.death.failure = changes["system.attributes.death.failure"];
+  },
   async delete() {
     actors.delete(this.id);
   }
@@ -130,13 +172,48 @@ actors.set(faintedActor.id, faintedActor);
 scene.tokens = [{ id: "fainted-token", actorId: faintedActor.id }];
 await syncDeploymentHp(faintedActor);
 if (faintedInstance.hp.value !== 0) throw new Error("Fainted HP was not saved on the trainer's Pokémon.");
-if (actors.has(faintedActor.id) || scene.tokens.some(token => token.actorId === faintedActor.id)) throw new Error("A fainted deployed Pokémon was not recalled.");
-if (!notifications.some(message => message.includes("debilitado"))) throw new Error("The fainted recall notification was not shown.");
+if (!actors.has(faintedActor.id) || !scene.tokens.some(token => token.actorId === faintedActor.id)) throw new Error("A Trainer Pokémon at 0 HP should remain deployed for death saves.");
+if (!faintedActor.system.traits.important || faintedActor.zeroHpOutcome !== "death-saves") throw new Error("Death saves were not enabled for the Trainer Pokémon.");
+if (!notifications.some(message => message.includes("salvaciones"))) throw new Error("The death-save notification was not shown.");
 
 canvas.ready = true;
 canvas.scene = scene;
 await deployPokemon(pokemonItem);
 if (!notifications.some(message => message.includes("no puede salir"))) throw new Error("A fainted Pokémon was allowed to deploy.");
+
+faintedActor.system.attributes.hp.value = 4;
+faintedActor.system.attributes.death = { success: 2, failure: 1 };
+await syncDeploymentHp(faintedActor);
+if (faintedActor.zeroHpOutcome || faintedActor.system.attributes.death.success || faintedActor.system.attributes.death.failure) {
+  throw new Error("Healing a Trainer Pokémon should reset its death saves and zero-HP outcome.");
+}
+
+const wildInstance = { hp: { value: 5, max: 10 }, abilities: [] };
+const wildPokemonItem = {
+  getFlag: (scope, key) => key === "kind" ? "pokemon" : key === "instance" ? wildInstance : key === "species" ? { name: "Rattata" } : null,
+  async setFlag(scope, key, value) { Object.assign(wildInstance, value); }
+};
+const defeatedWildActor = {
+  id: "zero-hp-wild",
+  name: "Rattata [Salvaje]",
+  items: [wildPokemonItem],
+  system: { attributes: { hp: { value: 0, max: 10 } }, traits: {} },
+  zeroHpOutcome: null,
+  getFlag(scope, key) { return key === "kind" ? "wild" : key === "zeroHpOutcome" ? this.zeroHpOutcome : null; },
+  async update(changes) {
+    if (changes["flags.poke5e-foundry.zeroHpOutcome"]) this.zeroHpOutcome = changes["flags.poke5e-foundry.zeroHpOutcome"];
+  }
+};
+const wildCombatant = { id: "wild-combatant", actor: defeatedWildActor, actorId: defeatedWildActor.id, defeated: false };
+game.combats.contents = [{
+  combatants: [wildCombatant],
+  async updateEmbeddedDocuments(type, updates) {
+    if (type !== "Combatant") throw new Error("Unexpected combat document type.");
+    for (const update of updates) if (update._id === wildCombatant.id) wildCombatant.defeated = update.defeated;
+  }
+}];
+await syncDeploymentHp(defeatedWildActor);
+if (!wildCombatant.defeated || defeatedWildActor.zeroHpOutcome !== "defeated") throw new Error("A wild Pokémon at 0 HP was not marked defeated.");
 
 let wildDeletionCalls = 0;
 const wildActor = {

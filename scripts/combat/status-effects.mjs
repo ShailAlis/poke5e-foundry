@@ -80,6 +80,7 @@ const EXPLICIT_MOVE_STATUSES = Object.freeze({
   thrash: [explicitStatus("confused", "automatic", { target: "self" })],
   thunder: [explicitStatus("paralyzed", "failed-save", { margin: 5 })],
   "thunder-wave": [explicitStatus("paralyzed", "failed-save")],
+  toxic: [explicitStatus("badly-poisoned", "failed-save")],
   "wildbolt-storm": [explicitStatus("paralyzed", "failed-save")]
 });
 
@@ -94,7 +95,7 @@ export const POKEMON_STATUS_EFFECTS = Object.freeze({
   frozen: status("Congelado", "icons/svg/frozen.svg", "Incapacitado y apresado hasta liberarse. El daño de Fuego elimina el estado.", { nonVolatile: true, immuneTypes: ["ice"], linked: ["incapacitated", "restrained"] }),
   paralyzed: status("Paralizado", "icons/svg/paralysis.svg", "Desventaja en salvaciones de FUE y DES, velocidad reducida a la mitad y posibilidad de perder el turno.", { nonVolatile: true, immuneTypes: ["electric"] }),
   poisoned: status("Envenenado", "icons/svg/poison.svg", "Desventaja en pruebas y ataques. Recibe daño igual a su competencia al final de cada turno.", { nonVolatile: true, immuneTypes: ["poison", "steel"], linked: ["poisoned"] }),
-  "badly-poisoned": status("Gravemente envenenado", "icons/svg/poison.svg", "Como Envenenado, pero recibe el doble de su competencia como daño al final de cada turno.", { nonVolatile: true, immuneTypes: ["poison", "steel"], linked: ["poisoned"] }),
+  "badly-poisoned": status("Gravemente envenenado", "icons/svg/poison.svg", "Como Envenenado: al final del primer turno recibe daño igual a su competencia. El multiplicador aumenta en 1 cada turno que permanece gravemente envenenado.", { nonVolatile: true, immuneTypes: ["poison", "steel"], linked: ["poisoned"] }),
   asleep: status("Dormido", "icons/svg/sleep.svg", "Incapacitado y apresado; salvaciones con desventaja. Dura hasta tres rondas.", { nonVolatile: true, linked: ["incapacitated", "restrained"], rounds: 3 }),
   confused: status("Confuso", "icons/svg/daze.svg", "No puede usar reacciones y debe tirar en la tabla de Confusión al comenzar su turno.", { rounds: 3 }),
   flinched: status("Amedrentado", "icons/svg/terror.svg", "Desventaja en ataques, pruebas y salvaciones hasta el final de su siguiente turno.", { rounds: 1 })
@@ -164,7 +165,7 @@ export function inferMoveStatusEffects(move) {
   const sentences = text.split(/(?<=[.!?])\s+/);
   const effects = [];
   const patterns = [
-    ["badly-poisoned", /(?:target|creature|opponent).{0,100}badly poisoned|objetivo.{0,100}gravemente envenenad/i],
+    ["badly-poisoned", /(?:targets?|creatures?|opponents?).{0,100}badly poisoned|objetivos?.{0,100}gravemente envenenad/i],
     ["burned", /(?:target|creature|opponent).{0,100}(?:burned|burnt)|caus(?:e|es|ing) burn on (?:a )?hit|objetivo.{0,100}quemad|causando quemaduras? si impactas/i],
     ["frozen", /(?:target|creature|opponent).{0,100}(?:is|becomes) frozen|objetivo.{0,100}(?:queda )?congelad/i],
     ["paralyzed", /(?:target|creature|opponent).{0,100}(?:is|becomes) paraly[sz]ed|objetivo.{0,100}(?:queda )?paralizad/i],
@@ -195,7 +196,10 @@ export function inferMoveStatusEffects(move) {
 export async function applyMoveStatuses({ move, attack = null, saveDc, sourceActor, sourceCombatActor = null, sourceName }) {
   const saveResults = new Map();
   const sourceModifiers = pokemonCombatModifiers(sourceCombatActor);
-  const effects = move.statusEffects ?? inferMoveStatusEffects(move);
+  // Los movimientos importados por versiones anteriores pueden conservar un
+  // `statusEffects: []` obsoleto. Una lista vacía no debe ocultar una regla
+  // explícita actual como la de Tóxico.
+  const effects = move.statusEffects?.length ? move.statusEffects : inferMoveStatusEffects(move);
   if (!effects.length) return { saveResults };
   const selectedEffects = effects.filter(effect => effect.target !== "self");
   const selfEffects = effects.filter(effect => effect.target === "self");
@@ -307,7 +311,7 @@ export async function synchronizePokemonStatusEffects() {
       existing.add(id);
       const expectedStatuses = [statusId(id), ...definition.linked];
       const actualStatuses = [...(effect.statuses ?? [])];
-      if (effect.name !== definition.name || (effect.img ?? effect.icon) !== icon || !sameValues(actualStatuses, expectedStatuses)) {
+      if (effect.name !== definition.name || effect.description !== definition.description || (effect.img ?? effect.icon) !== icon || !sameValues(actualStatuses, expectedStatuses)) {
         updates.push({
           _id: effect.id,
           name: definition.name,
@@ -348,6 +352,10 @@ export function pokemonStatusId(id) { return statusId(id); }
 export async function removePokemonStatus(pokemonItem, id) {
   const instance = foundry.utils.deepClone(pokemonItem.getFlag(MODULE_ID, "instance") ?? {});
   instance.conditions = (instance.conditions ?? []).filter(condition => condition !== id);
+  if (id === "badly-poisoned" && instance.statusCounters) {
+    delete instance.statusCounters.badlyPoisoned;
+    if (!Object.keys(instance.statusCounters).length) delete instance.statusCounters;
+  }
   await pokemonItem.setFlag(MODULE_ID, "instance", instance);
   const actor = pokemonItem.parent?.getFlag?.(MODULE_ID, "kind") === "wild"
     ? pokemonItem.parent
@@ -490,27 +498,47 @@ async function persistPokemonStatus(actor, id) {
   if (!pokemonItem) return;
   const instance = foundry.utils.deepClone(pokemonItem.getFlag(MODULE_ID, "instance") ?? {});
   instance.conditions = [...new Set([...(instance.conditions ?? []), id])];
+  if (id === "badly-poisoned") instance.statusCounters = { ...(instance.statusCounters ?? {}), badlyPoisoned: 0 };
   await pokemonItem.setFlag(MODULE_ID, "instance", instance);
 }
 
 /**
+ * Resuelve un pulso de estado. El veneno grave comienza en ×1 y aumenta su
+ * contador antes de cada pulso; los demás estados periódicos permanecen en ×1.
+ */
+export function statusDamageTick(status, badlyPoisonedTurns = 0) {
+  if (status === "badly-poisoned") {
+    const turn = Math.max(0, Math.trunc(Number(badlyPoisonedTurns) || 0)) + 1;
+    return { multiplier: turn, turn, label: `envenenamiento grave (turno ${turn})` };
+  }
+  if (status === "poisoned") return { multiplier: 1, turn: 0, label: "envenenamiento" };
+  if (status === "burned") return { multiplier: 1, turn: 0, label: "quemadura" };
+  return { multiplier: 0, turn: 0, label: "" };
+}
+
+/**
  * Daño periódico de veneno y quemadura al terminar el turno, calculado sobre la
- * competencia que corresponde al nivel del Pokémon (doble si está gravemente
- * envenenado). Lo invoca ongoing-effects.mjs dentro de su procesamiento
+ * competencia que corresponde al nivel del Pokémon. El veneno grave comienza
+ * en ×1 y aumenta a ×2, ×3, ×4... en sus turnos sucesivos. Lo invoca
+ * ongoing-effects.mjs dentro de su procesamiento
  * secuencial de `combatTurnChange`, y solo en el cliente del director.
  */
 export async function applyEndTurnStatusDamage(actor) {
   if (!actor || Number(actor.system.attributes?.hp?.value) <= 0) return;
-  let multiplier = 0;
-  let label = "";
-  if (actorHasPokemonStatus(actor, "badly-poisoned")) { multiplier = 2; label = "envenenamiento grave"; }
-  else if (actorHasPokemonStatus(actor, "poisoned")) { multiplier = 1; label = "envenenamiento"; }
-  else if (actorHasPokemonStatus(actor, "burned")) { multiplier = 1; label = "quemadura"; }
-  if (!multiplier) return;
+  const status = actorHasPokemonStatus(actor, "badly-poisoned") ? "badly-poisoned"
+    : actorHasPokemonStatus(actor, "poisoned") ? "poisoned"
+      : actorHasPokemonStatus(actor, "burned") ? "burned" : "";
+  if (!status) return;
   const pokemonItem = await pokemonItemForActor(actor);
-  const instance = pokemonItem?.getFlag(MODULE_ID, "instance");
+  const instance = foundry.utils.deepClone(pokemonItem?.getFlag(MODULE_ID, "instance") ?? {});
+  const tick = statusDamageTick(status, instance.statusCounters?.badlyPoisoned);
+  if (status === "badly-poisoned" && pokemonItem) {
+    instance.statusCounters = { ...(instance.statusCounters ?? {}), badlyPoisoned: tick.turn };
+    await pokemonItem.setFlag(MODULE_ID, "instance", instance);
+  }
   const level = Number(instance?.level) || 1;
-  const damage = (2 + Math.floor((Math.max(1, Math.min(20, level)) - 1) / 4)) * multiplier;
+  const damage = (2 + Math.floor((Math.max(1, Math.min(20, level)) - 1) / 4)) * tick.multiplier;
+  const label = tick.label;
   const hp = actor.system.attributes.hp;
   // Cura Tóxica (poison-heal, lote 32): el daño periódico de Envenenado/
   // Gravemente envenenado cura la mitad en vez de restar PG. No afecta a la
@@ -591,7 +619,7 @@ export async function applyStartTurnStatusChecks(actor) {
     if (guruAdvantage) {
       const secondRoll = await new Roll("1d3").evaluate();
       result = Math.max(result, Number(secondRoll.total) || 0);
-      flavor += ` · Mente (Guru 5): tira dos veces y se queda con ${result}`;
+      flavor += ` · Mente (Gurú 5): tira dos veces y se queda con ${result}`;
       await ChatMessage.create({ rolls: [firstRoll, secondRoll], speaker: ChatMessage.getSpeaker({ actor }), flavor, sound: CONFIG.sounds.dice });
     } else {
       await firstRoll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor });
@@ -666,7 +694,7 @@ async function rollTargetSave(actor, move, dc, sourceModifiers = {}, sourceActor
   const darkAdvantage = await applyGruntSaveAdvantage(actor);
   const nurseAdvantage = await applyNurseStatusSaveAdvantage(actor);
   const targetAbilities = await pokemonAbilities(actor);
-  const moveStatusIds = (move.statusEffects ?? inferMoveStatusEffects(move)).map(effect => effect.id);
+  const moveStatusIds = (move.statusEffects?.length ? move.statusEffects : inferMoveStatusEffects(move)).map(effect => effect.id);
   const wonderSkinAdvantage = abilityGrantsStatusSaveAdvantage(targetAbilities, moveStatusIds);
   const advantage = combat.saveAdvantage || combat.saveAdvantageAbilities.includes(chosen.key) || Boolean(sourceModifiers.saveTargetsAdvantage) || darkAdvantage || nurseAdvantage || wonderSkinAdvantage;
   const disadvantage = combat.saveDisadvantageAbilities.includes(chosen.key) || sourceDisadvantage;

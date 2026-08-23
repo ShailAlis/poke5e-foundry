@@ -8,11 +8,11 @@
 
 /** Las cinco categorías de concurso, con su icono y sus categorías vecinas. */
 export const CONTEST_TYPES = {
-  cool: { label: "Cool", icon: "fa-fire", complementary: ["beauty", "tough"] },
-  beauty: { label: "Beauty", icon: "fa-gem", complementary: ["cool", "cute"] },
-  cute: { label: "Cute", icon: "fa-heart", complementary: ["beauty", "clever"] },
-  clever: { label: "Clever", icon: "fa-lightbulb", complementary: ["cute", "tough"] },
-  tough: { label: "Tough", icon: "fa-dumbbell", complementary: ["clever", "cool"] }
+  cool: { label: "Carisma", icon: "fa-fire", complementary: ["beauty", "tough"] },
+  beauty: { label: "Belleza", icon: "fa-gem", complementary: ["cool", "cute"] },
+  cute: { label: "Dulzura", icon: "fa-heart", complementary: ["beauty", "clever"] },
+  clever: { label: "Ingenio", icon: "fa-lightbulb", complementary: ["cute", "tough"] },
+  tough: { label: "Dureza", icon: "fa-dumbbell", complementary: ["clever", "cool"] }
 };
 
 /**
@@ -39,7 +39,7 @@ export function contestDetailsForMove(move, effectsById = new Map()) {
   const effectId = String(defined?.effect?.id ?? defined?.effect ?? "23");
   const effect = typeof defined?.effect === "object"
     ? defined.effect
-    : effectsById.get(effectId) ?? { id: effectId, name: "Quite an appealing move.", effect: "A crowd favorite. No extra effects." };
+    : effectsById.get(effectId) ?? { id: effectId, name: "Un movimiento bastante vistoso.", effect: "Es uno de los favoritos del público. No tiene efectos adicionales." };
   return {
     contest,
     label: CONTEST_TYPES[contest].label,

@@ -36,6 +36,19 @@ const NPC_ARCHETYPE_PROFILES = {
 };
 
 /** Arquetipos disponibles, derivados uno a uno de los sprites incluidos. */
+const NPC_ARCHETYPE_LABELS = {
+  "ace-trainer": "Entrenador de Élite", aristocrat: "Aristócrata", artist: "Artista", backpacker: "Mochilero",
+  biker: "Motero", "bird-keeper": "Cuidador de Aves", "bug-catcher": "Cazabichos", "business-executive": "Ejecutivo",
+  camper: "Campista", chef: "Chef", collector: "Coleccionista", "criminal-grunt": "Recluta Criminal",
+  cyclist: "Ciclista", dancer: "Bailarín", "dragon-tamer": "Domadragones", "elite-criminal": "Criminal de Élite",
+  fighter: "Luchador", fisher: "Pescador", gardener: "Jardinero", hiker: "Montañero", juggler: "Malabarista",
+  karateka: "Karateka", medium: "Médium", musician: "Músico", nurse: "Enfermero", picnicker: "Excursionista",
+  "poke-fan": "Pokéfan", "poke-maniac": "Pokémaníaco", "pokemon-breeder": "Criador Pokémon",
+  "pokemon-ranger": "Guardabosques Pokémon", psychic: "Psíquico", sailor: "Marinero", "school-kid": "Escolar",
+  scientist: "Científico", "sky-trainer": "Entrenador Aéreo", socialite: "Socialité", "super-nerd": "Supernerd",
+  swimmer: "Nadador", tourist: "Turista", veteran: "Veterano", youngster: "Joven", "youth-trainer": "Entrenador Joven"
+};
+
 export const NPC_ARCHETYPES = Object.fromEntries([
   ["ace-trainer", "Ace Trainer", "ace"],
   ["aristocrat", "Aristocrat", "gymLeader"],
@@ -79,7 +92,7 @@ export const NPC_ARCHETYPES = Object.fromEntries([
   ["veteran", "Veteran", "ace"],
   ["youngster", "Youngster", "rival"],
   ["youth-trainer", "Youth Trainer", "balanced"]
-].map(([id, name, profile]) => [id, namedArchetype(name, profile)]));
+].map(([id, name, profile]) => [id, namedArchetype(name, profile, NPC_ARCHETYPE_LABELS[id])]));
 
 export const NPC_DEFAULT_ARCHETYPE = "ace-trainer";
 
@@ -122,9 +135,9 @@ export function resolveNpcTrainerGender(value, random = Math.random) {
   return random() < 0.5 ? "female" : "male";
 }
 
-function namedArchetype(name, profileId) {
+function namedArchetype(name, profileId, label = name) {
   const profile = NPC_ARCHETYPE_PROFILES[profileId] ?? NPC_ARCHETYPE_PROFILES.balanced;
-  return { name, abilities: [...profile.abilities], skills: [...profile.skills] };
+  return { name, label, abilities: [...profile.abilities], skills: [...profile.skills] };
 }
 
 /**
@@ -183,12 +196,14 @@ export function filterNpcTrainerSpecies(species, filters = {}, evolutions = []) 
   const query = normalized(filters.query);
   const includes = idSet(filters.includeIds);
   const excludes = idSet(filters.excludeIds);
+  const excludedLegendaryNumbers = new Set(filters.excludedLegendaryNumbers ?? []);
   const evolved = new Set(evolutions.map(entry => entry.to));
   const evolves = new Set(evolutions.map(entry => entry.from));
   const automaticSrMax = filters.respectControlLimit === true ? trainerControlSr(filters.trainerLevel) : Infinity;
   const effectiveSrMax = hasNumber(filters.srMax) ? Math.min(Number(filters.srMax), automaticSrMax) : automaticSrMax;
   return species.filter(entry => {
     if (Number(entry.number) <= 0) return false;
+    if (excludedLegendaryNumbers.has(Number(entry.number))) return false;
     const types = entry.type ?? [];
     const regions = [...(entry.habitat?.regions ?? []), entry.habitat?.nativeRegion].filter(Boolean);
     const biomes = entry.habitat?.biomes ?? [];
@@ -293,7 +308,7 @@ export function npcTrainerHitPoints(trainerLevel, constitution, difficultyId) {
 export function randomNpcTrainerName(options = {}, random = Math.random, index = 0) {
   const custom = String(options.name ?? "").trim();
   if (custom) return Number(options.quantity) > 1 ? `${custom} ${index + 1}` : custom;
-  const title = options.useTitle === false ? "" : `${NPC_ARCHETYPES[options.archetype]?.name ?? "Entrenador"} `;
+  const title = options.useTitle === false ? "" : `${NPC_ARCHETYPES[options.archetype]?.label ?? "Entrenador"} `;
   const gender = resolveNpcTrainerGender(options.gender, random);
   return `${title}${pick(NPC_FIRST_NAMES[gender], random)}`;
 }

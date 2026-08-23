@@ -22,8 +22,9 @@ import { typeLabel } from "../combat/combat.mjs";
 import { trainerControlSr } from "./npc-trainer-rules.mjs";
 import { availableTrainerSpecializations, chooseTrainerSpecialization, masterTrainerState, pendingTrainerSpecializations, pokemonTrackerState, spendPokemonTracker } from "./trainer-class-rules.mjs";
 import { SKILLS } from "./trainer-creation-data.mjs";
-import { loadPoke5eData } from "../core/data-service.mjs";
+import { biomeLabel, loadPoke5eData } from "../core/data-service.mjs";
 import { filterEncounterSpecies } from "../world/encounter-generator.mjs";
+import { capturedLegendaryNumbers } from "../pokemon/legendary-species.mjs";
 
 const CharacterActorSheet = dnd5e.applications.actor.CharacterActorSheet;
 
@@ -345,7 +346,7 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
       await applyDynamicModifier(actor, "guru-spirit", {
         modifiers: { [choice]: wisMod },
         durationRounds: 1,
-        sourceName: "Espíritu (Guru 15)",
+        sourceName: "Espíritu (Gurú 15)",
         description: `+${wisMod} a ${label} hasta el próximo turno del entrenador.`
       });
     }
@@ -406,19 +407,23 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
     const data = await loadPoke5eData();
     const regions = [...new Set(data.pokemon.flatMap(entry => [...(entry.habitat?.regions ?? []), entry.habitat?.nativeRegion].filter(Boolean)))].sort();
     const biomes = [...new Set(data.pokemon.flatMap(entry => entry.habitat?.biomes ?? []))].sort();
-    const optionHtml = values => values.map(value => `<option value="${foundry.utils.escapeHTML(value)}">${foundry.utils.escapeHTML(value)}</option>`).join("");
+    const optionHtml = (values, labeler = value => value) => values.map(value => `<option value="${foundry.utils.escapeHTML(value)}">${foundry.utils.escapeHTML(labeler(value))}</option>`).join("");
     let selection = null;
     try {
       selection = await foundry.applications.api.DialogV2.prompt({
         window: { title: game.i18n.localize("POKE5E.TrainerClass.Tracker") },
-        content: `<p>${game.i18n.localize("POKE5E.TrainerClass.TrackerPrompt")}</p><label><span>${game.i18n.localize("POKE5E.TrainerClass.Region")}</span><select name="region"><option value=""></option>${optionHtml(regions)}</select></label><label><span>${game.i18n.localize("POKE5E.TrainerClass.Biome")}</span><select name="biome"><option value=""></option>${optionHtml(biomes)}</select></label>${state.expert ? `<label><span>${game.i18n.localize("POKE5E.TrainerClass.SpecificSpecies")}</span><input name="species" type="text"></label><label><span>${game.i18n.localize("POKE5E.TrainerClass.TrackerSkill")}</span><select name="skill"><option value="inv">${SKILLS.inv}</option><option value="nat">${SKILLS.nat}</option></select></label>` : ""}`,
+        content: `<p>${game.i18n.localize("POKE5E.TrainerClass.TrackerPrompt")}</p><label><span>${game.i18n.localize("POKE5E.TrainerClass.Region")}</span><select name="region"><option value=""></option>${optionHtml(regions)}</select></label><label><span>${game.i18n.localize("POKE5E.TrainerClass.Biome")}</span><select name="biome"><option value=""></option>${optionHtml(biomes, biomeLabel)}</select></label>${state.expert ? `<label><span>${game.i18n.localize("POKE5E.TrainerClass.SpecificSpecies")}</span><input name="species" type="text"></label><label><span>${game.i18n.localize("POKE5E.TrainerClass.TrackerSkill")}</span><select name="skill"><option value="inv">${SKILLS.inv}</option><option value="nat">${SKILLS.nat}</option></select></label>` : ""}`,
         modal: true,
         rejectClose: false,
         ok: { label: game.i18n.localize("POKE5E.TrainerClass.Search"), icon: "fa-solid fa-magnifying-glass", callback: (_event, button) => ({ region: button.form.elements.region.value, biome: button.form.elements.biome.value, species: button.form.elements.species?.value?.trim() ?? "", skill: button.form.elements.skill?.value ?? "" }) }
       });
     } catch { selection = null; }
     if (!selection || (!selection.region && !selection.biome)) return;
-    const pool = filterEncounterSpecies(data.pokemon, { region: selection.region, biome: selection.biome });
+    const pool = filterEncounterSpecies(data.pokemon, {
+      region: selection.region,
+      biome: selection.biome,
+      excludedLegendaryNumbers: capturedLegendaryNumbers()
+    });
     if (!await spendPokemonTracker(sheet.actor)) return;
     let specific = "";
     if (state.expert && selection.species) {

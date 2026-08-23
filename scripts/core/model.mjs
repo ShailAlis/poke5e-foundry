@@ -11,6 +11,7 @@
 import { pokemonDefenses, typeLabel } from "../combat/combat.mjs";
 import { experienceAtLevel } from "../pokemon/progression.mjs";
 import { escapeHtml, titleCase } from "./utils.mjs";
+import { randomNature } from "../pokemon/natures.mjs";
 
 /** Identificador del módulo, raíz de sus flags y ajustes; usado en todo el proyecto. */
 export const MODULE_ID = "poke5e-foundry";
@@ -67,7 +68,7 @@ export const PACKS = {
  * de groupFeaturesByLevel().
  */
 export const TRAINER_FEATURES = [
-  feature(1, "starter-pokemon", "Pokémon inicial", "Elige un Pokémon sin evolucionar de SR 1/2 o inferior. Empieza con sus estadísticas base; puedes elegir su naturaleza y una habilidad que no sea oculta.", false),
+  feature(1, "starter-pokemon", "Pokémon inicial", "Elige un Pokémon sin evolucionar de SR 1/2 o inferior. Empieza con sus estadísticas base y recibe al azar una naturaleza y una habilidad que no sea oculta.", false),
   feature(1, "specialization-1", "Especialización de Entrenador", "Elige tu primera especialización de Entrenador. Sus beneficios representan el ámbito en el que has centrado tu formación."),
   feature(2, "trainer-path-1", "Camino de Entrenador", "Elige un Camino de Entrenador. Este camino concede rasgos adicionales a los niveles 2, 5, 9 y 15.", false),
   feature(3, "control-upgrade-5", "Mejora de control (SR 5)", "Puedes dar órdenes con normalidad a Pokémon de hasta SR 5. Los Pokémon que superen tu límite de control pueden negarse a obedecer.", false),
@@ -96,13 +97,13 @@ export const TRAINER_FEATURES = [
 
 /** Caminos oficiales de Entrenador (reglas 2024) y sus rasgos por nivel. */
 export const TRAINER_PATHS = [
-  trainerPath("ace-trainer", "Ace Trainer", [
+  trainerPath("ace-trainer", "Entrenador de Élite", [
     pathFeature(2, "Entrenamiento de élite", "Tus Pokémon obtienen +1 a sus tiradas de ataque y daño."),
     pathFeature(5, "Maestro de batalla", "Obtienes dados de batalla d6 iguales a 1 + tu modificador de Destreza (mínimo 1). Puedes gastar uno después de una tirada para sumarlo a un ataque o daño de uno de tus Pokémon; se recuperan con un descanso largo."),
     pathFeature(9, "Maestría táctica", "Elige una característica: todos tus Pokémon, incluidos los que captures después, aumentan esa puntuación en 1. Tus dados de batalla pasan a d8."),
     pathFeature(15, "Cambio rápido", "Al ser intercambiado, tu Pokémon puede realizar una acción o moverse, pero no ambas cosas ni usar acción adicional o reacción. Tus dados de batalla pasan a d10.")
   ]),
-  trainerPath("hobbyist", "Hobbyist", [
+  trainerPath("hobbyist", "Aficionado", [
     pathFeature(2, "Aficionado versátil", "Elige una especialización adicional diferente y obtén competencia en dos habilidades nuevas."),
     pathFeature(5, "Versátil", "Obtienes dados de habilidad d6 iguales a 1 + tu modificador de Sabiduría (mínimo 1). Puedes gastar uno después de una prueba o salvación de un Pokémon para sumarlo; se recuperan con un descanso largo."),
     pathFeature(9, "Generalista", "Añades la mitad de tu bonificador de competencia, redondeando hacia abajo, a pruebas de habilidad sin competencia que no lo incluyan ya. Tus Pokémon obtienen el mismo beneficio. Los dados de habilidad pasan a d8."),
@@ -114,61 +115,61 @@ export const TRAINER_PATHS = [
     pathFeature(9, "Animador", "Una vez por descanso corto, como acción adicional, eliges ataque, daño o CA y todos los Pokémon aliados suman tu modificador de Carisma (mínimo 1) a ese valor hasta tu siguiente turno."),
     pathFeature(15, "Maestro docente", "Tus Pokémon pueden aprender y olvidar movimientos al terminar un descanso largo, sin esperar a subir de nivel.")
   ]),
-  trainerPath("researcher", "Researcher", [
+  trainerPath("researcher", "Investigador", [
     pathFeature(2, "Investigador Pokémon", "Puedes sumar tu modificador de Inteligencia (mínimo 1) a una prueba de habilidad de uno de tus Pokémon un número de veces igual a tu bonificador de competencia por descanso largo."),
     pathFeature(5, "Analista", "Como acción, enfrenta Investigación contra Engaño de un Pokémon. Si ganas, descubres su habilidad y un movimiento aleatorio que conozca."),
     pathFeature(9, "Experto en evolución", "Cuando uno de tus Pokémon evoluciona, puede gastar dos puntos de evolución para adquirir una dote."),
     pathFeature(15, "Profesor", "Puedes usar Analista como acción adicional y revela una habilidad o movimiento adicional del objetivo.")
   ]),
-  trainerPath("pokemon-collector", "Pokémon Collector", [
+  trainerPath("pokemon-collector", "Coleccionista Pokémon", [
     pathFeature(2, "Coleccionista Pokémon", "Obtienes Pericia en Trato con Animales."),
     pathFeature(5, "¡Hazte con todos!", "Una vez por descanso largo puedes realizar con ventaja una prueba de Trato con Animales para capturar, aunque el objetivo no tenga un estado negativo."),
     pathFeature(9, "Golpes disciplinados", "Cuando tus Pokémon fueran a debilitar a otro Pokémon con daño, puedes dejarlo a 1 PG."),
     pathFeature(15, "Rastreador experto", "Al usar Rastreador Pokémon, una prueba CD 11 de Investigación o Naturaleza permite encontrar una especie concreta de la zona. Puedes usar Rastreador Pokémon dos veces por descanso largo.")
   ]),
-  trainerPath("nurse", "Nurse", [
+  trainerPath("nurse", "Enfermero Pokémon", [
     pathFeature(2, "Cuidador", "Obtienes competencia en Medicina. Cuando cures a un Pokémon mediante un objeto o capacidad, recupera PG adicionales iguales a tu modificador de Sabiduría (mínimo 1)."),
     pathFeature(5, "Pokéchef", "Preparas una golosina que cura 2d4+2 PG. Puedes darla a una criatura adyacente como acción adicional; otra criatura usa una acción. Usos iguales a tu bonificador de competencia por descanso largo."),
     pathFeature(9, "Médico de campo", "Como acción, una prueba de Medicina CD 12 elimina un estado no volátil de un Pokémon adyacente. Pokéchef pasa a curar 3d10+6 PG."),
     pathFeature(15, "En plena forma", "Tus Pokémon tienen ventaja en salvaciones contra estados negativos. Pokéchef pasa a curar 4d12+10 PG.")
   ]),
-  trainerPath("type-master", "Type Master", [
+  trainerPath("type-master", "Maestro de Tipo", [
     pathFeature(2, "Maestro de tipo", "El STAB de los Pokémon que coincidan con tus especializaciones aumenta en 1 por cada tipo coincidente."),
     pathFeature(5, "Extraer poder", "Los Pokémon que coincidan con uno de tus tipos especializados obtienen +2 a sus tiradas de ataque."),
     pathFeature(9, "Almacenar poder", "Elige uno de tus tipos especializados. Los Pokémon que coincidan con tus especializaciones obtienen resistencia a ese tipo; una vulnerabilidad previa pasa a daño normal."),
     pathFeature(15, "Liberar poder", "Los Pokémon de tus tipos especializados pueden añadir su STAB a cualquier movimiento dañino, aunque el movimiento no comparta su tipo.")
   ]),
-  trainerPath("commander", "Commander", [
+  trainerPath("commander", "Comandante", [
     pathFeature(2, "Comandante", "Requiere el suplemento de Vínculos. El nivel de vínculo de tu inicial pasa a +2 y cada Pokémon con vínculo positivo obtiene un Punto de Vínculo adicional."),
     pathFeature(5, "Sígueme", "Los Pokémon que captures o eclosiones empiezan con +1 al nivel de vínculo, hasta +2, y perder un combate no reduce su vínculo."),
     pathFeature(9, "Demuéstrame lo que vales", "Una vez por descanso largo, cada Pokémon puede gastar un Punto de Vínculo para usar un movimiento aprendible de hasta un tramo superior a su nivel actual."),
     pathFeature(15, "Somos un equipo", "Como reacción, permites que uno de tus Pokémon gaste un Punto de Vínculo para aplicar su beneficio a un Pokémon aliado que no te pertenezca.")
   ]),
-  trainerPath("grunt", "Grunt", [
+  trainerPath("grunt", "Recluta", [
     pathFeature(2, "Sabotaje", "Obtienes Puntos de Sombra iguales a tu nivel de Entrenador, recuperados con un descanso largo. Como reacción puedes gastar los necesarios para reducir un ataque que impactó a tu Pokémon hasta convertirlo en fallo, salvo un 20 natural."),
     pathFeature(5, "Ventaja oscura", "Gasta 3 Puntos de Sombra para obtener ventaja en una prueba, ataque o salvación tuya o de uno de tus Pokémon."),
     pathFeature(9, "Esquiva siniestra", "Como reacción, gasta 4 Puntos de Sombra para mejorar un grado la resistencia de uno de tus Pokémon frente al daño de un movimiento."),
     pathFeature(15, "Golpe infame", "Gasta 2 Puntos de Sombra cuando uno de tus Pokémon cause Retroceso para causar Aturdido en su lugar.")
   ]),
-  trainerPath("tactician", "Tactician", [
+  trainerPath("tactician", "Estratega", [
     pathFeature(2, "Puntos tácticos", "Obtienes Puntos Tácticos iguales a tu nivel de Entrenador, recuperados tras un descanso largo. Cuando un objeto o movimiento cure PG, puedes gastar puntos para aumentar la curación en 1d4 por punto."),
     pathFeature(5, "Golpe dirigido", "Gasta 2 Puntos Tácticos para tirar dos veces el daño de un ataque y usar el resultado mayor."),
     pathFeature(9, "Alza tus defensas", "Como reacción, gasta hasta 5 Puntos Tácticos para aumentar la CA o salvación de un Pokémon, siempre que convierta el impacto en fallo o la salvación en éxito."),
     pathFeature(15, "Esta vez no", "Después de una salvación contra un movimiento de tu Pokémon, aumenta su CD hasta 5 puntos para provocar un fallo, gastando un Punto Táctico por punto.")
   ]),
-  trainerPath("ranger", "Ranger", [
+  trainerPath("ranger", "Guardabosques", [
     pathFeature(2, "Explorador", "Obtienes competencia en Naturaleza y Supervivencia, +10 pies de velocidad caminando y velocidades de trepar y nadar iguales a la mitad de tu velocidad caminando."),
     pathFeature(5, "Capturador", "Si recorres una vuelta completa alrededor de un Pokémon con tu Capture Styler, obtienes +10 a la captura de ese Pokémon."),
     pathFeature(9, "Compañero", "Tras cada descanso largo eliges un Pokémon compañero. Suma tu modificador de Sabiduría a sus pruebas de habilidad y a sus ataques contra Pokémon salvajes."),
     pathFeature(15, "Poké Assist", "Los movimientos que compartan tipo con tu compañero se lanzan con ventaja. También tienes ventaja al capturar Pokémon que compartan uno de sus tipos.")
   ]),
-  trainerPath("guru", "Guru", [
+  trainerPath("guru", "Gurú", [
     pathFeature(2, "Conexión del gurú", "Tu límite máximo de SR controlable aumenta permanentemente en 1."),
     pathFeature(5, "Mente", "Tus Pokémon son competentes en salvaciones de Sabiduría y, al tirar en la tabla de confusión, tiran dos veces y conservan el resultado mejor."),
     pathFeature(9, "Cuerpo", "Tus Pokémon pueden tener activas dos habilidades cuando dispongan de ellas. La dote Incansable cuesta un punto de mejora en lugar de dos; quien ya la tenga puede recibir un punto."),
     pathFeature(15, "Espíritu", "Al inicio de tu turno puedes sumar tu modificador de Sabiduría a todos los ataques o todos los daños de tu Pokémon hasta tu siguiente turno. Usos iguales a 1 + Sabiduría (mínimo 1) por descanso largo.")
   ]),
-  trainerPath("pokemon-breeder", "Pokémon Breeder", [
+  trainerPath("pokemon-breeder", "Criador Pokémon", [
     pathFeature(2, "Criador Pokémon", "Requiere el suplemento de Crianza. Sumas tu modificador de Sabiduría a la tirada para criar dos Pokémon."),
     pathFeature(5, "Cariño y cuidados", "Tienes ventaja en todas las tiradas que reduzcan el contador de incubación de un huevo Pokémon."),
     pathFeature(9, "Buenos genes", "Cada Pokémon que hayas eclosionado obtiene dos puntos para aumentar características o adquirir una dote."),
@@ -505,7 +506,7 @@ export function pokemonItemSourceFromSpecies(speciesDocument) {
           hp: { value: Number(species.hp) || 1, max: Number(species.hp) || 1 },
           ac: Number(species.ac) || 10,
           attributes: foundry.utils.deepClone(species.attributes ?? {}),
-          nature: "",
+          nature: randomNature(),
           gender: randomGenderForRatio(species.gender),
           shiny: false,
           inTeam: true,
@@ -650,10 +651,10 @@ export function assetUrl(baseUrl, path) {
  * resumidas con conditionShortLabel(). Solo la llama speciesItemSource().
  */
 function speciesDescription(species, evolutions = []) {
-  const types = (species.type ?? []).map(titleCase).join(" / ");
+  const types = (species.type ?? []).map(typeLabel).join(" / ");
   const defenses = pokemonDefenses(species.type);
   const evolutionText = evolutions.length
-    ? evolutions.map(evolution => `${escapeHtml(titleCase(evolution.to))} (${evolution.conditions.map(conditionShortLabel).join(", ")})`).join(" · ")
+    ? evolutions.map(evolution => `${escapeHtml(regionalSpeciesIdLabel(evolution.to))} (${evolution.conditions.map(conditionShortLabel).join(", ")})`).join(" · ")
     : "No evoluciona";
   return `<p><strong>#${String(species.number).padStart(4, "0")} · ${escapeHtml(types)}</strong></p>${paragraphs([species.description])}
     <p><strong>CA:</strong> ${species.ac} · <strong>PG:</strong> ${species.hp} · <strong>SR:</strong> ${species.sr} · <strong>Sexo F:M:</strong> ${escapeHtml(species.gender ?? "0:0")}</p>
@@ -676,13 +677,51 @@ function typeList(types) {
  */
 function conditionShortLabel(condition) {
   if (condition.type === "level") return `nivel ${condition.value}`;
-  if (condition.type === "item") return `objeto: ${escapeHtml(condition.value)}`;
+  if (condition.type === "item") return `objeto: ${escapeHtml(evolutionRequirementLabel(condition.value, "item"))}`;
   if (condition.type === "loyalty") return `vínculo +${condition.value}`;
-  if (condition.type === "move") return `movimiento: ${escapeHtml(condition.value)}`;
+  if (condition.type === "move") return `movimiento: ${escapeHtml(evolutionRequirementLabel(condition.value, "move"))}`;
   if (condition.type === "move-type") return `movimiento ${escapeHtml(typeLabel(condition.value))}`;
   if (condition.type === "gender") return condition.value === "female" ? "hembra" : "macho";
-  if (condition.type === "time") return `momento: ${escapeHtml(condition.value)}`;
+  if (condition.type === "time") return `momento: ${escapeHtml(evolutionRequirementLabel(condition.value, "time"))}`;
   return escapeHtml(condition.value);
+}
+
+const EVOLUTION_ITEM_LABELS = {
+  "Alola Stone": "Piedra de Alola", "Auspicious Armor": "Armadura Auspiciosa", "Black Augurite": "Augurita Negra",
+  "Cracked Pot": "Tetera Agrietada", "Dawn Stone": "Piedra Alba", "Deep Sea Scale": "Escama Marina",
+  "Deep Sea Tooth": "Diente Marino", "Dragon Scale": "Escama Dragón", "Dubious Disc": "Disco Extraño",
+  "Dusk Stone": "Piedra Noche", Electirizer: "Electrizador", "Fire Stone": "Piedra Fuego", "Galarica Wreath": "Corona Galanuez",
+  "Ice Stone": "Piedra Hielo", "King's Rock": "Roca del Rey", "Leaf Stone": "Piedra Hoja", Magmarizer: "Magmatizador",
+  "Malicious Armor": "Armadura Maldita", "Metal Alloy": "Aleación Metálica", "Metal Coat": "Revestimiento Metálico",
+  "Moon Stone": "Piedra Lunar", "Oval Stone": "Piedra Oval", "Peat Block": "Bloque de Turba", "Prism Scale": "Escama Bella",
+  Protector: "Protector", "Razor Claw": "Garra Afilada", "Razor Fang": "Colmillo Agudo", "Reaper Cloth": "Tela Terrible",
+  Sachet: "Saquito Fragante", "Scroll of Darkness": "Pergamino Siniestro", "Scroll of Waters": "Pergamino de Aguas",
+  "Shiny Stone": "Piedra Día", "Sun Stone": "Piedra Solar", Sweet: "Confite", "Thunder Stone": "Piedra Trueno",
+  "Toxic Stone": "Piedra Tóxica", "Unremarkable Teacup": "Cuenco Mediocre", Upgrade: "Mejora",
+  "Water Stone": "Piedra Agua", "Whipped Dream": "Dulce de Nata"
+};
+
+const EVOLUTION_MOVE_LABELS = {
+  "ancient-power": "Poder Pasado", "barb-barrage": "Mil Púas Tóxicas", "double-hit": "Doble Golpe",
+  "dragon-cheer": "Bramido Dragón", "hyper-drill": "Hipertaladro", mimic: "Mimético", "psyshield-bash": "Asalto Barrera",
+  rollout: "Desenrollar", stomp: "Pisotón", taunt: "Mofa", "twin-beam": "Láser Doble"
+};
+
+/** Traduce requisitos estructurados que el JSON de evoluciones conserva en inglés. */
+export function evolutionRequirementLabel(value, kind) {
+  if (kind === "item") return EVOLUTION_ITEM_LABELS[value] ?? String(value ?? "");
+  if (kind === "move") return EVOLUTION_MOVE_LABELS[value] ?? String(value ?? "");
+  if (kind === "time") return { morning: "mañana", day: "día", afternoon: "tarde", night: "noche" }[value] ?? String(value ?? "");
+  return String(value ?? "");
+}
+
+function regionalSpeciesIdLabel(id) {
+  const value = String(id ?? "");
+  const prefix = value.match(/^(alolan|galarian)-(.+)$/);
+  if (prefix) return `${titleCase(prefix[2])} de ${prefix[1] === "alolan" ? "Alola" : "Galar"}`;
+  const suffix = value.match(/^(.+)-(galar|hisui|paldea)(?:-.+)?$/);
+  if (suffix) return `${titleCase(suffix[1])} de ${titleCase(suffix[2])}`;
+  return titleCase(value);
 }
 
 /**
@@ -692,7 +731,7 @@ function conditionShortLabel(condition) {
  */
 function moveDescription(move) {
   const details = [
-    `<strong>Tipo:</strong> ${escapeHtml(move.type ?? "—")}`,
+    `<strong>Tipo:</strong> ${escapeHtml(typeLabel(move.type))}`,
     `<strong>Tiempo:</strong> ${escapeHtml(move.time ?? "—")}`,
     `<strong>Rango:</strong> ${escapeHtml(move.range ?? "—")}`,
     `<strong>Duración:</strong> ${escapeHtml(move.duration ?? "—")}`,
@@ -869,7 +908,7 @@ function pathTraitAdvancements(pathId, pathIndex) {
     hobbyist: { level: 2, title: "Competencias de Aficionado", grants: [], choices: [{ count: 2, pool: ["skills:acr", "skills:arc", "skills:ath", "skills:dec", "skills:his", "skills:ins", "skills:itm", "skills:inv", "skills:med", "skills:nat", "skills:prc", "skills:prf", "skills:per", "skills:rel", "skills:slt", "skills:ste", "skills:sur"] }], mode: "default" },
     "pokemon-collector": { level: 2, title: "Pericia en Trato con Animales", grants: ["skills:ani"], choices: [], mode: "expertise" },
     nurse: { level: 2, title: "Competencia en Medicina", grants: ["skills:med"], choices: [], mode: "default" },
-    ranger: { level: 2, title: "Competencias de Ranger", grants: ["skills:nat", "skills:sur"], choices: [], mode: "default" }
+    ranger: { level: 2, title: "Competencias de Guardabosques", grants: ["skills:nat", "skills:sur"], choices: [], mode: "default" }
   };
   const definition = definitions[pathId];
   if (!definition) return {};

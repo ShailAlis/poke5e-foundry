@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { ONGOING_MOVE_EFFECTS, moveHasImmediateDamage, resolveOngoingMoveEffect } from "../combat/ongoing-effects.mjs";
+import { ONGOING_MOVE_EFFECTS, hasOngoingTurnLimit, moveHasImmediateDamage, resolveOngoingMoveEffect } from "../combat/ongoing-effects.mjs";
 
 const move = (id, dice = { 1: "1d4", 5: "2d4", 10: "2d6", 17: "2d8" }) => ({ id, damage: { dice } });
 
@@ -15,6 +15,12 @@ assert.equal(moveHasImmediateDamage(move("wish")), false);
 assert.equal(moveHasImmediateDamage(move("fire-spin")), true);
 
 assert.equal(resolveOngoingMoveEffect(move("leech-seed"), { level: 10 }).formula, "2d6");
+assert.equal(resolveOngoingMoveEffect(move("leech-seed"), { level: 10 }).remaining, null);
+assert.equal(hasOngoingTurnLimit(null), false);
+assert.equal(hasOngoingTurnLimit(undefined), false);
+assert.equal(hasOngoingTurnLimit(""), false);
+assert.equal(hasOngoingTurnLimit(3), true);
+assert.equal(hasOngoingTurnLimit("3"), true);
 assert.equal(resolveOngoingMoveEffect(move("fire-spin"), { level: 5 }).remaining, 3);
 assert.equal(resolveOngoingMoveEffect({ id: "aqua-ring" }, { proficiency: 4 }).formula, "4");
 assert.equal(resolveOngoingMoveEffect({ id: "ingrain" }, { level: 10, moveModifier: 3 }).formula, "2d8 + 3");

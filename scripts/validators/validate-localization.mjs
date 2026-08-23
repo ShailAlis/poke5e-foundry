@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
-import { normalizeDataLanguage } from "../core/data-service.mjs";
+import { normalizeDataLanguage, spanishMoveMetadata, spanishSpeciesDescription, spanishSpeciesName } from "../core/data-service.mjs";
 
 const [english, spanish] = await Promise.all([
   readJson("lang/en.json"),
@@ -29,11 +29,33 @@ for (const path of await sourceFiles("scripts")) {
 assert.deepEqual(hardcodedNotifications, [], `Hardcoded notification text found in: ${hardcodedNotifications.join(", ")}`);
 assert.equal(normalizeDataLanguage("es"), "es");
 assert.equal(normalizeDataLanguage("EN"), "en");
-assert.equal(normalizeDataLanguage("unsupported"), "en");
+assert.equal(normalizeDataLanguage("unsupported"), "es");
+assert.equal(normalizeDataLanguage(undefined), "es");
 
-for (const file of ["moves.json", "abilities.json", "items.json"]) {
-  await readJson(`data/es/${file}`);
+for (const file of ["moves.json", "abilities.json", "items.json", "contest-effects.json"]) {
+  const [base, translated] = await Promise.all([readJson(`data/${file}`), readJson(`data/es/${file}`)]);
+  const collection = file === "moves.json" ? "moves" : "items";
+  const translatedById = new Map(translated[collection].map(entry => [entry.id, entry]));
+  assert.equal(translatedById.size, base[collection].length, `${file} must translate every catalog entry exactly once`);
+  for (const entry of base[collection]) {
+    const localized = translatedById.get(entry.id);
+    assert.ok(localized?.name, `${file}: missing Spanish name for ${entry.id}`);
+    if (entry.description) {
+      assert.ok(localized.description, `${file}: missing Spanish description for ${entry.id}`);
+      assert.notDeepEqual(localized.description, entry.description, `${file}: untranslated description for ${entry.id}`);
+    }
+  }
 }
+
+assert.equal(
+  spanishSpeciesDescription({ type: ["grass", "poison"], minLevel: 1, habitat: { nativeRegion: "Kanto" } }),
+  "Pokémon de tipo Planta y Veneno. Su nivel mínimo es 1. Es originario de Kanto."
+);
+assert.equal(spanishSpeciesName("Galarian Weezing"), "Weezing de Galar");
+assert.equal(spanishSpeciesName("Bulbasaur"), "Bulbasaur");
+assert.deepEqual(spanishMoveMetadata({ time: "1 bonus action", range: "self (30ft cone)", duration: "1 round, concentration" }), {
+  time: "1 acción adicional", range: "personal (cono de 30 pies)", duration: "1 asalto, concentración"
+});
 
 console.log("Localization validation passed.");
 

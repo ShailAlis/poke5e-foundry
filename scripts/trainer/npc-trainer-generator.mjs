@@ -10,12 +10,13 @@
  * `game.poke5e.openNpcTrainerGenerator`, registrados en main.mjs. Su plantilla es
  * `templates/npc-trainer-generator.hbs`.
  */
-import { loadPoke5eData } from "../core/data-service.mjs";
+import { biomeLabel, loadPoke5eData } from "../core/data-service.mjs";
 import { MODULE_PATH, portraitUrl, trainerPokeslotsForLevel } from "../core/model.mjs";
-import { NATURES, ORIGINS } from "./trainer-creation-data.mjs";
+import { NATURES, ORIGINS, natureLabel } from "./trainer-creation-data.mjs";
 import { createNpcTrainerActor, ensureNpcTrainerFolder, placeNpcTrainer } from "./npc-trainer-actor.mjs";
 import { NPC_ARCHETYPES, NPC_DEFAULT_ARCHETYPE, NPC_DIFFICULTIES, filterNpcTrainerSpecies, generateNpcTrainerTeam, trainerControlSr } from "./npc-trainer-rules.mjs";
-import { titleCase } from "../core/utils.mjs";
+import { typeLabel } from "../combat/combat.mjs";
+import { capturedLegendaryNumbers } from "../pokemon/legendary-species.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -53,7 +54,7 @@ export class Poke5eNpcTrainerGenerator extends HandlebarsApplicationMixin(Applic
   async _prepareContext() {
     if (!game.user.isGM) return { unauthorized: true };
     const data = await loadPoke5eData();
-    const pool = filterNpcTrainerSpecies(data.pokemon, this.config, data.evolutions).sort((a, b) => Number(a.number) - Number(b.number));
+    const pool = filterNpcTrainerSpecies(data.pokemon, availableFilters(this.config), data.evolutions).sort((a, b) => Number(a.number) - Number(b.number));
     const entries = this.team.map((entry, index) => {
       const species = data.pokemonById.get(entry.speciesId);
       return {
@@ -77,7 +78,7 @@ export class Poke5eNpcTrainerGenerator extends HandlebarsApplicationMixin(Applic
       difficultyOptions: optionMap(NPC_DIFFICULTIES),
       originOptions: { random: game.i18n.localize("POKE5E.Options.Random"), ...Object.fromEntries(ORIGINS.map(entry => [entry.id, entry.name])) },
       genderOptions: { random: game.i18n.localize("POKE5E.Options.Random"), male: game.i18n.localize("POKE5E.Options.Male"), female: game.i18n.localize("POKE5E.Options.Female") },
-      natureOptions: Object.fromEntries(NATURES.map(nature => [nature, nature])),
+      natureOptions: Object.fromEntries(NATURES.map(nature => [nature, natureLabel(nature)])),
       environmentOptions: localizeOptionMap({ coast: "CoastWater", mountain: "Mountain", other: "OtherEnvironment" }),
       compositionOptions: localizeOptionMap({ random: "FullyRandom", varied: "VariedTypes", specialized: "ByThemeType", "ace-last": "AceLast" }),
       powerBiasOptions: localizeOptionMap({ balanced: "Balanced", low: "PreferLowCR", high: "PreferHighCR" }),
@@ -91,13 +92,13 @@ export class Poke5eNpcTrainerGenerator extends HandlebarsApplicationMixin(Applic
       deployCountOptions: localizeOptionMap({ 0: "None", 1: "First", 2: "FirstTwo", all: "WholeTeam" }),
       quantityPlural: Number(this.config.quantity) !== 1,
       controlSr: trainerControlSr(this.config.trainerLevel),
-      typeOptions: uniqueOptions(data.pokemon.flatMap(entry => entry.type ?? []), titleCase),
-      biomeOptions: uniqueOptions(data.pokemon.flatMap(entry => entry.habitat?.biomes ?? []), titleCase),
+      typeOptions: uniqueOptions(data.pokemon.flatMap(entry => entry.type ?? []), typeLabel),
+      biomeOptions: uniqueOptions(data.pokemon.flatMap(entry => entry.habitat?.biomes ?? []), biomeLabel),
       regionOptions: uniqueOptions(data.pokemon.flatMap(entry => [...(entry.habitat?.regions ?? []), entry.habitat?.nativeRegion].filter(Boolean))),
       ballOptions: Object.fromEntries(data.items.filter(entry => entry.type === "pokeball").map(entry => [entry.id, entry.name])),
       candidates: pool.slice(0, 80).map(species => ({
         id: species.id, name: species.name, img: portraitUrl(species), number: species.number, sr: species.sr,
-        minLevel: species.minLevel, types: species.type ?? [], region: species.habitat?.nativeRegion ?? ""
+        minLevel: species.minLevel, types: (species.type ?? []).map(typeLabel), region: species.habitat?.nativeRegion ?? ""
       }))
     };
   }
@@ -165,7 +166,7 @@ export class Poke5eNpcTrainerGenerator extends HandlebarsApplicationMixin(Applic
       ui.notifications.info(game.i18n.localize("POKE5E.NpcGenerator.RandomThemeTypeChosen"));
     }
     const data = await loadPoke5eData();
-    const pool = filterNpcTrainerSpecies(data.pokemon, this.config, data.evolutions);
+    const pool = filterNpcTrainerSpecies(data.pokemon, availableFilters(this.config), data.evolutions);
     this.team = generateNpcTrainerTeam(pool, this.config);
     if (!this.team.length) ui.notifications.warn(game.i18n.localize("POKE5E.NpcGenerator.NoTeamSpecies"));
     this.render({ force: true });
@@ -200,7 +201,7 @@ export class Poke5eNpcTrainerGenerator extends HandlebarsApplicationMixin(Applic
   async #rerollPokemon(index) {
     this.#captureAll();
     const data = await loadPoke5eData();
-    let pool = filterNpcTrainerSpecies(data.pokemon, this.config, data.evolutions);
+    let pool = filterNpcTrainerSpecies(data.pokemon, availableFilters(this.config), data.evolutions);
     if (this.config.uniqueSpecies) {
       const used = new Set(this.team.filter((entry, entryIndex) => entryIndex !== Number(index)).map(entry => entry.speciesId));
       pool = pool.filter(species => !used.has(species.id));
@@ -244,7 +245,7 @@ export class Poke5eNpcTrainerGenerator extends HandlebarsApplicationMixin(Applic
     const created = [];
     try {
       const data = await loadPoke5eData();
-      const pool = filterNpcTrainerSpecies(data.pokemon, this.config, data.evolutions);
+      const pool = filterNpcTrainerSpecies(data.pokemon, availableFilters(this.config), data.evolutions);
       const folder = await ensureNpcTrainerFolder(this.config.folderName);
       const quantity = Math.max(1, Math.min(12, Math.trunc(Number(this.config.quantity) || 1)));
       for (let index = 0; index < quantity; index++) {
@@ -285,11 +286,16 @@ function defaultConfig() {
   };
 }
 
+/** Excluye del catálogo los legendarios que ya pertenecen a algún PJ. */
+function availableFilters(filters) {
+  return { ...filters, excludedLegendaryNumbers: capturedLegendaryNumbers() };
+}
+
 /**
  * Convierte en desplegable un catálogo con entradas {name}, como NPC_ARCHETYPES
  * o NPC_DIFFICULTIES.
  */
-function optionMap(entries) { return Object.fromEntries(Object.entries(entries).map(([key, value]) => [key, value.name])); }
+function optionMap(entries) { return Object.fromEntries(Object.entries(entries).map(([key, value]) => [key, value.label ?? value.name])); }
 function localizeOptionMap(entries) { return Object.fromEntries(Object.entries(entries).map(([value, key]) => [value, game.i18n.localize(`POKE5E.Options.${key}`)])); }
 /** Desplegable de los valores presentes en el catálogo, sin repetir y ordenados. */
 function uniqueOptions(values, labeler = value => value) { return [...new Set(values)].sort((a, b) => String(a).localeCompare(String(b))).reduce((result, value) => ({ ...result, [value]: labeler(value) }), {}); }

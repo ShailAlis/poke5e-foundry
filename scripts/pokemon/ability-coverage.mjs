@@ -50,3 +50,24 @@ export const AUTOMATED_ABILITY_IDS = Object.freeze(new Set([
 export function abilityAutomationMode(abilityId) {
   return AUTOMATED_ABILITY_IDS.has(String(abilityId ?? "")) ? "automatic" : "assisted";
 }
+
+/**
+ * Decide qué habilidades puede ver quien abre la ficha. Las ocultas, tanto
+ * desbloqueadas como potenciales, solo entran en el resultado para un GM.
+ */
+export function visiblePokemonAbilities(speciesAbilities = [], knownAbilityIds = [], { isGM = false } = {}) {
+  const definitions = new Map(speciesAbilities.map(entry => [entry.id, entry]));
+  const known = new Set(knownAbilityIds);
+  const result = [];
+  for (const id of known) {
+    const hidden = Boolean(definitions.get(id)?.hidden);
+    if (!hidden || isGM) result.push({ id, hidden, known: true });
+  }
+  if (isGM) {
+    for (const entry of speciesAbilities) {
+      if (!entry.hidden || known.has(entry.id)) continue;
+      result.push({ id: entry.id, hidden: true, known: false });
+    }
+  }
+  return result;
+}

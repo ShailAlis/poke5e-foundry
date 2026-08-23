@@ -12,11 +12,13 @@
 import { buildWildInstance } from "../world/encounter-generator.mjs";
 import { deployPokemon } from "../world/deployment.mjs";
 import { MODULE_ID, gearItemSource, pokemonItemSourceFromSpecies, portraitUrl, speciesItemSource, trainerClassSource } from "../core/model.mjs";
-import { NATURES, ORIGINS, SKILLS } from "./trainer-creation-data.mjs";
+import { ORIGINS, SKILLS } from "./trainer-creation-data.mjs";
+import { randomNature } from "../pokemon/natures.mjs";
 import { NPC_ARCHETYPES, NPC_DEFAULT_ARCHETYPE, npcTrainerAbilities, npcTrainerHitPoints, npcTrainerSprite, randomNpcTrainerName, resolveNpcTrainerGender } from "./npc-trainer-rules.mjs";
 import { chooseTokenPosition } from "../world/wild-deployment.mjs";
 import { pokedollarCurrency } from "../world/economy.mjs";
 import { escapeHtml } from "../core/utils.mjs";
+import { isCapturedLegendary } from "../pokemon/legendary-species.mjs";
 
 /**
  * Crea el actor de un Entrenador NPC (solo director). Resuelve el origen y
@@ -29,6 +31,8 @@ import { escapeHtml } from "../core/utils.mjs";
  */
 export async function createNpcTrainerActor(config, team, data, index = 0) {
   if (!game.user.isGM) throw new Error("Solo el director de juego puede crear Entrenadores NPC.");
+  const unavailable = team.map(entry => data.pokemonById.get(entry.speciesId)).find(species => isCapturedLegendary(species));
+  if (unavailable) throw new Error(game.i18n.format("POKE5E.Legendary.AlreadyCapturedNpc", { pokemon: unavailable.name }));
   const level = clamp(config.trainerLevel, 1, 20);
   const origin = selectOrigin(config.origin, index);
   const abilities = applyOrigin(npcTrainerAbilities(config.archetype, config.difficulty), origin, config.archetype);
@@ -141,7 +145,7 @@ function npcPokemonSource(entry, teamIndex, data, config) {
   const instance = buildWildInstance(species, data.movesById, { level: entry.level, idFactory: () => foundry.utils.randomID() });
   instance.inTeam = teamIndex < 6;
   instance.shiny = Boolean(entry.shiny);
-  instance.nature = config.randomNature === false ? String(config.nature ?? "Hardy") : NATURES[Math.floor(Math.random() * NATURES.length)];
+  instance.nature = config.randomNature === false ? String(config.nature ?? "Hardy") : randomNature();
   instance.notes = `Pokémon del Entrenador NPC · puesto ${teamIndex + 1}`;
   source.flags[MODULE_ID].kind = "pokemon";
   source.flags[MODULE_ID].instance = instance;
@@ -234,7 +238,7 @@ function npcSkillRanks(archetypeId, origin) {
  */
 function biographyHtml(config, origin, team, data) {
   const roster = team.map(entry => `${data.pokemonById.get(entry.speciesId)?.name ?? entry.speciesId} (nivel ${entry.level})`).join(", ");
-  return `<h2>Entrenador NPC</h2><p><strong>Arquetipo:</strong> ${escapeHtml(NPC_ARCHETYPES[config.archetype]?.name ?? config.archetype)} · <strong>Origen:</strong> ${escapeHtml(origin.name)}</p><p><strong>Equipo:</strong> ${escapeHtml(roster)}</p><p>${escapeHtml(config.notes ?? "")}</p>`;
+  return `<h2>Entrenador NPC</h2><p><strong>Arquetipo:</strong> ${escapeHtml(NPC_ARCHETYPES[config.archetype]?.label ?? config.archetype)} · <strong>Origen:</strong> ${escapeHtml(origin.name)}</p><p><strong>Equipo:</strong> ${escapeHtml(roster)}</p><p>${escapeHtml(config.notes ?? "")}</p>`;
 }
 
 /** Acota un valor numérico a un rango. Lo usa el nivel de Entrenador. */

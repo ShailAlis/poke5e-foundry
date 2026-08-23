@@ -92,11 +92,10 @@
     {{#if step3}}
       <section>
         <div class="poke5e-section-title"><h2><i class="fa-solid fa-circle-dot"></i> {{localize "POKE5E.Creator.FirstPokemon"}}</h2><span>{{localize "POKE5E.Creator.StarterRequirements"}}</span></div>
-        <div class="poke5e-creator-fields three">
+        <div class="poke5e-creator-fields">
           <label><span>{{localize "POKE5E.Common.Species"}}</span><select name="starter"><option value="">{{localize "POKE5E.Creator.ChooseSpecies"}}</option>{{#each starters}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
-          <label><span>{{localize "POKE5E.Common.Nature"}}</span><select name="nature"><option value="">{{localize "POKE5E.Common.Choose"}}</option>{{#each natures}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
-          <label><span>{{localize "POKE5E.Creator.NonHiddenAbility"}}</span><select name="ability" {{#unless starter}}disabled{{/unless}}><option value="">{{localize "POKE5E.Common.Choose"}}</option>{{#each starterAbilities}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
         </div>
+        <div class="poke5e-callout"><i class="fa-solid fa-dice"></i><div>{{localize "POKE5E.Creator.RandomStarterTraits"}}</div></div>
         {{#if starter}}<article class="poke5e-starter-preview"><img src="{{starter.img}}" alt="{{starter.name}}"><div><strong>{{starter.name}}</strong><span>SR {{starter.sr}} · Nivel mínimo {{starter.minLevel}}</span><p>{{starter.description}}</p></div></article>{{/if}}
       </section>
       <section>
@@ -114,7 +113,7 @@
             <article><span>{{localize "POKE5E.Creator.Abilities"}}</span><strong>{{abilitySummary}}</strong><p>{{localize "POKE5E.Creator.StartingHp" hp=resolved.hp}}</p></article>
             <article><span>{{localize "POKE5E.Creator.Proficiencies"}}</span><strong>{{skillSummary}}</strong><p>{{localize "POKE5E.Creator.SavesCharisma"}}{{#if hasConstitutionSave}} {{localize "POKE5E.Creator.AndConstitution"}}{{/if}}</p></article>
             <article><span>{{localize "POKE5E.Creator.Features"}}</span><strong>{{resolved.origin.featName}}</strong><p>{{resolved.specialization.name}} · {{localize "POKE5E.Common.Type"}} {{resolved.specialization.type}}</p></article>
-            <article><span>{{localize "POKE5E.Creator.StarterPokemon"}}</span><strong>{{starter.name}}</strong><p>{{selection.nature}} · {{selection.ability}}</p></article>
+            <article><span>{{localize "POKE5E.Creator.StarterPokemon"}}</span><strong>{{starter.name}}</strong><p>{{selectedNatureLabel}} · {{selectedAbilityLabel}}</p></article>
             <article><span>{{localize "POKE5E.Creator.Class"}}</span><strong>{{localize "POKE5E.Creator.TrainerLevelOne"}}</strong><p>{{localize "POKE5E.Creator.ClassSummary"}}</p></article>
           </div>
           <div class="poke5e-callout success"><i class="fa-solid fa-wand-magic-sparkles"></i><div>{{localize "POKE5E.Creator.CreationResultHint"}}</div></div>

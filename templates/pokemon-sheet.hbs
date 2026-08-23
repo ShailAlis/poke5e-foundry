@@ -32,6 +32,18 @@
     </div>
   </header>
 
+  {{#if deathSaves}}<section class="poke5e-death-saves {{#if deathSaves.dead}}dead{{else}}{{#if deathSaves.stabilized}}stabilized{{/if}}{{/if}}" aria-label="{{localize "POKE5E.PokemonSheet.DeathSaves"}}">
+    <div>
+      <h2><i class="fa-solid fa-skull"></i> {{localize "POKE5E.PokemonSheet.DeathSaves"}}</h2>
+      {{#if deathSaves.dead}}<p>{{localize "POKE5E.PokemonSheet.DeathSaveDead"}}</p>{{else}}{{#if deathSaves.stabilized}}<p>{{localize "POKE5E.PokemonSheet.DeathSaveStable"}}</p>{{else}}<p>{{localize "POKE5E.PokemonSheet.DeathSaveHelp"}}</p>{{/if}}{{/if}}
+    </div>
+    <div class="poke5e-death-tracks">
+      <span>{{localize "POKE5E.PokemonSheet.DeathSuccesses"}} {{#each deathSaves.successes}}<i class="{{#if filled}}fa-solid{{else}}fa-regular{{/if}} fa-circle"></i>{{/each}}</span>
+      <span>{{localize "POKE5E.PokemonSheet.DeathFailures"}} {{#each deathSaves.failures}}<i class="{{#if filled}}fa-solid{{else}}fa-regular{{/if}} fa-circle"></i>{{/each}}</span>
+    </div>
+    <button type="button" class="bright" data-action="roll-death-save" {{#unless deathSaves.canRoll}}disabled{{/unless}}><i class="fa-solid fa-dice-d20"></i> {{localize "POKE5E.PokemonSheet.RollDeathSave"}}</button>
+  </section>{{/if}}
+
   {{#if statuses.length}}<section class="poke5e-status-panel" aria-label="{{localize "POKE5E.PokemonSheet.Statuses"}}">
     <h2><i class="fa-solid fa-burst"></i> {{localize "POKE5E.PokemonSheet.Statuses"}}</h2>
     <div>{{#each statuses}}<span class="poke5e-status-chip" tabindex="0" aria-label="{{name}}: {{description}}"><img src="{{img}}" alt=""><strong>{{name}}</strong>{{#if ../canEdit}}<button type="button" data-action="remove-status" data-status-id="{{id}}" title="Curar {{name}}"><i class="fa-solid fa-xmark"></i></button>{{/if}}<span class="poke5e-status-tooltip" role="tooltip"><strong>{{name}}</strong><span>{{description}}</span></span></span>{{/each}}</div>
@@ -102,6 +114,15 @@
     {{#each abilityScores}}
       <div><span>{{key}}</span><strong>{{score}}</strong><small>{{modifier}}</small></div>
     {{/each}}
+  </section>
+
+  <section class="poke5e-nature-panel" aria-label="{{localize "POKE5E.Common.Nature"}}">
+    <div><span>{{localize "POKE5E.Common.Nature"}}</span><strong>{{nature.label}}</strong></div>
+    {{#if nature.neutral}}
+      <p>{{localize "POKE5E.PokemonSheet.NeutralNature"}}</p>
+    {{else}}
+      <div class="poke5e-nature-effects"><span class="increase"><i class="fa-solid fa-arrow-up"></i> +1 {{nature.increaseLabel}}</span><span class="decrease"><i class="fa-solid fa-arrow-down"></i> −1 {{nature.decreaseLabel}}</span></div>
+    {{/if}}
   </section>
 
   <section class="poke5e-speed-panel" aria-label="Velocidades de movimiento">
@@ -179,7 +200,7 @@
     {{#if canEdit}}{{#if sabotageResource}}<button type="button" data-action="arm-sabotage" title="Gasta un Punto de Sombra: el próximo golpe que reciba se recorta a fallo, salvo un 20 natural"><i class="fa-solid fa-shield-halved"></i> Sabotaje ({{sabotageResource.remaining}}/{{sabotageResource.max}})</button>{{/if}}
     {{#if shadowDodgeResource}}<button type="button" data-action="arm-shadow-dodge" title="Gasta 4 Puntos de Sombra: el próximo golpe que reciba se reduce a la mitad"><i class="fa-solid fa-shield"></i> Esquiva siniestra ({{shadowDodgeResource.remaining}}/{{shadowDodgeResource.max}})</button>{{/if}}
     {{#if canFieldMedicine}}<button type="button" data-action="field-medicine" title="Prueba de Medicina del entrenador (CD 12): cura el estado no volátil de este Pokémon"><i class="fa-solid fa-kit-medical"></i> Médico de campo</button>{{/if}}
-    {{#if multitalentChoice}}<label class="poke5e-multitalent-field" title="Multitalento (Hobbyist 15)"><span>Competencia adicional</span><select data-action="select-multitalent">{{selectOptions multitalentChoice.options selected=multitalentChoice.selected blank="—"}}</select></label>{{/if}}{{/if}}
+    {{#if multitalentChoice}}<label class="poke5e-multitalent-field" title="Multitalento (Aficionado 15)"><span>Competencia adicional</span><select data-action="select-multitalent">{{selectOptions multitalentChoice.options selected=multitalentChoice.selected blank="—"}}</select></label>{{/if}}{{/if}}
   </nav>
   {{/if}}
 
@@ -294,8 +315,8 @@
     {{#if canEdit}}<div class="poke5e-drop-hint"><i class="fa-solid fa-hand-pointer"></i> {{localize "POKE5E.PokemonSheet.AbilityDropHint"}}</div>{{/if}}
     <div class="poke5e-ability-grid">
       {{#each abilities}}
-        <article class="poke5e-ability">
-          <h3>{{name}}{{#if hidden}} <span>{{localize "POKE5E.PokemonSheet.Hidden"}}</span>{{/if}} <small title="{{localize "POKE5E.Abilities.AutomationTitle"}}">{{#if automatic}}{{localize "POKE5E.Abilities.Automatic"}}{{else}}{{localize "POKE5E.Abilities.Assisted"}}{{/if}}</small> {{#unless automatic}}<button type="button" data-action="use-ability" data-ability-id="{{id}}" title="{{localize "POKE5E.Abilities.Use"}}"><i class="fa-solid fa-comment-dots"></i></button>{{/unless}} {{#if ../canEdit}}<button type="button" data-action="remove-ability" data-ability-id="{{id}}" title="{{localize "POKE5E.PokemonSheet.RemoveAbility"}}"><i class="fa-solid fa-xmark"></i></button>{{/if}}</h3>
+        <article class="poke5e-ability {{#unless known}}locked{{/unless}}">
+          <h3>{{name}}{{#if hidden}} <span>{{localize "POKE5E.PokemonSheet.Hidden"}}</span>{{/if}} {{#if known}}<small title="{{localize "POKE5E.Abilities.AutomationTitle"}}">{{#if automatic}}{{localize "POKE5E.Abilities.Automatic"}}{{else}}{{localize "POKE5E.Abilities.Assisted"}}{{/if}}</small> {{#unless automatic}}<button type="button" data-action="use-ability" data-ability-id="{{id}}" title="{{localize "POKE5E.Abilities.Use"}}"><i class="fa-solid fa-comment-dots"></i></button>{{/unless}} {{#if ../canEdit}}<button type="button" data-action="remove-ability" data-ability-id="{{id}}" title="{{localize "POKE5E.PokemonSheet.RemoveAbility"}}"><i class="fa-solid fa-xmark"></i></button>{{/if}}{{else}}<small>{{localize "POKE5E.PokemonSheet.HiddenLocked"}}</small>{{/if}}</h3>
           <div>{{{description}}}</div>
         </article>
       {{/each}}

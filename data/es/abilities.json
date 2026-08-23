@@ -1639,6 +1639,16 @@
 			"id": "zero-to-hero",
 			"name": "Cambio Heroico",
 			"description": "Cuando un aliado de Palafin, que no sea Pokémon, recibe daño de una fuente ajena a su control, Palafin puede adoptar su Forma Heroica. En Forma Heroica, su tamaño cambia a Mediano, su CA aumenta en 4 y sus puntuaciones de característica de Fuerza y Destreza aumentan en 4, hasta un máximo de 22. Puede hacer esto una vez por cada descanso largo. Regresa a su Forma Ingenua al final del combate."
+		},
+		{
+			"id": "desolate-land",
+			"name": "Tierra del Ocaso",
+			"description": "Mientras este Pokémon permanezca en combate, el clima es Sol Abrasador y no puede cambiarse. Funciona como Día Soleado y, además, anula el daño de tipo Agua. Si Mar del Albor también está activo, Sol Abrasador y Lluvia Intensa coexisten."
+		},
+		{
+			"id": "primordial-sea",
+			"name": "Mar del Albor",
+			"description": "Mientras este Pokémon permanezca en combate, el clima es Lluvia Intensa y no puede cambiarse. Funciona como Lluvia y, además, anula el daño de tipo Fuego. Si Tierra del Ocaso también está activa, Lluvia Intensa y Sol Abrasador coexisten."
 		}
 	]
 }

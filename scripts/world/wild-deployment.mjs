@@ -15,6 +15,8 @@ import { buildWildInstance } from "./encounter-generator.mjs";
 import { MODULE_ID, POKEMON_TOKEN_SCALE, portraitUrl, remoteAssetUrl } from "../core/model.mjs";
 import { pokemonStatusEffectSource } from "../combat/status-effects.mjs";
 import { escapeHtml } from "../core/utils.mjs";
+import { isCapturedLegendary } from "../pokemon/legendary-species.mjs";
+import { pokemonAttributesWithNature } from "../pokemon/natures.mjs";
 
 /**
  * Crea y coloca un Pokémon salvaje en la escena activa (solo director): genera
@@ -25,6 +27,7 @@ import { escapeHtml } from "../core/utils.mjs";
  */
 export async function deployWildPokemon(species, level, { encounterId = "" } = {}) {
   if (!game.user.isGM) return ui.notifications.warn(game.i18n.localize("POKE5E.WildDeployment.GMOnly"));
+  if (isCapturedLegendary(species)) return ui.notifications.warn(game.i18n.format("POKE5E.Legendary.AlreadyCapturedWild", { pokemon: species.name }));
   if (!canvas?.ready || !canvas.scene) return ui.notifications.warn(game.i18n.localize("POKE5E.WildDeployment.OpenScene"));
   const data = await loadPoke5eData();
   const instance = buildWildInstance(species, data.movesById, {
@@ -59,10 +62,11 @@ export async function deployWildPokemon(species, level, { encounterId = "" } = {
  * deployedActorSource() (deployment.mjs); validate-deployment.mjs la comprueba.
  */
 export function wildActorSource(species, instance, movesById, encounterId = "") {
+  const effectiveAttributes = pokemonAttributesWithNature(species, instance);
   const abilities = {};
   for (const key of ["str", "dex", "con", "int", "wis", "cha"]) {
     abilities[key] = {
-      value: Number(instance.attributes?.[key]) || Number(species.attributes?.[key]) || 10,
+      value: Number(effectiveAttributes[key]) || 10,
       proficient: species.savingThrows?.includes(key) ? 1 : 0
     };
   }
@@ -133,7 +137,7 @@ export function wildActorSource(species, instance, movesById, encounterId = "") 
         type: { value: "custom", custom: `Pokémon salvaje (${(species.type ?? []).join(" / ")})` },
         biography: { value: `<p>${escapeHtml(species.description ?? "")}</p>` }
       },
-      traits: { size, ...damageTraits }
+      traits: { size, important: false, ...damageTraits }
     },
     items: [pokemonItem, ...moveItems],
     effects: [

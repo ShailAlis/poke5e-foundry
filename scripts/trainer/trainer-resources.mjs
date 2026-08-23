@@ -117,7 +117,7 @@ export async function applyHobbyistSaveBoost(actor, total, abilityKey) {
   const spent = await promptSpendTrainerResource(trainer, "hobbyist", { prompt: `¿Sumar un dado de habilidad (${state.formula}) a esta salvación de ${String(abilityKey).toUpperCase()}?` });
   if (!spent) return total;
   const bonus = await new Roll(state.formula).evaluate();
-  await bonus.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${actor.name} — Dado de habilidad (Hobbyist)` });
+  await bonus.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${actor.name} — Dado de habilidad (Aficionado)` });
   return total + (Number(bonus.total) || 0);
 }
 
@@ -132,7 +132,7 @@ export async function applyGruntSaveAdvantage(actor) {
   const pokemonItem = await pokemonItemForActor(actor);
   const trainer = pokemonItem?.parent?.type === "character" ? pokemonItem.parent : null;
   if (!trainer) return false;
-  const spent = await promptSpendTrainerResource(trainer, "grunt", { cost: 3, title: "Ventaja oscura (Grunt 5)", prompt: `¿Gastar 3 Puntos de Sombra para dar ventaja a esta salvación de ${actor.name}?` });
+  const spent = await promptSpendTrainerResource(trainer, "grunt", { cost: 3, title: "Ventaja oscura (Recluta 5)", prompt: `¿Gastar 3 Puntos de Sombra para dar ventaja a esta salvación de ${actor.name}?` });
   return Boolean(spent);
 }
 
@@ -152,7 +152,7 @@ export async function applyTacticianDcBoost(sourceActor, targetName, total, dc) 
   if (needed > 5) return dc;
   const spent = await promptSpendTrainerResource(trainer, "tactician", {
     cost: needed,
-    title: "Esta vez no (Tactician 15)",
+    title: "Esta vez no (Estratega 15)",
     prompt: `${targetName} supera la CD por ${total - dc}. ¿Gastar ${needed} Punto${needed === 1 ? "" : "s"} Táctico${needed === 1 ? "" : "s"} para que falle en su lugar?`
   });
   return spent ? dc + needed : dc;
