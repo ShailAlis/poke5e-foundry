@@ -66,6 +66,48 @@ export const PACKS = {
 };
 
 /**
+ * Las cinco familias visibles del compendio de objetos. Sus ids se guardan
+ * tanto como subtipo nativo de `loot` como en los flags del módulo, de modo que
+ * D&D 5e pueda filtrarlos y el importador pueda mantener sus carpetas.
+ */
+export const GEAR_CATEGORIES = Object.freeze([
+  Object.freeze({ id: "key-items", label: "POKE5E.GearCategories.KeyItems", color: "#d69b24" }),
+  Object.freeze({ id: "common-items", label: "POKE5E.GearCategories.CommonItems", color: "#607d8b" }),
+  Object.freeze({ id: "pokeballs", label: "POKE5E.GearCategories.PokeBalls", color: "#c52a31" }),
+  Object.freeze({ id: "berries", label: "POKE5E.GearCategories.Berries", color: "#7eaa3b" }),
+  Object.freeze({ id: "machines", label: "POKE5E.GearCategories.Machines", color: "#2588b8" })
+]);
+const GEAR_CATEGORY_IDS = new Set(GEAR_CATEGORIES.map(entry => entry.id));
+const KEY_ITEM_IDS = new Set([
+  "dna-splicer", "n-solarizer", "n-lunarizer", "prison-bottle", "trainers-license", "pokedex",
+  "old-rod", "good-rod", "super-rod", "key-stone", "z-ring", "dynamax-band", "tera-orb", "capture-styler"
+]);
+
+/** Clasifica entradas del catálogo y flags antiguos en una de las cinco familias. */
+export function gearCategory(source = {}) {
+  const kind = String(source.kind ?? "").trim().toLocaleLowerCase();
+  const raw = String(source.category ?? source.type ?? "").trim().toLocaleLowerCase();
+  const sourceId = String(source.sourceId ?? source.id ?? "").trim().toLocaleLowerCase();
+  if (kind === "move-machine" || ["machine", "tm", "hm"].includes(raw)) return "machines";
+  if (KEY_ITEM_IDS.has(sourceId)) return "key-items";
+  if (raw === "key-items" || raw === "trainer gear") return "common-items";
+  if (GEAR_CATEGORY_IDS.has(raw)) return raw;
+  if (raw === "pokeball") return "pokeballs";
+  if (raw === "berry") return "berries";
+  return "common-items";
+}
+
+/** Registra las familias como subtipos compatibles del modelo `loot` de D&D 5e. */
+export function registerGearCategories() {
+  if (!CONFIG?.DND5E?.lootTypes) return;
+  for (const category of GEAR_CATEGORIES) {
+    CONFIG.DND5E.lootTypes[category.id] = {
+      label: game.i18n?.localize?.(category.label) ?? category.label
+    };
+  }
+}
+
+/**
  * Tabla de rasgos de la clase Entrenador por nivel, construida con feature().
  * Los rasgos con `grant: true` se convierten en Items mediante
  * trainerFeatureSources(); el resto (mejoras de característica) los gestiona
@@ -243,6 +285,7 @@ export function abilityItemSource(ability) {
  * inventario de los NPC y pokemon-sheet.mjs al entregar objetos equipados.
  */
 export function gearItemSource(item) {
+  const category = gearCategory(item);
   return {
     name: item.name,
     type: "loot",
@@ -250,9 +293,10 @@ export function gearItemSource(item) {
     system: {
       description: { value: paragraphs(item.description), chat: "" },
       quantity: 1,
-      price: { value: Number(item.cost) || 0, denomination: "gp" }
+      price: { value: Number(item.cost) || 0, denomination: "gp" },
+      type: { value: category, subtype: "" }
     },
-    flags: { [MODULE_ID]: { kind: "gear", sourceId: item.id, category: item.type ?? item.category ?? "" } }
+    flags: { [MODULE_ID]: { kind: "gear", sourceId: item.id, category } }
   };
 }
 
@@ -270,9 +314,10 @@ export function moveMachineItemSource(move) {
     system: {
       description: { value: `<p>Permite enseñar <strong>${escapeHtml(move.name)}</strong> a un Pokémon compatible.</p>`, chat: "" },
       quantity: 1,
-      price: { value: Number(definition.cost) || 0, denomination: "gp" }
+      price: { value: Number(definition.cost) || 0, denomination: "gp" },
+      type: { value: "machines", subtype: "" }
     },
-    flags: { [MODULE_ID]: { kind: "move-machine", sourceId, category: "machine", machine: { kind: definition.kind, id: definition.id, moveId: move.id, type: move.type } } }
+    flags: { [MODULE_ID]: { kind: "move-machine", sourceId, category: "machines", machine: { kind: definition.kind, id: definition.id, moveId: move.id, type: move.type } } }
   };
 }
 

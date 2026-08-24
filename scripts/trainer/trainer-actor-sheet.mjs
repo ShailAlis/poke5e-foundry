@@ -7,7 +7,7 @@
  * registerTrainerActorSheet()) y ofrece las mismas acciones que la ventana de
  * trainer-team.mjs. Su plantilla es `templates/trainer-sheet-team.hbs`.
  */
-import { MODULE_ID, MODULE_PATH, displayAssetUrl, displayPokemonName, getPack, getPokemonItems, trainerClassSource, trainerFeatureSources, trainerLevel, trainerPathFeatureSources, trainerPathSources, trainerPokeslotLimit } from "../core/model.mjs";
+import { GEAR_CATEGORIES, MODULE_ID, MODULE_PATH, displayAssetUrl, displayPokemonName, gearCategory, getPack, getPokemonItems, trainerClassSource, trainerFeatureSources, trainerLevel, trainerPathFeatureSources, trainerPathSources, trainerPokeslotLimit } from "../core/model.mjs";
 import { Poke5ePokemonSheet } from "../pokemon/pokemon-sheet.mjs";
 import { Poke5eSpeciesBrowser } from "../ui/species-browser.mjs";
 import { deployPokemon, deployedActorFor, recallPokemon } from "../world/deployment.mjs";
@@ -84,6 +84,34 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
     { tab: "pokemonTeam", label: "POKE5E.Team.WindowTitle", svg: `${MODULE_PATH}/assets/icons/pokeball-tab.svg` },
     ...super.TABS.slice(1).filter(({ tab }) => !["spells", "specialTraits"].includes(tab))
   ];
+
+  /** Sustituye el Ãºnico bloque Loot por las cinco familias PokÃ©mon. */
+  async _configureInventorySections(sections) {
+    await super._configureInventorySections(sections);
+    const loot = sections.find(section => section.id === "loot");
+    if (!loot) return;
+    loot.order = 650;
+    const categorySections = GEAR_CATEGORIES.map((category, index) => ({
+      ...foundry.utils.deepClone(loot),
+      id: `poke5e-${category.id}`,
+      order: 600 + index,
+      label: category.label,
+      groups: { type: category.id }
+    }));
+    sections.push(...categorySections);
+  }
+
+  /** Asigna cada objeto PokÃ©mon a su familia sin afectar al loot normal de D&D. */
+  async _prepareItemPhysical(item, context) {
+    await super._prepareItemPhysical(item, context);
+    const kind = item.getFlag(MODULE_ID, "kind");
+    if (!["gear", "move-machine"].includes(kind)) return;
+    context.groups.type = gearCategory({
+      kind,
+      sourceId: item.getFlag(MODULE_ID, "sourceId"),
+      category: item.getFlag(MODULE_ID, "category") ?? item.system.type?.value
+    });
+  }
 
   /**
    * Añade los datos de la pestaña de equipo y deja el resto de partes tal como

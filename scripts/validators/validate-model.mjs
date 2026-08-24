@@ -24,6 +24,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "data"
 const projectRoot = resolve(root, "..");
 const pokemon = JSON.parse(await readFile(resolve(root, "pokemon.json"), "utf8")).items;
 const moves = JSON.parse(await readFile(resolve(root, "moves.json"), "utf8")).moves;
+const items = JSON.parse(await readFile(resolve(root, "items.json"), "utf8")).items;
 const movesById = new Map(moves.map(move => [move.id, move]));
 const assertTrainerBallSvg = async (icon, label) => {
   const path = resolve(projectRoot, icon.replace("modules/poke5e-foundry/", ""));
@@ -35,6 +36,7 @@ const assertTrainerBallSvg = async (icon, label) => {
 };
 const {
   MODULE_ID,
+  GEAR_CATEGORIES,
   TRAINER_HUMAN_ICON,
   TRAINER_ORIGIN_ICON,
   TRAINER_FEATURES,
@@ -43,6 +45,8 @@ const {
   randomGenderForRatio,
   speciesItemSource,
   pokemonItemSourceFromSpecies,
+  gearCategory,
+  gearItemSource,
   moveMachineItemSource,
   trainerFeatureSources,
   trainerPathFeatureSources,
@@ -57,9 +61,18 @@ const {
 
 const machineMoves = moves.filter(move => move.tm?.id != null || move.hm?.id != null);
 const machineSources = machineMoves.map(moveMachineItemSource);
+const expectedGearCategories = ["key-items", "common-items", "pokeballs", "berries", "machines"];
+if (GEAR_CATEGORIES.map(entry => entry.id).join(",") !== expectedGearCategories.join(",")) throw new Error("The five gear categories or their order changed.");
+const gearSources = items.map(gearItemSource);
+const gearCounts = Object.groupBy(gearSources, source => source.flags[MODULE_ID].category);
+for (const [category, expected] of Object.entries({ "key-items": 14, "common-items": 300, pokeballs: 24, berries: 28 })) {
+  if (gearCounts[category]?.length !== expected) throw new Error(`${category}: expected ${expected} catalog objects, found ${gearCounts[category]?.length ?? 0}.`);
+}
+if (gearSources.some(source => source.system.type?.value !== source.flags[MODULE_ID].category)) throw new Error("Gear subtype and category flag must match.");
+if (gearCategory({ kind: "move-machine", category: "machine" }) !== "machines") throw new Error("Legacy move-machine flags no longer migrate to MTs.");
 if (machineSources.length !== 256) throw new Error(`Expected 256 move machines, found ${machineSources.length}.`);
 if (new Set(machineSources.map(source => source.flags[MODULE_ID].sourceId)).size !== machineSources.length) throw new Error("Move-machine source IDs must be unique.");
-if (machineSources.some(source => source.flags[MODULE_ID].kind !== "move-machine" || !source.flags[MODULE_ID].machine?.moveId)) throw new Error("Invalid move-machine item source.");
+if (machineSources.some(source => source.flags[MODULE_ID].kind !== "move-machine" || !source.flags[MODULE_ID].machine?.moveId || source.flags[MODULE_ID].category !== "machines" || source.system.type?.value !== "machines")) throw new Error("Invalid move-machine item source.");
 for (const [index, source] of machineSources.entries()) {
   const move = machineMoves[index];
   const kind = source.flags[MODULE_ID].machine.kind;

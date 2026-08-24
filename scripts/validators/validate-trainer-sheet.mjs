@@ -21,6 +21,10 @@ assert.match(script, /static TABS\s*=\s*\[\s*\.\.\.super\.TABS\.slice\(0, 1\),\s
   "The Trainer sheet must retain the native dnd5e tabs");
 assert.match(script, /!\["spells", "specialTraits"\]\.includes\(tab\)/,
   "The Trainer sheet must omit unused Spells and Special Traits tabs");
+assert.match(script, /async _configureInventorySections\(sections\)[\s\S]+GEAR_CATEGORIES\.map\([\s\S]+groups:\s*\{ type: category\.id \}/,
+  "The Trainer inventory must expose one native section per Pokemon gear category");
+assert.match(script, /async _prepareItemPhysical\(item, context\)[\s\S]+context\.groups\.type = gearCategory\(/,
+  "Pokemon gear rows must join their category section instead of generic Loot");
 assert.match(script, /tab:\s*"pokemonTeam"[^{}]+svg:\s*`\$\{MODULE_PATH\}\/assets\/icons\/pokeball-tab\.svg`/,
   "The Pokemon Team tab must use its dedicated Poke Ball SVG");
 assert.match(teamTabIcon, /data-poke5e-tab-icon="pokeball"/,
@@ -100,6 +104,8 @@ assert.match(css, /\.window-header :is\(\.window-icon, \.window-title\)\s*\{[^{}
   "The Foundry title must be visually integrated into the Pokedex shell");
 assert.match(css, /\.sheet-header > \.right \.boon-badge\s*\{[^{}]*display:\s*none;/s,
   "The unwanted epic boon badge must stay hidden");
+assert.match(css, /nav\.tabs > :is\(\.item, a, button\) dnd5e-icon\s*\{[^{}]*--icon-fill:\s*currentColor;/s,
+  "SVG tab icons must inherit the same dark foreground as Font Awesome icons");
 assert.match(css, /\.sheet-header \.document-name\s*\{[^{}]*background:\s*linear-gradient[^{}]*box-shadow:/s,
   "The Trainer name must remain styled as a recessed device plate");
 assert.match(css, /\.main-content::before\s*\{[^{}]*repeating-linear-gradient\(to bottom/s,

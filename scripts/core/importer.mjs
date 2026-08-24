@@ -16,6 +16,8 @@ import {
   MODULE_ID,
   MODULE_PATH,
   PACKS,
+  GEAR_CATEGORIES,
+  gearCategory,
   speciesItemSource,
   moveItemSource,
   abilityItemSource,
@@ -122,11 +124,13 @@ export class Poke5eImporter extends HandlebarsApplicationMixin(ApplicationV2) {
       }
       if (options.gear) {
         setStatus(status, "Actualizando compendio de objetos…", 80);
+        const pack = await ensurePack("gear");
+        const folders = await ensureGearCategoryFolders(pack);
         const gear = [
           ...data.items.map(gearItemSource),
           ...data.moves.filter(move => move.tm?.id != null || move.hm?.id != null).map(moveMachineItemSource)
-        ];
-        itemCount += await upsertPackItems(await ensurePack("gear"), gear, status, 80, 88);
+        ].map(source => ({ ...source, folder: folders.get(source.flags[MODULE_ID].category) }));
+        itemCount += await upsertPackItems(pack, gear, status, 80, 88);
       }
       if (options.progression) {
         setStatus(status, "Creando la clase de Entrenador…", 90);
@@ -183,6 +187,76 @@ async function ensurePack(key) {
   }
   if (pack.locked) await pack.configure({ locked: false });
   return pack;
+}
+
+/**
+ * Crea y mantiene las cinco carpetas administradas del compendio de objetos.
+ * Se identifican por flag, no por nombre, para que un cambio de idioma no las
+ * duplique. Devuelve categoryId -> folderId para asignar cada documento.
+ */
+async function ensureGearCategoryFolders(pack) {
+  if (pack.locked) await pack.configure({ locked: false });
+  const folders = new Map();
+  for (const folder of pack.folders) {
+    const category = folder.getFlag(MODULE_ID, "gearCategory");
+    if (category) folders.set(category, folder);
+  }
+  const missing = GEAR_CATEGORIES.filter(category => !folders.has(category.id));
+  if (missing.length) {
+    const created = await Folder.implementation.createDocuments(missing.map(category => ({
+      name: game.i18n.localize(category.label),
+      type: "Item",
+      folder: null,
+      color: category.color,
+      sorting: "m",
+      sort: (GEAR_CATEGORIES.indexOf(category) + 1) * 100000,
+      flags: { [MODULE_ID]: { gearCategory: category.id } }
+    })), { pack: pack.collection });
+    for (const folder of created) folders.set(folder.getFlag(MODULE_ID, "gearCategory"), folder);
+  }
+  const updates = GEAR_CATEGORIES.map((category, index) => {
+    const folder = folders.get(category.id);
+    const name = game.i18n.localize(category.label);
+    const sort = (index + 1) * 100000;
+    if (!folder || (folder.name === name && folder.color === category.color && folder.sort === sort)) return null;
+    return { _id: folder.id, name, color: category.color, sort };
+  }).filter(Boolean);
+  if (updates.length) await Folder.implementation.updateDocuments(updates, { pack: pack.collection });
+  return new Map([...folders].map(([category, folder]) => [category, folder.id]));
+}
+
+/**
+ * Migra el compendio existente sin exigir una reimportación: normaliza el
+ * subtipo mostrado por D&D 5e, el flag de categoría y la carpeta de cada objeto.
+ */
+export async function migrateGearCompendiumCategories() {
+  const pack = game.packs.get(`world.${PACKS.gear.name}`);
+  if (!pack) return 0;
+  const folders = await ensureGearCategoryFolders(pack);
+  const index = await pack.getIndex({ fields: [
+    `flags.${MODULE_ID}.kind`, `flags.${MODULE_ID}.sourceId`, `flags.${MODULE_ID}.category`, "system.type.value", "folder"
+  ] });
+  const updates = [];
+  for (const entry of index.values()) {
+    const kind = foundry.utils.getProperty(entry, `flags.${MODULE_ID}.kind`);
+    if (!["gear", "move-machine"].includes(kind)) continue;
+    const sourceId = foundry.utils.getProperty(entry, `flags.${MODULE_ID}.sourceId`);
+    const previousCategory = foundry.utils.getProperty(entry, `flags.${MODULE_ID}.category`);
+    const category = gearCategory({ kind, sourceId, category: previousCategory });
+    const folder = folders.get(category);
+    const currentFolder = entry.folder?.id ?? entry.folder?._id ?? entry.folder ?? null;
+    const currentType = foundry.utils.getProperty(entry, "system.type.value");
+    if (previousCategory === category && currentType === category && currentFolder === folder) continue;
+    updates.push({
+      _id: entry._id,
+      folder,
+      "system.type.value": category,
+      "system.type.subtype": "",
+      [`flags.${MODULE_ID}.category`]: category
+    });
+  }
+  await inBatches(updates, batch => Item.implementation.updateDocuments(batch, { pack: pack.collection }));
+  return updates.length;
 }
 
 /** Elimina del compendio las antiguas especies del módulo cuyo número de Pokédex sea 0. */

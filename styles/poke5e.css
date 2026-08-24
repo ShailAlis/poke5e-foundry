@@ -728,6 +728,9 @@
   background: linear-gradient(#ffd52d, #ee9600);
   box-shadow: inset 0 0 0 2px rgba(255, 238, 120, 0.55), 0 3px 0 #3c0507;
 }
+.dnd5e2.sheet.actor.character.poke5e-trainer-sheet nav.tabs > :is(.item, a, button) dnd5e-icon {
+  --icon-fill: currentColor;
+}
 .dnd5e2.sheet.actor.character.poke5e-trainer-sheet nav.tabs > a:hover,
 .dnd5e2.sheet.actor.character.poke5e-trainer-sheet nav.tabs > button:hover { filter: brightness(1.12); }
 .dnd5e2.sheet.actor.character.poke5e-trainer-sheet nav.tabs > .active {

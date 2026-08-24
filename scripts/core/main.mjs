@@ -6,11 +6,11 @@
  * Es la cúspide del grafo de dependencias: importa de casi todos los archivos y
  * ninguno lo importa a él.
  */
-import { Poke5eImporter } from "./importer.mjs";
+import { Poke5eImporter, migrateGearCompendiumCategories } from "./importer.mjs";
 import { Poke5ePokemonSheet } from "../pokemon/pokemon-sheet.mjs";
 import { Poke5eReference } from "../ui/reference.mjs";
 import { Poke5eTrainerTeam } from "../trainer/trainer-team.mjs";
-import { MODULE_ID, displayAssetUrl, getPokemonItems, normalizeDroppedSpecies, randomGenderForRatio, trainerIdentityIcon, trainerPokeslotLimit } from "./model.mjs";
+import { MODULE_ID, displayAssetUrl, getPokemonItems, normalizeDroppedSpecies, randomGenderForRatio, registerGearCategories, trainerIdentityIcon, trainerPokeslotLimit } from "./model.mjs";
 import { cleanDeploymentActor, ensureDeploymentPermissions, recallPokemon, registerPokemonTokenMovement, setPokemonCombatantsDefeated, syncDeploymentHp, syncPokemonHeldItemToDeployment, syncPokemonHpToDeployment } from "../world/deployment.mjs";
 import { migrateTrainerClassAdvancements, migrateTrainerFeatureGroups, registerTrainerActorSheet } from "../trainer/trainer-actor-sheet.mjs";
 import { migratePokemonActorSheets, registerPokemonActorSheet } from "../pokemon/pokemon-actor-sheet.mjs";
@@ -50,6 +50,7 @@ import { migratePokemonNatures } from "../pokemon/natures.mjs";
  * generadores exclusivos del director.
  */
 Hooks.once("init", () => {
+  registerGearCategories();
   configurePokedollarEconomy();
   registerPokemonDamageTypes();
   registerTrainerActorSheet();
@@ -114,6 +115,7 @@ Hooks.once("init", () => {
  * condiciones (por ejemplo, Bloodied).
  */
 Hooks.once("i18nInit", () => {
+  registerGearCategories();
   configurePokedollarEconomy();
   registerPokemonStatusEffects();
 });
@@ -160,6 +162,7 @@ Hooks.once("ready", async () => {
     }
     synchronizePrimaryParty().catch(error => console.error(`${MODULE_ID} | Primary Party synchronization failed`, error));
     migrateMoveMachineIcons().catch(error => console.error(`${MODULE_ID} | Move-machine icon migration failed`, error));
+    migrateGearCompendiumCategories().catch(error => console.error(`${MODULE_ID} | Gear category migration failed`, error));
     migrateNpcTrainerSprites().catch(error => console.error(`${MODULE_ID} | NPC Trainer sprite migration failed`, error));
     migratePokemonNatures().catch(error => console.error(`${MODULE_ID} | Pokémon nature migration failed`, error));
   }
