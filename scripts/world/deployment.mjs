@@ -527,6 +527,9 @@ export async function syncPokemonIdentityToDeployment(item) {
 export async function cleanDeploymentActor(token) {
   const actor = game.actors.get(token.actorId);
   if (!actor || !["deployed", "wild"].includes(actor.getFlag(MODULE_ID, "kind"))) return;
+  // deleteToken se ejecuta en todos los clientes. Solo quien puede borrar el
+  // actor debe continuar; así el jugador no compite con el DJ al capturar.
+  if (game.user && !actor.canUserModify?.(game.user, "delete")) return;
   if (deploymentCleanup.has(actor.id)) return deploymentCleanup.get(actor.id);
   const stillUsed = game.scenes.some(scene => scene.tokens.some(sceneToken => sceneToken.actorId === actor.id));
   if (!stillUsed) await removeDeployment(actor, { deleteTokens: false });

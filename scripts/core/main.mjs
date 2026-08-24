@@ -6,7 +6,7 @@
  * Es la cúspide del grafo de dependencias: importa de casi todos los archivos y
  * ninguno lo importa a él.
  */
-import { Poke5eImporter, migrateGearCompendiumCategories } from "./importer.mjs";
+import { Poke5eImporter, migrateConditionCompendiumCatalog, migrateGearCompendiumCategories } from "./importer.mjs";
 import { Poke5ePokemonSheet } from "../pokemon/pokemon-sheet.mjs";
 import { Poke5eReference } from "../ui/reference.mjs";
 import { Poke5eTrainerTeam } from "../trainer/trainer-team.mjs";
@@ -82,6 +82,9 @@ Hooks.once("init", () => {
   // ya concedió los permisos de despliegue una vez en este mundo.
   game.settings.register(MODULE_ID, "grantedDeploymentPermissions", {
     scope: "world", config: false, type: Boolean, default: false
+  });
+  game.settings.register(MODULE_ID, "conditionCatalogVersion", {
+    scope: "world", config: false, type: Number, default: 0
   });
   game.settings.registerMenu(MODULE_ID, "importer", {
     name: "POKE5E.Menu.Importer.Name", label: "POKE5E.Menu.Importer.Label", hint: "POKE5E.Menu.Importer.Hint",
@@ -163,6 +166,7 @@ Hooks.once("ready", async () => {
     synchronizePrimaryParty().catch(error => console.error(`${MODULE_ID} | Primary Party synchronization failed`, error));
     migrateMoveMachineIcons().catch(error => console.error(`${MODULE_ID} | Move-machine icon migration failed`, error));
     migrateGearCompendiumCategories().catch(error => console.error(`${MODULE_ID} | Gear category migration failed`, error));
+    migrateConditionCompendiumCatalog().catch(error => console.error(`${MODULE_ID} | Condition catalog migration failed`, error));
     migrateNpcTrainerSprites().catch(error => console.error(`${MODULE_ID} | NPC Trainer sprite migration failed`, error));
     migratePokemonNatures().catch(error => console.error(`${MODULE_ID} | Pokémon nature migration failed`, error));
   }

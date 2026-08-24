@@ -58,7 +58,7 @@ export const PACKS = {
   // Único compendio de tipo ActiveEffect: sus entradas se arrastran directamente
   // sobre un token o ficha Pokémon y el estado o modificador queda aplicado al
   // instante, sin pasar por el inventario como los demás compendios (tipo Item).
-  conditions: { name: "poke5e-conditions", label: "Pokémon 5e — Estados y modificadores", type: "ActiveEffect" },
+  conditions: { name: "poke5e-conditions", label: "Pokémon 5e — Estados, buffs y debuffs", type: "ActiveEffect" },
   // Solo las 14 dotes propias de Pokémon 5e (feat-catalog.mjs); las dotes
   // estándar de D&D tienen copyright de Wizards of the Coast y no se
   // reproducen aquí, se detectan en tiempo real desde otros compendios.

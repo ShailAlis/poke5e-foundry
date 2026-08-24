@@ -12,6 +12,7 @@
 import { MODULE_ID } from "./model.mjs";
 import { POKEMON_STATUS_EFFECTS, pokemonStatusEffectSource } from "../combat/status-effects.mjs";
 import { modifierEffectSource } from "../combat/move-modifiers.mjs";
+import { MOVE_MODIFIER_EFFECTS } from "../combat/move-modifier-rules.mjs";
 
 /**
  * Un ActiveEffect por estado alterado. A diferencia de la aplicación en vivo
@@ -26,7 +27,7 @@ export function statusConditionSources() {
     return {
       ...source,
       duration: rounds ? { rounds } : {},
-      flags: { [MODULE_ID]: { ...source.flags[MODULE_ID], sourceId: id } }
+      flags: { [MODULE_ID]: { ...source.flags[MODULE_ID], sourceId: id, catalogCategory: "statuses" } }
     };
   });
 }
@@ -36,7 +37,7 @@ function stage(id, name, description, modifiers, category) {
   const rule = { modifiers, category, stackMax: 1, durationRounds: null, consume: null, sourceOnly: false, concentration: false, repeatSave: null, description };
   const payload = { moveId: id, moveName: name, sourceCombatActorUuid: null, sourceName: "Director", linkId: null, saveDc: null, proficiency: 2 };
   const source = modifierEffectSource(rule, payload, 1);
-  return { ...source, name, flags: { [MODULE_ID]: { ...source.flags[MODULE_ID], sourceId: id } } };
+  return { ...source, name, flags: { [MODULE_ID]: { ...source.flags[MODULE_ID], sourceId: id, catalogCategory: category } } };
 }
 
 /**
@@ -61,4 +62,37 @@ export function statModifierSources() {
     const description = `Etapa de característica Pokémon: ${stat.name} ${sign}${magnitude}. Se retira a mano cuando corresponda (no caduca sola).`;
     return stage(`${stat.id}-${value}`, name, description, stat.build(value), value > 0 ? "buffs" : "debuffs");
   }));
+}
+
+/**
+ * Un ActiveEffect de referencia por cada movimiento que deja un buff o debuff.
+ * Conserva la misma regla que usa la automatización en combate y elimina la
+ * ronda de inicio para poder arrastrarlo desde el compendio.
+ */
+export function moveModifierConditionSources(movesById = new Map()) {
+  return Object.entries(MOVE_MODIFIER_EFFECTS).map(([id, rule]) => {
+    const moveName = movesById.get(id)?.name ?? id;
+    const source = modifierEffectSource(rule, {
+      moveId: id,
+      moveName,
+      sourceCombatActorUuid: null,
+      sourceName: "Director",
+      linkId: null,
+      saveDc: null,
+      proficiency: 2,
+      targetAbilities: []
+    }, 1);
+    const rounds = source.duration?.rounds;
+    return {
+      ...source,
+      duration: rounds ? { rounds } : {},
+      flags: {
+        [MODULE_ID]: {
+          ...source.flags[MODULE_ID],
+          sourceId: `move-${id}`,
+          catalogCategory: rule.category
+        }
+      }
+    };
+  });
 }

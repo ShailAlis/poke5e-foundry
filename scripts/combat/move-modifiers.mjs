@@ -12,9 +12,14 @@ import { applyMasterTrainerSave } from "../trainer/trainer-class-rules.mjs";
 import { escapeHtml, isResponsibleGm } from "../core/utils.mjs";
 
 const SOCKET_ACTION = "applyMoveModifiers";
+const SOCKET_RESULT_ACTION = "moveModifiersResult";
 const KIND = "move-modifier";
 const CONCENTRATION_KIND = "move-modifier-concentration";
 const STATUS_KIND = "pokemon-status";
+const MODIFIER_RETRY_DELAY = 2500;
+const MODIFIER_RESPONSE_TIMEOUT = 15000;
+const modifierRequests = new Map();
+const modifierCompletions = new Map();
 
 /**
  * Modificadores mecánicos que arrastra cada estado alterado mientras esté
@@ -36,9 +41,22 @@ const STATUS_COMBAT_MODIFIERS = Object.freeze({
 
 /** Registra el socket, la limpieza del combate y la reparación de iconos. */
 export function registerMoveModifierEffects() {
-  game.socket.on(`module.${MODULE_ID}`, payload => {
+  game.socket.on(`module.${MODULE_ID}`, async payload => {
+    if (payload?.action === SOCKET_RESULT_ACTION) return receiveModifierResult(payload);
     if (payload?.action !== SOCKET_ACTION || !isResponsibleGm()) return;
-    completeModifierApplication(payload).catch(error => console.error(`${MODULE_ID} | Move modifier application failed`, error));
+    const requestId = String(payload.requestId ?? "");
+    let completion = modifierCompletions.get(requestId);
+    if (!completion) {
+      completion = completeModifierApplication(payload)
+        .then(() => ({ ok: true }))
+        .catch(error => {
+          console.error(`${MODULE_ID} | Move modifier application failed`, error);
+          return { ok: false, error: error.message };
+        });
+      if (requestId) modifierCompletions.set(requestId, completion);
+    }
+    const result = await completion;
+    game.socket.emit(`module.${MODULE_ID}`, { action: SOCKET_RESULT_ACTION, requestId, userId: payload.userId, ...result });
   });
   Hooks.on("deleteCombat", combat => {
     if (!isResponsibleGm()) return;
@@ -51,6 +69,35 @@ export function registerMoveModifierEffects() {
   });
   Hooks.on("preUpdateActor", (actor, changes) => monitorModifierConcentration(actor, changes));
   synchronizeModifierIcons().catch(error => console.error(`${MODULE_ID} | Move modifier icon synchronization failed`, error));
+}
+
+/** Envía el efecto al DJ con reintentos idempotentes y espera confirmación. */
+async function requestModifierApplication(payload) {
+  if (!game.users.some(user => user.active && user.isGM)) throw new Error(game.i18n.localize("POKE5E.MoveEffects.NoActiveGM"));
+  payload.requestId = foundry.utils.randomID();
+  const response = new Promise(resolve => modifierRequests.set(payload.requestId, resolve));
+  game.socket.emit(`module.${MODULE_ID}`, payload);
+  const retry = setInterval(() => game.socket.emit(`module.${MODULE_ID}`, payload), MODIFIER_RETRY_DELAY);
+  const timeout = setTimeout(() => receiveModifierResult({
+    action: SOCKET_RESULT_ACTION,
+    requestId: payload.requestId,
+    userId: game.user.id,
+    ok: false,
+    error: game.i18n.localize("POKE5E.MoveEffects.GMTimeout")
+  }), MODIFIER_RESPONSE_TIMEOUT);
+  try {
+    const result = await response;
+    if (!result.ok) throw new Error(result.error || game.i18n.localize("POKE5E.MoveEffects.GMTimeout"));
+  } finally {
+    clearInterval(retry);
+    clearTimeout(timeout);
+    modifierRequests.delete(payload.requestId);
+  }
+}
+
+function receiveModifierResult(payload) {
+  if (payload?.userId !== game.user.id) return;
+  modifierRequests.get(payload.requestId)?.(payload);
 }
 
 /**
@@ -111,8 +158,13 @@ export async function applyMoveModifierEffects({ move, attack = null, saveDc, sa
   const actors = await Promise.all(targets.map(target => fromUuid(target.actorUuid)));
   if (game.user.isGM || actors.every(actor => actor?.canUserModify(game.user, "update"))) await completeModifierApplication(payload);
   else {
-    game.socket.emit(`module.${MODULE_ID}`, payload);
     ui.notifications.info(game.i18n.format("POKE5E.MoveEffects.ModifierRequested", { move: move.name }));
+    try {
+      await requestModifierApplication(payload);
+      ui.notifications.info(game.i18n.format("POKE5E.MoveEffects.ModifierApplied", { move: move.name }));
+    } catch (error) {
+      ui.notifications.error(game.i18n.format("POKE5E.MoveEffects.ModifierFailed", { move: move.name, error: error.message }));
+    }
   }
 }
 
@@ -360,17 +412,22 @@ export function shouldRollPokemonDamage(attack, actors = []) {
 async function completeModifierApplication(payload) {
   const requester = game.users.get(payload.userId);
   const owner = payload.sourceOwnerActorUuid ? await fromUuid(payload.sourceOwnerActorUuid) : null;
-  if (!requester?.active || owner?.documentName !== "Actor" || !owner.testUserPermission(requester, "OWNER")) return;
+  if (!requester?.active || owner?.documentName !== "Actor" || !owner.testUserPermission(requester, "OWNER")) {
+    throw new Error(game.i18n.localize("POKE5E.MoveEffects.InvalidRequest"));
+  }
   const rule = MOVE_MODIFIER_EFFECTS[payload.moveId];
-  if (!rule) return;
+  if (!rule) throw new Error(game.i18n.localize("POKE5E.MoveEffects.UnknownModifier"));
   if (rule.concentration) await removeModifierConcentration(payload.sourceCombatActorUuid);
   let sourceIsTarget = false;
+  let applied = 0;
   for (const target of payload.targets ?? []) {
     const actor = await fromUuid(target.actorUuid);
     if (actor?.documentName !== "Actor") continue;
     sourceIsTarget ||= actor.uuid === payload.sourceCombatActorUuid;
     await applyModifierToActor(actor, rule, payload);
+    applied++;
   }
+  if (!applied) throw new Error(game.i18n.localize("POKE5E.MoveEffects.TargetUnavailable"));
   if (rule.concentration && !sourceIsTarget) {
     const sourceActor = await fromUuid(payload.sourceCombatActorUuid);
     if (sourceActor?.documentName === "Actor") await sourceActor.createEmbeddedDocuments("ActiveEffect", [modifierConcentrationSource(rule, payload)]);

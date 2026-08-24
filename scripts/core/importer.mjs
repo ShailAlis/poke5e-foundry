@@ -29,10 +29,11 @@ import {
   trainerClassSource
 } from "./model.mjs";
 import { migrateTrainerClassAdvancements } from "../trainer/trainer-actor-sheet.mjs";
-import { statModifierSources, statusConditionSources } from "./condition-catalog.mjs";
+import { moveModifierConditionSources, statModifierSources, statusConditionSources } from "./condition-catalog.mjs";
 import { pokemonFeatSources } from "../trainer/feat-catalog.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
+const CONDITION_CATALOG_VERSION = 1;
 const CompendiumCollection = foundry.documents.collections.CompendiumCollection;
 
 /** Ventana del importador de compendios, exclusiva del director. */
@@ -150,7 +151,9 @@ export class Poke5eImporter extends HandlebarsApplicationMixin(ApplicationV2) {
       if (options.conditions) {
         setStatus(status, "Actualizando compendio de estados y modificadores…", 99);
         const pack = await ensurePack("conditions");
-        const sources = [...statusConditionSources(), ...statModifierSources()];
+        const folders = await ensureConditionFolders(pack);
+        const sources = [...statusConditionSources(), ...statModifierSources(), ...moveModifierConditionSources(data.movesById)]
+          .map(source => ({ ...source, folder: folders.get(source.flags[MODULE_ID].catalogCategory) ?? null }));
         itemCount += await upsertPackItems(pack, sources, status, 99, 100, ActiveEffect.implementation);
       }
       if (options.reference) await upsertReferenceJournal();
@@ -186,7 +189,45 @@ async function ensurePack(key) {
     });
   }
   if (pack.locked) await pack.configure({ locked: false });
+  if (pack.title !== config.label) await pack.configure({ label: config.label });
   return pack;
+}
+
+const CONDITION_CATEGORIES = Object.freeze([
+  Object.freeze({ id: "statuses", label: "POKE5E.ConditionCategories.Statuses", color: "#7b61a8" }),
+  Object.freeze({ id: "buffs", label: "POKE5E.ConditionCategories.Buffs", color: "#2e9b67" }),
+  Object.freeze({ id: "debuffs", label: "POKE5E.ConditionCategories.Debuffs", color: "#c34a52" })
+]);
+
+/** Crea las carpetas Estados, Buffs y Debuffs dentro del compendio. */
+async function ensureConditionFolders(pack) {
+  const folders = new Map();
+  for (const folder of pack.folders) {
+    const category = folder.getFlag(MODULE_ID, "conditionCategory");
+    if (category) folders.set(category, folder);
+  }
+  const missing = CONDITION_CATEGORIES.filter(category => !folders.has(category.id));
+  if (missing.length) {
+    const created = await Folder.implementation.createDocuments(missing.map(category => ({
+      name: game.i18n.localize(category.label),
+      type: "ActiveEffect",
+      folder: null,
+      color: category.color,
+      sorting: "m",
+      sort: (CONDITION_CATEGORIES.indexOf(category) + 1) * 100000,
+      flags: { [MODULE_ID]: { conditionCategory: category.id } }
+    })), { pack: pack.collection });
+    for (const folder of created) folders.set(folder.getFlag(MODULE_ID, "conditionCategory"), folder);
+  }
+  const updates = CONDITION_CATEGORIES.map((category, index) => {
+    const folder = folders.get(category.id);
+    const name = game.i18n.localize(category.label);
+    const sort = (index + 1) * 100000;
+    if (!folder || (folder.name === name && folder.color === category.color && folder.sort === sort)) return null;
+    return { _id: folder.id, name, color: category.color, sort };
+  }).filter(Boolean);
+  if (updates.length) await Folder.implementation.updateDocuments(updates, { pack: pack.collection });
+  return new Map([...folders].map(([category, folder]) => [category, folder.id]));
 }
 
 /**
@@ -257,6 +298,22 @@ export async function migrateGearCompendiumCategories() {
   }
   await inBatches(updates, batch => Item.implementation.updateDocuments(batch, { pack: pack.collection }));
   return updates.length;
+}
+
+/**
+ * Completa automáticamente los compendios antiguos con las carpetas y los
+ * efectos específicos de movimientos añadidos en la versión 2.1.21.
+ */
+export async function migrateConditionCompendiumCatalog() {
+  if (Number(game.settings.get(MODULE_ID, "conditionCatalogVersion")) >= CONDITION_CATALOG_VERSION) return 0;
+  const data = await loadPoke5eData();
+  const pack = await ensurePack("conditions");
+  const folders = await ensureConditionFolders(pack);
+  const sources = [...statusConditionSources(), ...statModifierSources(), ...moveModifierConditionSources(data.movesById)]
+    .map(source => ({ ...source, folder: folders.get(source.flags[MODULE_ID].catalogCategory) ?? null }));
+  const count = await upsertPackItems(pack, sources, null, 0, 100, ActiveEffect.implementation);
+  await game.settings.set(MODULE_ID, "conditionCatalogVersion", CONDITION_CATALOG_VERSION);
+  return count;
 }
 
 /** Elimina del compendio las antiguas especies del módulo cuyo número de Pokédex sea 0. */

@@ -35,6 +35,11 @@ assert.equal(modifierTriggerMatches(MOVE_MODIFIER_EFFECTS["steel-wing"], { attac
 assert.equal(MOVE_MODIFIER_EFFECTS.reflect.modifiers.meleeDamageResistance, true);
 
 const { attackHitsPokemonTarget, modifierEffectSource, pokemonCombatModifiers, shouldRollPokemonDamage } = await import("../combat/move-modifiers.mjs");
+const modifierEngineSource = readFileSync(new URL("../combat/move-modifiers.mjs", import.meta.url), "utf8");
+for (const expected of ["moveModifiersResult", "requestModifierApplication", "MODIFIER_RETRY_DELAY", "MODIFIER_RESPONSE_TIMEOUT", "ModifierApplied", "ModifierFailed"]) {
+  assert.ok(modifierEngineSource.includes(expected), `The confirmed modifier socket flow is missing ${expected}.`);
+}
+assert.ok(modifierEngineSource.includes("modifierCompletions.get(requestId)"), "Repeated modifier socket messages are not deduplicated by request id.");
 
 globalThis.CONST = { ACTIVE_EFFECT_MODES: { ADD: 2, MULTIPLY: 1, OVERRIDE: 5 } };
 globalThis.game = { combat: null };

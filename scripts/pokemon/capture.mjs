@@ -20,6 +20,12 @@ import { isCapturedLegendary } from "./legendary-species.mjs";
 
 /** Canal de socket del módulo, compartido con status-effects.mjs. */
 const SOCKET = `module.${MODULE_ID}`;
+const COMPLETE_CAPTURE_ACTION = "completeCapture";
+const CAPTURE_RESULT_ACTION = "captureResult";
+const CAPTURE_RETRY_DELAY = 2500;
+const CAPTURE_RESPONSE_TIMEOUT = 15000;
+const captureRequests = new Map();
+const captureCompletions = new Map();
 
 /**
  * Deja al director escuchando las capturas conseguidas por los jugadores y las
@@ -27,13 +33,64 @@ const SOCKET = `module.${MODULE_ID}`;
  * atienda. La llama el hook `ready` de main.mjs.
  */
 export function registerCaptureSocket() {
-  game.socket.on(SOCKET, payload => {
-    if (payload?.action !== "completeCapture" || !isResponsibleGm()) return;
-    completeCapture(payload).catch(error => {
-      console.error(`${MODULE_ID} | Capture completion failed`, error);
-      ui.notifications.error(game.i18n.format("POKE5E.Capture.Failed", { error: error.message }));
+  game.socket.on(SOCKET, async payload => {
+    if (payload?.action === CAPTURE_RESULT_ACTION) return receiveCaptureResult(payload);
+    if (payload?.action !== COMPLETE_CAPTURE_ACTION || !isResponsibleGm()) return;
+    const requestId = String(payload.requestId ?? "");
+    let completion = captureCompletions.get(requestId);
+    if (!completion) {
+      completion = completeCapture(payload)
+        .then(() => ({ ok: true }))
+        .catch(error => {
+          console.error(`${MODULE_ID} | Capture completion failed`, error);
+          return { ok: false, error: error.message };
+        });
+      if (requestId) captureCompletions.set(requestId, completion);
+    }
+    const result = await completion;
+    game.socket.emit(SOCKET, {
+      action: CAPTURE_RESULT_ACTION,
+      requestId,
+      userId: payload.userId,
+      ...result
     });
   });
+}
+
+/**
+ * Envía al director una captura conseguida y espera confirmación real. Repite
+ * la misma petición mientras no haya respuesta; el requestId hace que el DJ la
+ * procese una sola vez aunque una pestaña en segundo plano retrase el socket.
+ */
+async function requestCaptureCompletion(payload) {
+  if (!game.users.some(user => user.active && user.isGM)) {
+    throw new Error(game.i18n.localize("POKE5E.Capture.NoActiveGM"));
+  }
+  payload.requestId = foundry.utils.randomID();
+  const response = new Promise(resolve => captureRequests.set(payload.requestId, resolve));
+  game.socket.emit(SOCKET, payload);
+  const retry = setInterval(() => game.socket.emit(SOCKET, payload), CAPTURE_RETRY_DELAY);
+  const timeout = setTimeout(() => receiveCaptureResult({
+    action: CAPTURE_RESULT_ACTION,
+    requestId: payload.requestId,
+    userId: game.user.id,
+    ok: false,
+    error: game.i18n.localize("POKE5E.Capture.GMTimeout")
+  }), CAPTURE_RESPONSE_TIMEOUT);
+  try {
+    const result = await response;
+    if (!result.ok) throw new Error(result.error || game.i18n.localize("POKE5E.Capture.GMTimeout"));
+  } finally {
+    clearInterval(retry);
+    clearTimeout(timeout);
+    captureRequests.delete(payload.requestId);
+  }
+}
+
+/** Resuelve únicamente la petición que pertenece a este jugador. */
+function receiveCaptureResult(payload) {
+  if (payload?.userId !== game.user.id) return;
+  captureRequests.get(payload.requestId)?.(payload);
 }
 
 /**
@@ -67,6 +124,9 @@ export async function attemptCapture(trainer) {
   if (distance > 60) return ui.notifications.warn(game.i18n.format("POKE5E.Capture.OutOfRange", { distance: Math.round(distance) }));
   const balls = availablePokeballs(trainer);
   if (!balls.length) return ui.notifications.warn(game.i18n.localize("POKE5E.Capture.NoBalls"));
+  if (!game.user.isGM && !game.users.some(user => user.active && user.isGM)) {
+    return ui.notifications.warn(game.i18n.localize("POKE5E.Capture.NoActiveGM"));
+  }
   const choices = await promptCaptureOptions({ species, instance, hp, balls, trainerLevel: currentTrainerLevel, trainer });
   if (!choices) return;
   const ball = balls.find(entry => entry.item.id === choices.ballItemId);
@@ -132,7 +192,7 @@ export async function attemptCapture(trainer) {
   await postCaptureResult({ trainer, species, ballName, difficulty, total, success, advantage });
   if (!success) return ui.notifications.warn(game.i18n.format("POKE5E.Capture.Escaped", { pokemon: species.name, ball: ballName }));
   const payload = {
-    action: "completeCapture",
+    action: COMPLETE_CAPTURE_ACTION,
     userId: game.user.id,
     trainerUuid: trainer.uuid,
     wildActorUuid: wildActor.uuid,
@@ -144,8 +204,13 @@ export async function attemptCapture(trainer) {
   };
   if (game.user.isGM) await completeCapture(payload);
   else {
-    game.socket.emit(SOCKET, payload);
     ui.notifications.info(game.i18n.localize("POKE5E.Capture.WaitingForGM"));
+    try {
+      await requestCaptureCompletion(payload);
+      ui.notifications.info(game.i18n.format("POKE5E.Capture.Added", { pokemon: species.name, trainer: trainer.name }));
+    } catch (error) {
+      ui.notifications.error(game.i18n.format("POKE5E.Capture.Failed", { error: error.message }));
+    }
   }
 }
 

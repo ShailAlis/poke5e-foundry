@@ -223,6 +223,7 @@ let wildDeletionCalls = 0;
 const wildActor = {
   id: "wild-pokemon",
   getFlag: (scope, key) => key === "kind" ? "wild" : null,
+  canUserModify: user => user.id === "gm",
   async delete() {
     wildDeletionCalls++;
     actors.delete(this.id);
@@ -230,6 +231,10 @@ const wildActor = {
 };
 actors.set(wildActor.id, wildActor);
 scene.tokens = [];
+game.user = { id: "player" };
+await cleanDeploymentActor({ actorId: wildActor.id });
+if (wildDeletionCalls !== 0 || !actors.has(wildActor.id)) throw new Error("A player tried to delete a wild actor after its token disappeared.");
+game.user = { id: "gm" };
 await cleanDeploymentActor({ actorId: wildActor.id });
 if (wildDeletionCalls !== 1 || actors.has(wildActor.id)) throw new Error("The wild actor was not removed after deleting its final token.");
 

@@ -8,12 +8,14 @@
  * cuánto le queda de duración.
  */
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
 
 globalThis.CONST = { ACTIVE_EFFECT_MODES: { MULTIPLY: 1, ADD: 2 } };
 globalThis.game = { combat: null };
 
 const { POKEMON_STATUS_EFFECTS } = await import("../combat/status-effects.mjs");
-const { statModifierSources, statusConditionSources } = await import("../core/condition-catalog.mjs");
+const { MOVE_MODIFIER_EFFECTS } = await import("../combat/move-modifier-rules.mjs");
+const { moveModifierConditionSources, statModifierSources, statusConditionSources } = await import("../core/condition-catalog.mjs");
 
 const statuses = statusConditionSources();
 assert.equal(statuses.length, Object.keys(POKEMON_STATUS_EFFECTS).length);
@@ -44,4 +46,18 @@ assert.equal(speedPlusTwo.flags["poke5e-foundry"].modifier.modifiers.speed, 10);
 const specialDefenseMinusOne = stages.find(source => source.flags["poke5e-foundry"].sourceId === "special-defense--1");
 assert.deepEqual(specialDefenseMinusOne.flags["poke5e-foundry"].modifier.modifiers.saves, { str: -1, dex: -1, con: -1, int: -1, wis: -1, cha: -1 });
 
-console.log(`Condition catalog validation passed: ${statuses.length} statuses and ${stages.length} stat stages.`);
+const movesById = new Map(Object.keys(MOVE_MODIFIER_EFFECTS).map(id => [id, { name: `Move ${id}` }]));
+const moveEffects = moveModifierConditionSources(movesById);
+assert.equal(moveEffects.length, Object.keys(MOVE_MODIFIER_EFFECTS).length);
+assert.ok(moveEffects.every(source => ["buffs", "debuffs"].includes(source.flags["poke5e-foundry"].catalogCategory)));
+assert.ok(moveEffects.every(source => source.flags["poke5e-foundry"].sourceId.startsWith("move-")));
+assert.ok(moveEffects.every(source => source.duration.startRound === undefined && source.duration.startTurn === undefined));
+const allIds = [...statuses, ...stages, ...moveEffects].map(source => `${source.flags["poke5e-foundry"].kind}:${source.flags["poke5e-foundry"].sourceId}`);
+assert.equal(new Set(allIds).size, allIds.length, "Every condition-compendium entry must have a unique kind/sourceId pair.");
+
+const importerSource = await fs.readFile(new URL("../core/importer.mjs", import.meta.url), "utf8");
+const mainSource = await fs.readFile(new URL("../core/main.mjs", import.meta.url), "utf8");
+assert.match(importerSource, /export async function migrateConditionCompendiumCatalog\(\)/);
+assert.match(mainSource, /migrateConditionCompendiumCatalog\(\)\.catch/);
+
+console.log(`Condition catalog validation passed: ${statuses.length} statuses, ${stages.length} stat stages, and ${moveEffects.length} move buffs/debuffs.`);

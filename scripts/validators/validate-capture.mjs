@@ -5,6 +5,7 @@
  * el desglose completo que devuelve captureDifficulty().
  */
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
 import {
   baseCaptureDifficulty,
   captureDifficulty,
@@ -44,4 +45,10 @@ assert.deepEqual(captureDifficulty({
   automaticSuccess: false
 });
 
-console.log("Capture rules validation passed.");
+const captureFlowSource = await fs.readFile(new URL("../pokemon/capture.mjs", import.meta.url), "utf8");
+for (const expected of ["captureResult", "requestCaptureCompletion", "CAPTURE_RETRY_DELAY", "CAPTURE_RESPONSE_TIMEOUT", "NoActiveGM", "GMTimeout"]) {
+  assert.ok(captureFlowSource.includes(expected), `The confirmed capture-transfer flow is missing ${expected}.`);
+}
+assert.ok(captureFlowSource.includes("captureCompletions.get(requestId)"), "Repeated capture socket messages are not deduplicated by request id.");
+
+console.log("Capture rules and confirmed transfer validation passed.");
