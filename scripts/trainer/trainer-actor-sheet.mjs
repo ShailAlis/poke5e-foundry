@@ -47,7 +47,9 @@ const OBSOLETE_TRAINER_FEATURES = new Set([
 export class Poke5eTrainerActorSheet extends CharacterActorSheet {
   static DEFAULT_OPTIONS = {
     classes: ["poke5e-trainer-sheet"],
-    position: { width: 1180, height: 840 },
+    // D&D 5e reemplaza estas medidas con la última preferencia guardada por el
+    // usuario. Este tamaño es únicamente el respaldo para la primera apertura.
+    position: { width: 1000, height: 800 },
     actions: {
       browsePokemon: Poke5eTrainerActorSheet.#browsePokemon,
       addTrainerExperience: Poke5eTrainerActorSheet.#addTrainerExperience,

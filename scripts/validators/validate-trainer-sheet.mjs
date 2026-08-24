@@ -18,7 +18,7 @@ assert.match(script, /pokemonTeam:\s*\{\s*container:\s*\{\s*classes:\s*\["tab-bo
   "The Pokémon Team part must remain in the native tab-body container");
 assert.match(script, /static TABS\s*=\s*\[\s*\.\.\.super\.TABS\.slice\(0, 1\),\s*\{\s*tab:\s*"pokemonTeam"[^{}]+\},\s*\.\.\.super\.TABS\.slice\(1\)\s*\]/s,
   "The Trainer sheet must retain the native dnd5e tabs");
-assert.match(script, /position:\s*\{\s*width:\s*1180,\s*height:\s*840\s*\}/,
+assert.match(script, /position:\s*\{\s*width:\s*1000,\s*height:\s*800\s*\}/,
   "The Trainer sheet should open in a landscape Pokédex format");
 assert.doesNotMatch(script, /pokedexChrome|static LIMITED_PARTS/,
   "Decorative parts must not participate in the ApplicationV2 sheet layout");
@@ -57,7 +57,8 @@ const assertNoLayoutOverride = (label, ending, forbidden) => {
 
 const outerLayoutProperty = /(?:^|;)\s*(?:display|position|overflow(?:-[xy])?|(?:min-|max-)?(?:width|height)|grid(?:-[\w-]+)?|flex(?:-[\w-]+)?|contain|transform|inset|top|right|bottom|left|margin(?:-[\w-]+)?|padding(?:-[\w-]+)?|border(?:-(?:width|style))?)\s*:/i;
 assertNoLayoutOverride("Trainer root", /\.poke5e-trainer-sheet$/i, outerLayoutProperty);
-assertNoLayoutOverride("window-content", /\.window-content$/i, outerLayoutProperty);
+assertNoLayoutOverride("window-content", /\.window-content$/i,
+  /(?:^|;)\s*(?:display|position|overflow(?:-[xy])?|(?:min-|max-)?(?:width|height)|grid(?:-[\w-]+)?|flex(?:-[\w-]+)?|contain|transform|inset|top|right|bottom|left|padding(?:-[\w-]+)?|border(?:-(?:width|style))?)\s*:/i);
 assertNoLayoutOverride("sheet-body", /\.sheet-body$/i, outerLayoutProperty);
 assertNoLayoutOverride("ability-scores", /\.ability-scores$/i, outerLayoutProperty);
 assertNoLayoutOverride("native tabs", /nav\.tabs$/i, outerLayoutProperty);
@@ -81,6 +82,12 @@ assert.match(css, /\.poke5e-trainer-sheet\.sidebar-collapsed \.sheet-body \.main
   "The decorative hinge must disappear with the collapsed sidebar");
 assert.match(css, /\.sheet-header::before\s*\{[^{}]*width:\s*76px;[^{}]*height:\s*76px;/s,
   "The Trainer sheet needs the large blue Pokédex lens");
+assert.match(css, /\.window-content\s*\{[^{}]*margin-block-start:\s*calc\(-1 \* var\(--header-height\)\);/s,
+  "The native sheet must start below the clipped region while retaining its draggable header");
+assert.match(css, /\.window-header :is\(\.window-icon, \.window-title\)\s*\{[^{}]*visibility:\s*hidden;/s,
+  "The Foundry title must be visually integrated into the Pokedex shell");
+assert.match(css, /\.sheet-header > \.right \.boon-badge\s*\{[^{}]*display:\s*none;/s,
+  "The unwanted epic boon badge must stay hidden");
 assert.match(css, /\.sheet-header \.document-name\s*\{[^{}]*background:\s*linear-gradient[^{}]*box-shadow:/s,
   "The Trainer name must remain styled as a recessed device plate");
 assert.match(css, /\.main-content::before\s*\{[^{}]*repeating-linear-gradient\(to bottom/s,

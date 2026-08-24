@@ -457,14 +457,32 @@
 }
 
 .dnd5e2.sheet.actor.character.poke5e-trainer-sheet .window-header {
-  background:
-    linear-gradient(to bottom, transparent calc(100% - 3px), var(--pk-device-red-deep) calc(100% - 3px)),
-    linear-gradient(100deg, #681016, #b51f25 48%, #39070b);
+  border-bottom: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.dnd5e2.sheet.actor.character.poke5e-trainer-sheet .window-header :is(.window-icon, .window-title) {
+  visibility: hidden;
+}
+.dnd5e2.sheet.actor.character.poke5e-trainer-sheet .window-header button.header-control {
+  --button-text-color: #fff4d6;
+  --button-background-color: linear-gradient(#3b4147, #171a1e);
+  width: 1.75rem;
+  height: 1.75rem;
+  color: #fff4d6;
+  border: 2px solid var(--pk-device-rim-black);
+  border-radius: 5px;
+  background: linear-gradient(#3b4147, #171a1e);
+  box-shadow: inset 0 0 0 1px #666d73, 0 2px 0 #3c0507;
+}
+.dnd5e2.sheet.actor.character.poke5e-trainer-sheet .window-header button.header-control[data-action="close"] {
+  background: linear-gradient(#d63c43, #741017);
 }
 
-/* La apariencia Pokédex no altera el layout ni el scroll nativos de dnd5e. */
+/* Conserva el scroll nativo y corrige únicamente el solapamiento superior de dnd5e. */
 .dnd5e2.sheet.actor.character.poke5e-trainer-sheet .window-content {
   box-sizing: border-box;
+  margin-block-start: calc(-1 * var(--header-height));
   color: var(--pk-device-ink);
   background:
     radial-gradient(circle at 7% 4%, rgba(255, 255, 255, 0.22), transparent 18rem),
@@ -499,7 +517,7 @@
   content: "";
   position: absolute;
   z-index: 0;
-  top: 19px;
+  top: 28px;
   bottom: auto;
   left: 20px;
   width: 76px;
@@ -522,7 +540,7 @@
   content: "";
   position: absolute;
   z-index: 0;
-  top: 24px;
+  top: 32px;
   bottom: auto;
   left: 112px;
   width: 20px;
@@ -564,7 +582,7 @@
 
 @container poke5e-trainer (max-width: 899px) {
   .dnd5e2.sheet.actor.character.poke5e-trainer-sheet .sheet-header::before {
-    top: 25px;
+    top: 30px;
     left: 13px;
     width: 54px;
     height: 54px;
@@ -576,7 +594,7 @@
       inset 0 0 10px #c4fbff;
   }
   .dnd5e2.sheet.actor.character.poke5e-trainer-sheet .sheet-header::after {
-    top: 27px;
+    top: 34px;
     left: 80px;
     transform: scale(0.82);
     transform-origin: left top;
@@ -812,14 +830,16 @@
 }
 
 /* Indicadores y controles nativos de la cabecera, tematizados como hardware. */
-.dnd5e2.sheet.actor.character.poke5e-trainer-sheet .sheet-header > .right .level-badge,
-.dnd5e2.sheet.actor.character.poke5e-trainer-sheet .sheet-header > .right .boon-badge {
+.dnd5e2.sheet.actor.character.poke5e-trainer-sheet .sheet-header > .right .level-badge {
   color: #321400;
   background-image: none;
   background: linear-gradient(145deg, #ffd52d, #ee9600);
   box-shadow: inset 0 0 0 3px var(--pk-device-rim-black), inset 0 0 0 5px rgba(255, 238, 120, 0.56), 0 4px 0 rgba(49, 3, 6, 0.48);
   filter: none;
   clip-path: polygon(12% 0, 88% 0, 100% 12%, 100% 88%, 88% 100%, 12% 100%, 0 88%, 0 12%);
+}
+.dnd5e2.sheet.actor.character.poke5e-trainer-sheet .sheet-header > .right .boon-badge {
+  display: none;
 }
 .dnd5e2.sheet.actor.character.poke5e-trainer-sheet .sheet-header > .right .inspiration {
   background-image: none;
