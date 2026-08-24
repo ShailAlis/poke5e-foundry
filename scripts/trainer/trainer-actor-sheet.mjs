@@ -47,7 +47,7 @@ const OBSOLETE_TRAINER_FEATURES = new Set([
 export class Poke5eTrainerActorSheet extends CharacterActorSheet {
   static DEFAULT_OPTIONS = {
     classes: ["poke5e-trainer-sheet"],
-    position: { width: 1180, height: 900 },
+    position: { width: 1180, height: 840 },
     actions: {
       browsePokemon: Poke5eTrainerActorSheet.#browsePokemon,
       addTrainerExperience: Poke5eTrainerActorSheet.#addTrainerExperience,
@@ -69,28 +69,12 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
   };
 
   static PARTS = {
-    // La carcasa Pokédex es puramente visual. Las partes heredadas siguen
-    // siendo las responsables de inventario, rasgos, conjuros, efectos,
-    // descansos y tiradas, por lo que conservan toda la automatización nativa.
-    pokedexChrome: {
-      template: `${MODULE_PATH}/templates/trainer-sheet-pokedex-chrome.hbs`
-    },
     ...super.PARTS,
     pokemonTeam: {
       container: { classes: ["tab-body"], id: "tabs" },
       template: `${MODULE_PATH}/templates/trainer-sheet-team.hbs`,
       scrollable: [""]
     }
-  };
-
-  // BaseActorSheet utiliza un juego de partes independiente cuando el usuario
-  // solo tiene permiso limitado. Incluimos también la carcasa en ese modo para
-  // que la misma cuadrícula siga teniendo sus columnas y no desplace la biografía.
-  static LIMITED_PARTS = {
-    pokedexChrome: {
-      template: `${MODULE_PATH}/templates/trainer-sheet-pokedex-chrome.hbs`
-    },
-    ...super.LIMITED_PARTS
   };
 
   static TABS = [

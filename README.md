@@ -51,7 +51,7 @@ Volver a ejecutar el importador actualiza el contenido administrado por el módu
 
 Los personajes jugadores utilizan la especie Humano. La clase **Entrenador** es una clase nativa de D&D 5e y concede sus rasgos mediante advancements. En nivel 2, el avance de clase permite escoger un Camino de Entrenador.
 
-La ficha de Entrenador utiliza una interfaz de Pokédex de dos paneles. Conserva las pestañas y acciones nativas de D&D 5e —tiradas, descansos, inventario, rasgos, conjuros, efectos y biografía— e incorpora **Equipo Pokémon** en el mismo dispositivo.
+La ficha de Entrenador presenta una carcasa Pokédex apaisada de dos hojas —lente, indicadores, pantallas, bisagra y controles físicos— construida sobre la disposición nativa de D&D 5e. Conserva sus pestañas y acciones —tiradas, descansos, inventario, rasgos, conjuros, efectos y biografía— e incorpora **Equipo Pokémon** en la misma ficha.
 
 Todos los personajes controlados por jugadores se sincronizan automáticamente con la **Primary Party**. No es necesario crear ni mantener manualmente un actor de grupo.
 
