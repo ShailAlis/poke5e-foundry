@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" data-poke5e-ball-background="true">
+  <title>Especialización Fantasma — Místico</title>
+  <circle data-role="ball-top" cx="128" cy="128" r="118" fill="#654f8f"/>
+  <path data-role="ball-bottom" d="M10 128a118 118 0 0 0 236 0Z" fill="#3f3159"/>
+  <path data-role="ball-band" d="M12 128h232" stroke="#18212b" stroke-width="14"/>
+  <circle data-role="ball-button" cx="128" cy="128" r="63" fill="#f7f3e8" stroke="#18212b" stroke-width="10"/>
+  <g data-poke5e-emblem="true" transform="translate(48 48) scale(.625)"><path d="M70 181V115c0-39 25-65 58-65s58 26 58 65v66l-19-14-19 16-20-16-20 16-19-16Z" fill="#654f8f" stroke="#18212b" stroke-width="9" stroke-linejoin="round"/><path d="m98 119 17-11m43 11-17-11" stroke="#18212b" stroke-width="10" stroke-linecap="round"/></g>
+  <circle data-role="ball-outline" cx="128" cy="128" r="118" fill="none" stroke="#18212b" stroke-width="12"/>
+</svg>

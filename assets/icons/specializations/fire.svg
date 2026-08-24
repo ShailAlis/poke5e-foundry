@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" data-poke5e-ball-background="true">
+  <title>Especialización Fuego — Fogonero</title>
+  <circle data-role="ball-top" cx="128" cy="128" r="118" fill="#e45a2a"/>
+  <path data-role="ball-bottom" d="M10 128a118 118 0 0 0 236 0Z" fill="#8d381a"/>
+  <path data-role="ball-band" d="M12 128h232" stroke="#18212b" stroke-width="14"/>
+  <circle data-role="ball-button" cx="128" cy="128" r="63" fill="#f7f3e8" stroke="#18212b" stroke-width="10"/>
+  <g data-poke5e-emblem="true" transform="translate(48 48) scale(.625)"><path d="M128 42c20 37 54 50 54 94 0 35-24 62-54 62s-54-27-54-62c0-28 17-49 38-68-2 25 8 34 16 42 11-18 12-42 0-68Z" fill="#e45a2a" stroke="#18212b" stroke-width="9" stroke-linejoin="round"/><path d="M128 178c-16 0-25-13-22-28 3-13 14-21 22-31 7 13 23 21 23 36 0 13-10 23-23 23Z" fill="#e45a2a"/></g>
+  <circle data-role="ball-outline" cx="128" cy="128" r="118" fill="none" stroke="#18212b" stroke-width="12"/>
+</svg>

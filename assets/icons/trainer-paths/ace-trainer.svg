@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" data-poke5e-ball-background="true">
+  <title>Camino Entrenador de Élite</title>
+  <circle data-role="ball-top" cx="128" cy="128" r="118" fill="#b52632"/>
+  <path data-role="ball-bottom" d="M10 128a118 118 0 0 0 236 0Z" fill="#70181f"/>
+  <path data-role="ball-band" d="M12 128h232" stroke="#18212b" stroke-width="14"/>
+  <circle data-role="ball-button" cx="128" cy="128" r="63" fill="#f7f3e8" stroke="#18212b" stroke-width="10"/>
+  <g data-poke5e-emblem="true" transform="translate(48 48) scale(.625)"><path d="M81 54h94v39c0 36-19 61-47 71-28-10-47-35-47-71Z" fill="#b52632" stroke="#18212b" stroke-width="9"/><path d="M81 70H54v18c0 28 19 42 41 42m80-60h27v18c0 28-19 42-41 42M128 165v28m-31 0h62" fill="none" stroke="#18212b" stroke-width="9" stroke-linecap="round"/><path d="m128 77 10 21 23 3-17 16 4 23-20-11-20 11 4-23-17-16 23-3Z" fill="#d8a84e"/></g>
+  <circle data-role="ball-outline" cx="128" cy="128" r="118" fill="none" stroke="#18212b" stroke-width="12"/>
+</svg>

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" data-poke5e-ball-background="true">
+  <title>Camino Poké Mentor</title>
+  <circle data-role="ball-top" cx="128" cy="128" r="118" fill="#a25b36"/>
+  <path data-role="ball-bottom" d="M10 128a118 118 0 0 0 236 0Z" fill="#643821"/>
+  <path data-role="ball-band" d="M12 128h232" stroke="#18212b" stroke-width="14"/>
+  <circle data-role="ball-button" cx="128" cy="128" r="63" fill="#f7f3e8" stroke="#18212b" stroke-width="10"/>
+  <g data-poke5e-emblem="true" transform="translate(48 48) scale(.625)"><path d="M45 68c31-10 58-5 83 16 25-21 52-26 83-16v112c-31-10-58-5-83 16-25-21-52-26-83-16Z" fill="#a25b36" stroke="#18212b" stroke-width="9" stroke-linejoin="round"/><path d="M128 84v112m-62-91c19-4 33 0 45 10m-45 25c19-4 33 0 45 10m79-45c-19-4-33 0-45 10m45 25c-19-4-33 0-45 10" fill="none" stroke="#a25b36" stroke-width="8" stroke-linecap="round"/></g>
+  <circle data-role="ball-outline" cx="128" cy="128" r="118" fill="none" stroke="#18212b" stroke-width="12"/>
+</svg>

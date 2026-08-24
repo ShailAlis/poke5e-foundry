@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" data-poke5e-ball-background="true">
+  <title>Especialización Dragón — Domadragones</title>
+  <circle data-role="ball-top" cx="128" cy="128" r="118" fill="#6257cc"/>
+  <path data-role="ball-bottom" d="M10 128a118 118 0 0 0 236 0Z" fill="#3d367e"/>
+  <path data-role="ball-band" d="M12 128h232" stroke="#18212b" stroke-width="14"/>
+  <circle data-role="ball-button" cx="128" cy="128" r="63" fill="#f7f3e8" stroke="#18212b" stroke-width="10"/>
+  <g data-poke5e-emblem="true" transform="translate(48 48) scale(.625)"><path d="m70 190 17-91 41-47 40 47 18 91-43-31-15 36-16-36Z" fill="#6257cc" stroke="#18212b" stroke-width="9" stroke-linejoin="round"/><path d="m87 99 34 17-9 43m57-60-34 17 8 43" fill="none" stroke="#6257cc" stroke-width="9" stroke-linejoin="round"/><circle cx="112" cy="105" r="6" fill="#18212b"/><circle cx="144" cy="105" r="6" fill="#18212b"/></g>
+  <circle data-role="ball-outline" cx="128" cy="128" r="118" fill="none" stroke="#18212b" stroke-width="12"/>
+</svg>

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" data-poke5e-ball-background="true">
+  <title>Especialización Agua — Nadador</title>
+  <circle data-role="ball-top" cx="128" cy="128" r="118" fill="#3687d8"/>
+  <path data-role="ball-bottom" d="M10 128a118 118 0 0 0 236 0Z" fill="#215486"/>
+  <path data-role="ball-band" d="M12 128h232" stroke="#18212b" stroke-width="14"/>
+  <circle data-role="ball-button" cx="128" cy="128" r="63" fill="#f7f3e8" stroke="#18212b" stroke-width="10"/>
+  <g data-poke5e-emblem="true" transform="translate(48 48) scale(.625)"><path d="M128 43c0 0-55 60-55 99 0 31 25 56 55 56s55-25 55-56c0-39-55-99-55-99Z" fill="#3687d8" stroke="#18212b" stroke-width="9"/><path d="M98 151c17 16 43 16 60-2" fill="none" stroke="#3687d8" stroke-width="11" stroke-linecap="round"/></g>
+  <circle data-role="ball-outline" cx="128" cy="128" r="118" fill="none" stroke="#18212b" stroke-width="12"/>
+</svg>

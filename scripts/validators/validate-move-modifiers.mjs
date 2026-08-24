@@ -34,7 +34,15 @@ assert.equal(modifierTriggerMatches(MOVE_MODIFIER_EFFECTS["steel-wing"], { attac
 assert.equal(modifierTriggerMatches(MOVE_MODIFIER_EFFECTS["steel-wing"], { attack: { hit: true, natural: 18 } }), false);
 assert.equal(MOVE_MODIFIER_EFFECTS.reflect.modifiers.meleeDamageResistance, true);
 
-const { attackHitsPokemonTarget, pokemonCombatModifiers, shouldRollPokemonDamage } = await import("../combat/move-modifiers.mjs");
+const { attackHitsPokemonTarget, modifierEffectSource, pokemonCombatModifiers, shouldRollPokemonDamage } = await import("../combat/move-modifiers.mjs");
+
+globalThis.CONST = { ACTIVE_EFFECT_MODES: { ADD: 2, MULTIPLY: 1, OVERRIDE: 5 } };
+globalThis.game = { combat: null };
+const growlEffect = modifierEffectSource(growl, { moveId: "growl", moveName: "Growl", targetAbilities: [] }, 1);
+assert.equal(growlEffect.img, "modules/poke5e-foundry/assets/icons/effects/debuffs/growl.png");
+assert.equal(growlEffect.icon, growlEffect.img, "El icono visible del token debe coincidir con la imagen del ActiveEffect.");
+const stockpileEffect = modifierEffectSource(MOVE_MODIFIER_EFFECTS.stockpile, { moveId: "stockpile", moveName: "Stockpile", targetAbilities: [] }, 1);
+assert.equal(stockpileEffect.img, "modules/poke5e-foundry/assets/icons/effects/buffs/stockpile.png");
 
 // Una fórmula de daño no debe ejecutarse si la tirada no alcanza la CA de
 // ninguno de los objetivos. Los críticos naturales conservan las reglas de

@@ -11,7 +11,7 @@
  */
 import { buildWildInstance } from "../world/encounter-generator.mjs";
 import { deployPokemon } from "../world/deployment.mjs";
-import { MODULE_ID, MODULE_PATH, gearItemSource, pokemonItemSourceFromSpecies, portraitUrl, speciesItemSource, trainerClassSource } from "../core/model.mjs";
+import { MODULE_ID, TRAINER_HUMAN_ICON, TRAINER_ORIGIN_ICON, gearItemSource, pokemonItemSourceFromSpecies, portraitUrl, speciesItemSource, trainerClassSource } from "../core/model.mjs";
 import { ORIGINS, SKILLS } from "./trainer-creation-data.mjs";
 import { randomNature } from "../pokemon/natures.mjs";
 import { NPC_ARCHETYPES, NPC_DEFAULT_ARCHETYPE, npcTrainerAbilities, npcTrainerHitPoints, npcTrainerSprite, randomNpcTrainerName, resolveNpcTrainerGender } from "./npc-trainer-rules.mjs";
@@ -177,7 +177,7 @@ function inventorySources(config, data) {
  * exige enforceHumanActorSource() (trainer-creator.mjs) para los jugadores.
  */
 function humanSource() {
-  return simpleItem("Humano", "race", "npc-human", "Todos los personajes de esta ambientación son humanos.", `${MODULE_PATH}/assets/icons/human.svg`, {
+  return simpleItem("Humano", "race", "npc-human", "Todos los personajes de esta ambientación son humanos.", TRAINER_HUMAN_ICON, {
     movement: { walk: 30, fly: 0, swim: 0, burrow: 0, climb: 0, units: "ft", hover: false },
     type: { value: "humanoid", subtype: "human", custom: "" }
   });
@@ -185,7 +185,7 @@ function humanSource() {
 
 /** Item de trasfondo con la región de origen, su competencia y su idioma. */
 function originSource(origin) {
-  return simpleItem(`Origen: ${origin.name}`, "background", `npc-origin-${origin.id}`, `Procede de ${origin.name}. Obtiene competencia en ${SKILLS[origin.skill]} y habla ${origin.language}.`, `${MODULE_PATH}/assets/icons/origin.svg`);
+  return simpleItem(`Origen: ${origin.name}`, "background", `npc-origin-${origin.id}`, `Procede de ${origin.name}. Obtiene competencia en ${SKILLS[origin.skill]} y habla ${origin.language}.`, TRAINER_ORIGIN_ICON);
 }
 
 /**

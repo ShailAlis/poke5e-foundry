@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" data-poke5e-ball-background="true">
+  <title>Especialización Lucha — Cinturón Negro</title>
+  <circle data-role="ball-top" cx="128" cy="128" r="118" fill="#c12239"/>
+  <path data-role="ball-bottom" d="M10 128a118 118 0 0 0 236 0Z" fill="#781523"/>
+  <path data-role="ball-band" d="M12 128h232" stroke="#18212b" stroke-width="14"/>
+  <circle data-role="ball-button" cx="128" cy="128" r="63" fill="#f7f3e8" stroke="#18212b" stroke-width="10"/>
+  <g data-poke5e-emblem="true" transform="translate(48 48) scale(.625)"><path d="M70 124V87c0-12 18-12 18 0v24-37c0-13 20-13 20 0v35-42c0-13 20-13 20 0v42-36c0-13 20-13 20 0v39l11-18c8-12 27-2 20 11l-27 50v31H91v-27Z" fill="#c12239" stroke="#18212b" stroke-width="9" stroke-linejoin="round"/><path d="M91 145h61" stroke="#18212b" stroke-width="9"/></g>
+  <circle data-role="ball-outline" cx="128" cy="128" r="118" fill="none" stroke="#18212b" stroke-width="12"/>
+</svg>

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" data-poke5e-ball-background="true">
+  <title>Camino Aficionado</title>
+  <circle data-role="ball-top" cx="128" cy="128" r="118" fill="#4777a8"/>
+  <path data-role="ball-bottom" d="M10 128a118 118 0 0 0 236 0Z" fill="#2c4a68"/>
+  <path data-role="ball-band" d="M12 128h232" stroke="#18212b" stroke-width="14"/>
+  <circle data-role="ball-button" cx="128" cy="128" r="63" fill="#f7f3e8" stroke="#18212b" stroke-width="10"/>
+  <g data-poke5e-emblem="true" transform="translate(48 48) scale(.625)"><rect x="61" y="61" width="134" height="134" rx="27" fill="#4777a8" stroke="#18212b" stroke-width="9" transform="rotate(8 128 128)"/><circle cx="91" cy="91" r="10" fill="#4777a8"/><circle cx="165" cy="91" r="10" fill="#d9363e"/><circle cx="128" cy="128" r="10" fill="#d8a84e"/><circle cx="91" cy="165" r="10" fill="#4ea94b"/><circle cx="165" cy="165" r="10" fill="#654f8f"/></g>
+  <circle data-role="ball-outline" cx="128" cy="128" r="118" fill="none" stroke="#18212b" stroke-width="12"/>
+</svg>

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" data-poke5e-ball-background="true">
+  <title>Camino Enfermero Pokémon</title>
+  <circle data-role="ball-top" cx="128" cy="128" r="118" fill="#d66d83"/>
+  <path data-role="ball-bottom" d="M10 128a118 118 0 0 0 236 0Z" fill="#854451"/>
+  <path data-role="ball-band" d="M12 128h232" stroke="#18212b" stroke-width="14"/>
+  <circle data-role="ball-button" cx="128" cy="128" r="63" fill="#f7f3e8" stroke="#18212b" stroke-width="10"/>
+  <g data-poke5e-emblem="true" transform="translate(48 48) scale(.625)"><path d="M128 194S61 157 61 104c0-42 52-57 67-20 15-37 67-22 67 20 0 53-67 90-67 90Z" fill="#d66d83" stroke="#18212b" stroke-width="9"/><path d="M113 96h30v25h25v30h-25v25h-30v-25H88v-30h25Z" fill="#d66d83"/></g>
+  <circle data-role="ball-outline" cx="128" cy="128" r="118" fill="none" stroke="#18212b" stroke-width="12"/>
+</svg>

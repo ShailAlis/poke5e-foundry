@@ -2,7 +2,7 @@
  * Reglas mecánicas de los rasgos propios de la clase Entrenador que no puede
  * resolver por sí solo el AdvancementManager de D&D 5e.
  */
-import { MODULE_ID, trainerLevel } from "../core/model.mjs";
+import { MODULE_ID, trainerLevel, trainerSpecializationIcon } from "../core/model.mjs";
 import { ABILITIES, SKILLS, SPECIALIZATIONS } from "./trainer-creation-data.mjs";
 import { hasTrainerPath, trainerSpecializationTypes } from "./trainer-path-rules.mjs";
 
@@ -53,6 +53,7 @@ export async function chooseTrainerSpecialization(actor, type) {
     : game.i18n.format("POKE5E.TrainerClass.SpecializationSkill", { skill: SKILLS[specialization.skill] });
   await feature.update({
     name: game.i18n.format("POKE5E.TrainerClass.SpecializationName", { name: specialization.name }),
+    img: trainerSpecializationIcon(specialization.type),
     "system.description.value": `<p>${foundry.utils.escapeHTML(personal)}</p><p>${game.i18n.format("POKE5E.TrainerClass.SpecializationPokemon", { type: foundry.utils.escapeHTML(specialization.type) })}</p>`,
     [`flags.${MODULE_ID}.specializationType`]: specialization.type,
     [`flags.${MODULE_ID}.specializationApplied`]: true

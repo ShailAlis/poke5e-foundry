@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" data-poke5e-ball-background="true">
+  <title>Especialización Tierra — Campista</title>
+  <circle data-role="ball-top" cx="128" cy="128" r="118" fill="#d8a84e"/>
+  <path data-role="ball-bottom" d="M10 128a118 118 0 0 0 236 0Z" fill="#866830"/>
+  <path data-role="ball-band" d="M12 128h232" stroke="#18212b" stroke-width="14"/>
+  <circle data-role="ball-button" cx="128" cy="128" r="63" fill="#f7f3e8" stroke="#18212b" stroke-width="10"/>
+  <g data-poke5e-emblem="true" transform="translate(48 48) scale(.625)"><path d="m45 178 48-80 28 43 31-61 59 98Z" fill="#d8a84e" stroke="#18212b" stroke-width="9" stroke-linejoin="round"/><path d="m73 145 20-14 17 13m23 12 19-38 19 30" fill="none" stroke="#d8a84e" stroke-width="10" stroke-linejoin="round"/></g>
+  <circle data-role="ball-outline" cx="128" cy="128" r="118" fill="none" stroke="#18212b" stroke-width="12"/>
+</svg>

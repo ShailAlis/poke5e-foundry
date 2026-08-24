@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" data-poke5e-ball-background="true">
+  <title>Especialización Volador — Ornitólogo</title>
+  <circle data-role="ball-top" cx="128" cy="128" r="118" fill="#88a9e8"/>
+  <path data-role="ball-bottom" d="M10 128a118 118 0 0 0 236 0Z" fill="#546990"/>
+  <path data-role="ball-band" d="M12 128h232" stroke="#18212b" stroke-width="14"/>
+  <circle data-role="ball-button" cx="128" cy="128" r="63" fill="#f7f3e8" stroke="#18212b" stroke-width="10"/>
+  <g data-poke5e-emblem="true" transform="translate(48 48) scale(.625)"><path d="M49 150c47-6 52-67 141-72-16 13-26 26-31 39l42-13c-23 41-62 70-115 75 15-12 24-23 29-34-19 7-41 9-66 5Z" fill="#88a9e8" stroke="#18212b" stroke-width="9" stroke-linejoin="round"/></g>
+  <circle data-role="ball-outline" cx="128" cy="128" r="118" fill="none" stroke="#18212b" stroke-width="12"/>
+</svg>

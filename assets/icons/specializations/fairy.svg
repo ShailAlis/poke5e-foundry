@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" data-poke5e-ball-background="true">
+  <title>Especialización Hada — Actor</title>
+  <circle data-role="ball-top" cx="128" cy="128" r="118" fill="#d978a3"/>
+  <path data-role="ball-bottom" d="M10 128a118 118 0 0 0 236 0Z" fill="#874a65"/>
+  <path data-role="ball-band" d="M12 128h232" stroke="#18212b" stroke-width="14"/>
+  <circle data-role="ball-button" cx="128" cy="128" r="63" fill="#f7f3e8" stroke="#18212b" stroke-width="10"/>
+  <g data-poke5e-emblem="true" transform="translate(48 48) scale(.625)"><path d="m128 42 17 55 55 17-55 17-17 55-17-55-55-17 55-17Z" fill="#d978a3" stroke="#18212b" stroke-width="9" stroke-linejoin="round"/><path d="m181 51 7 21 21 7-21 7-7 21-7-21-21-7 21-7Z" fill="#d978a3" stroke="#18212b" stroke-width="6" stroke-linejoin="round"/></g>
+  <circle data-role="ball-outline" cx="128" cy="128" r="118" fill="none" stroke="#18212b" stroke-width="12"/>
+</svg>

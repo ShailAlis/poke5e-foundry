@@ -14,8 +14,8 @@
  */
 import { loadPoke5eData } from "../core/data-service.mjs";
 import {
-  MODULE_ID, MODULE_PATH, gearItemSource, getPack, pokemonItemSourceFromSpecies, portraitUrl,
-  speciesItemSource, trainerClassSource
+  MODULE_ID, MODULE_PATH, TRAINER_HUMAN_ICON, TRAINER_ORIGIN_ICON, gearItemSource, getPack, pokemonItemSourceFromSpecies, portraitUrl,
+  speciesItemSource, trainerClassSource, trainerSpecializationIcon
 } from "../core/model.mjs";
 import { ABILITIES, CLASS_SKILLS, ORIGINS, POINT_BUY_COSTS, SKILLS, SPECIALIZATIONS, STANDARD_ARRAY, resolveBaseAbilities, resolveTrainerCreation } from "./trainer-creation-data.mjs";
 import { NATURES, natureLabel, randomNature } from "../pokemon/natures.mjs";
@@ -31,8 +31,8 @@ const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
  * reemplazarlos si se vuelve a ejecutar, sin tocar lo que se haya añadido después.
  */
 const CREATION_KIND_PREFIX = "trainer-creation-";
-const HUMAN_ICON = `${MODULE_PATH}/assets/icons/human.svg`;
-const ORIGIN_ICON = `${MODULE_PATH}/assets/icons/origin.svg`;
+const HUMAN_ICON = TRAINER_HUMAN_ICON;
+const ORIGIN_ICON = TRAINER_ORIGIN_ICON;
 
 /** Ventana del asistente de creación de Entrenador, con sus cuatro pasos. */
 export class Poke5eTrainerCreator extends HandlebarsApplicationMixin(ApplicationV2) {
@@ -425,7 +425,7 @@ function specializationSource(rules) {
   const effect = rules.specialization.ability
     ? `Aumenta ${ABILITIES[rules.specialization.ability]} en 1, hasta un máximo de 20.`
     : `Obtienes competencia en ${SKILLS[rules.specialization.skill]}; si ya la tenías, obtienes Pericia.`;
-  const source = trainerClassFeatureSource(creationItem(`Especialización: ${rules.specialization.name}`, "feat", "specialization", `<p>${effect}</p><p>Los Pokémon de tipo ${titleCase(rules.specialization.type)} obtienen +1 a todas sus pruebas de habilidad.</p>`, "icons/svg/upgrade.svg"));
+  const source = trainerClassFeatureSource(creationItem(`Especialización: ${rules.specialization.name}`, "feat", "specialization", `<p>${effect}</p><p>Los Pokémon de tipo ${titleCase(rules.specialization.type)} obtienen +1 a todas sus pruebas de habilidad.</p>`, trainerSpecializationIcon(rules.specialization.type)));
   source.flags[MODULE_ID].specializationType = rules.specialization.type;
   return source;
 }

@@ -10,7 +10,7 @@ import { Poke5eImporter } from "./importer.mjs";
 import { Poke5ePokemonSheet } from "../pokemon/pokemon-sheet.mjs";
 import { Poke5eReference } from "../ui/reference.mjs";
 import { Poke5eTrainerTeam } from "../trainer/trainer-team.mjs";
-import { MODULE_ID, displayAssetUrl, getPokemonItems, normalizeDroppedSpecies, randomGenderForRatio, trainerPokeslotLimit } from "./model.mjs";
+import { MODULE_ID, displayAssetUrl, getPokemonItems, normalizeDroppedSpecies, randomGenderForRatio, trainerIdentityIcon, trainerPokeslotLimit } from "./model.mjs";
 import { cleanDeploymentActor, ensureDeploymentPermissions, recallPokemon, registerPokemonTokenMovement, setPokemonCombatantsDefeated, syncDeploymentHp, syncPokemonHeldItemToDeployment, syncPokemonHpToDeployment } from "../world/deployment.mjs";
 import { migrateTrainerClassAdvancements, migrateTrainerFeatureGroups, registerTrainerActorSheet } from "../trainer/trainer-actor-sheet.mjs";
 import { migratePokemonActorSheets, registerPokemonActorSheet } from "../pokemon/pokemon-actor-sheet.mjs";
@@ -410,7 +410,7 @@ async function openPokemon(document) {
 async function migrateEmbeddedAssetUrls() {
   for (const actor of game.actors) {
     const updates = actor.items.reduce((entries, item) => {
-      const img = displayAssetUrl(item.img);
+      const img = trainerIdentityIcon(item) ?? displayAssetUrl(item.img);
       if (img && img !== item.img) entries.push({ _id: item.id, img });
       return entries;
     }, []);

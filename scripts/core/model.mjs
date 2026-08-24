@@ -18,6 +18,11 @@ export const MODULE_ID = "poke5e-foundry";
 export const MODULE_PATH = `modules/${MODULE_ID}`;
 export const POKEMON_TOKEN_SCALE = 1.65;
 export const TRAINER_CLASS_ICON = `${MODULE_PATH}/assets/transparent_poke_ball_by_ace_zeroartic_df7u62z-fullview.png`;
+export const TRAINER_HUMAN_ICON = `${MODULE_PATH}/assets/icons/human.svg`;
+export const TRAINER_ORIGIN_ICON = `${MODULE_PATH}/assets/icons/origin.svg`;
+const TRAINER_SPECIALIZATION_ICON_DIRECTORY = `${MODULE_PATH}/assets/icons/specializations`;
+const TRAINER_PATH_ICON_DIRECTORY = `${MODULE_PATH}/assets/icons/trainer-paths`;
+const TRAINER_SPECIALIZATION_TYPES = new Set(["normal", "fighting", "flying", "poison", "ground", "rock", "bug", "ghost", "steel", "fire", "water", "grass", "electric", "psychic", "ice", "dragon", "dark", "fairy"]);
 const DEFAULT_MACHINE_ICON = "icons/svg/book.svg";
 const TM_ICON_BY_TYPE = Object.freeze({
   bug: "MT_tipo_bicho_EP.png",
@@ -312,7 +317,7 @@ export function trainerPathFeatureSources() {
     return {
       name: entry.name,
       type: "feat",
-      img: "icons/svg/upgrade.svg",
+      img: trainerPathIcon(path.id),
       system: {
         description: { value: `<p>${escapeHtml(entry.description)}</p><p><strong>Gestión:</strong> ${escapeHtml(automationLabel(automation))}</p>`, chat: "" },
         identifier: `trainer-path-${path.id}-${entry.level}`,
@@ -346,7 +351,7 @@ export function trainerPathSources(featureUuids = new Map()) {
     return {
       name: path.name,
       type: "subclass",
-      img: TRAINER_CLASS_ICON,
+      img: trainerPathIcon(path.id),
       system: {
         description: { value: pathDescription(path), chat: "" },
         identifier: path.id,
@@ -618,10 +623,51 @@ export function displayAssetUrl(path, fallback = "") {
   if (!original) return fallback;
   if (/^https?:\/\//i.test(original)) return original;
   const normalized = original.replace(/^\/+/, "");
+  if ([TRAINER_HUMAN_ICON, TRAINER_ORIGIN_ICON].includes(normalized)
+    || normalized.startsWith(`${TRAINER_SPECIALIZATION_ICON_DIRECTORY}/`)
+    || normalized.startsWith(`${TRAINER_PATH_ICON_DIRECTORY}/`)) return normalized;
   const modulePrefix = `${MODULE_PATH}/`;
   const relative = normalized.startsWith(modulePrefix) ? normalized.slice(modulePrefix.length) : normalized;
   if (relative.startsWith("assets/")) return remoteAssetUrl(relative) || original;
   return original;
+}
+
+/** Icono local de una especialización de Entrenador según su tipo Pokémon. */
+export function trainerSpecializationIcon(type) {
+  const id = String(type ?? "").trim().toLocaleLowerCase();
+  return TRAINER_SPECIALIZATION_TYPES.has(id) ? `${TRAINER_SPECIALIZATION_ICON_DIRECTORY}/${id}.svg` : "icons/svg/upgrade.svg";
+}
+
+/** Icono local de un Camino de Entrenador según su identificador canónico. */
+export function trainerPathIcon(pathId) {
+  const id = String(pathId ?? "").trim().toLocaleLowerCase();
+  return TRAINER_PATHS.some(path => path.id === id) ? `${TRAINER_PATH_ICON_DIRECTORY}/${id}.svg` : TRAINER_CLASS_ICON;
+}
+
+/** Icono local propio para los Items de identidad, especialización y camino. */
+export function trainerIdentityIcon(item) {
+  const flags = item?.getFlag ? {
+    kind: item.getFlag(MODULE_ID, "kind"),
+    sourceId: item.getFlag(MODULE_ID, "sourceId"),
+    specializationType: item.getFlag(MODULE_ID, "specializationType"),
+    pathId: item.getFlag(MODULE_ID, "pathId")
+  } : (item?.flags?.[MODULE_ID] ?? {});
+  const kind = String(flags.kind ?? "");
+  const sourceId = String(flags.sourceId ?? "");
+  const name = String(item?.name ?? "").trim().toLocaleLowerCase();
+  if (kind === "trainer-creation-human" || kind === "npc-human" || sourceId === "trainer-creation-human" || sourceId === "npc-human" || (item?.type === "race" && ["human", "humano"].includes(name))) {
+    return TRAINER_HUMAN_ICON;
+  }
+  if (kind === "trainer-creation-origin" || kind.startsWith("npc-origin-") || sourceId === "trainer-creation-origin" || sourceId.startsWith("npc-origin-") || (item?.type === "background" && name.startsWith("origen:"))) {
+    return TRAINER_ORIGIN_ICON;
+  }
+  const specializationType = String(flags.specializationType ?? "").trim().toLocaleLowerCase();
+  if (specializationType) return trainerSpecializationIcon(specializationType);
+  const pathId = String(flags.pathId ?? item?.system?.identifier ?? "").trim().toLocaleLowerCase();
+  if ((kind === "trainer-path" || kind === "trainer-path-feature" || item?.type === "subclass") && TRAINER_PATHS.some(path => path.id === pathId)) {
+    return trainerPathIcon(pathId);
+  }
+  return null;
 }
 
 /**

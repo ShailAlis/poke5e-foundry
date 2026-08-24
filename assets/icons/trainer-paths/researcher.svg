@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" data-poke5e-ball-background="true">
+  <title>Camino Investigador</title>
+  <circle data-role="ball-top" cx="128" cy="128" r="118" fill="#416f84"/>
+  <path data-role="ball-bottom" d="M10 128a118 118 0 0 0 236 0Z" fill="#284552"/>
+  <path data-role="ball-band" d="M12 128h232" stroke="#18212b" stroke-width="14"/>
+  <circle data-role="ball-button" cx="128" cy="128" r="63" fill="#f7f3e8" stroke="#18212b" stroke-width="10"/>
+  <g data-poke5e-emblem="true" transform="translate(48 48) scale(.625)"><circle cx="111" cy="106" r="48" fill="#416f84" stroke="#18212b" stroke-width="10"/><path d="m145 142 51 51" stroke="#18212b" stroke-width="18" stroke-linecap="round"/><path d="M88 106h46M111 83v46" stroke="#416f84" stroke-width="10" stroke-linecap="round"/><circle cx="111" cy="106" r="14" fill="none" stroke="#416f84" stroke-width="7"/></g>
+  <circle data-role="ball-outline" cx="128" cy="128" r="118" fill="none" stroke="#18212b" stroke-width="12"/>
+</svg>

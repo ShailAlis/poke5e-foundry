@@ -165,13 +165,18 @@
           </div>
           {{#if ../pokemon.canEdit}}
             <div class="pokemon-controls">
-              {{#if deployed}}
-                <button type="button" data-action="recallPokemon" title="{{localize "POKE5E.Team.Recall"}}"><i class="fa-solid fa-arrow-rotate-left"></i></button>
+              {{#if fainted}}
+                <button type="button" class="bright" data-action="healFaintedPokemon" title="{{localize "POKE5E.Team.FullyHeal"}}"><i class="fa-solid fa-heart-pulse"></i></button>
+                <button type="button" data-action="removeFaintedPokemon" title="{{localize "POKE5E.Team.RemoveDead"}}"><i class="fa-solid fa-skull"></i></button>
               {{else}}
-                <button type="button" data-action="deployPokemon" title="{{localize "POKE5E.Team.Deploy"}}"><i class="fa-solid fa-location-dot"></i></button>
+                {{#if deployed}}
+                  <button type="button" data-action="recallPokemon" title="{{localize "POKE5E.Team.Recall"}}"><i class="fa-solid fa-arrow-rotate-left"></i></button>
+                {{else}}
+                  <button type="button" data-action="deployPokemon" title="{{localize "POKE5E.Team.Deploy"}}"><i class="fa-solid fa-location-dot"></i></button>
+                {{/if}}
+                {{#if @root.pokemon.pokechefAvailable}}<button type="button" data-action="givePokechef" title="Pokéchef (Enfermero Pokémon): prepara y da una golosina que cura PG"><i class="fa-solid fa-cookie-bite"></i></button>{{/if}}
               {{/if}}
               <button type="button" data-action="togglePokemonTeam" title="{{localize "POKE5E.Team.SendReserve"}}"><i class="fa-solid fa-box-archive"></i></button>
-              {{#if ../pokemon.pokechefAvailable}}<button type="button" data-action="givePokechef" title="Pokéchef (Enfermero Pokémon): prepara y da una golosina que cura PG"><i class="fa-solid fa-cookie-bite"></i></button>{{/if}}
             </div>
           {{/if}}
         </article>
@@ -191,7 +196,16 @@
             <button type="button" class="reserve-portrait" data-action="openPokemon"><img src="{{img}}" alt="{{name}}"></button>
             <button type="button" class="reserve-name" data-action="openPokemon"><strong>{{name}}</strong><small>{{speciesName}} · {{localize "POKE5E.Common.LevelValue" level=instance.level}}</small></button>
             <span>PG {{hpValue}}/{{hpMax}} · PX {{experience.total}}{{#if overflow}} · {{localize "POKE5E.Team.NoSlot"}}{{/if}}</span>
-            {{#if ../pokemon.canEdit}}<button type="button" data-action="togglePokemonTeam" title="{{localize "POKE5E.Team.AddToTeam"}}"><i class="fa-solid fa-arrow-up"></i></button>{{/if}}
+            {{#if ../pokemon.canEdit}}
+              <div class="reserve-controls">
+                {{#if fainted}}
+                  <button type="button" class="bright" data-action="healFaintedPokemon" title="{{localize "POKE5E.Team.FullyHeal"}}"><i class="fa-solid fa-heart-pulse"></i></button>
+                  <button type="button" data-action="removeFaintedPokemon" title="{{localize "POKE5E.Team.RemoveDead"}}"><i class="fa-solid fa-skull"></i></button>
+                {{else}}
+                  <button type="button" data-action="togglePokemonTeam" title="{{localize "POKE5E.Team.AddToTeam"}}"><i class="fa-solid fa-arrow-up"></i></button>
+                {{/if}}
+              </div>
+            {{/if}}
           </article>
         {{/each}}
       </div>

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" data-poke5e-ball-background="true">
+  <title>Camino Criador Pokémon</title>
+  <circle data-role="ball-top" cx="128" cy="128" r="118" fill="#b06b8e"/>
+  <path data-role="ball-bottom" d="M10 128a118 118 0 0 0 236 0Z" fill="#6d4258"/>
+  <path data-role="ball-band" d="M12 128h232" stroke="#18212b" stroke-width="14"/>
+  <circle data-role="ball-button" cx="128" cy="128" r="63" fill="#f7f3e8" stroke="#18212b" stroke-width="10"/>
+  <g data-poke5e-emblem="true" transform="translate(48 48) scale(.625)"><path d="M128 45c39 0 66 51 66 96 0 38-29 66-66 66s-66-28-66-66c0-45 27-96 66-96Z" fill="#b06b8e" stroke="#18212b" stroke-width="9"/><path d="M128 178s-35-20-35-48c0-23 27-30 35-10 8-20 35-13 35 10 0 28-35 48-35 48Z" fill="#b06b8e" stroke="#18212b" stroke-width="6"/></g>
+  <circle data-role="ball-outline" cx="128" cy="128" r="118" fill="none" stroke="#18212b" stroke-width="12"/>
+</svg>

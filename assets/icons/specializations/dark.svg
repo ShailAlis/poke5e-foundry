@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" data-poke5e-ball-background="true">
+  <title>Especialización Siniestro — Delincuente</title>
+  <circle data-role="ball-top" cx="128" cy="128" r="118" fill="#504c56"/>
+  <path data-role="ball-bottom" d="M10 128a118 118 0 0 0 236 0Z" fill="#322f35"/>
+  <path data-role="ball-band" d="M12 128h232" stroke="#18212b" stroke-width="14"/>
+  <circle data-role="ball-button" cx="128" cy="128" r="63" fill="#f7f3e8" stroke="#18212b" stroke-width="10"/>
+  <g data-poke5e-emblem="true" transform="translate(48 48) scale(.625)"><path d="M170 55c-15 10-25 30-25 52 0 39 31 70 69 70-18 18-43 29-70 29-50 0-90-35-90-78s40-78 90-78c9 0 18 2 26 5Z" fill="#504c56" stroke="#18212b" stroke-width="9" stroke-linejoin="round"/></g>
+  <circle data-role="ball-outline" cx="128" cy="128" r="118" fill="none" stroke="#18212b" stroke-width="12"/>
+</svg>

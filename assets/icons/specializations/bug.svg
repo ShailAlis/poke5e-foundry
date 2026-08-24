@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" data-poke5e-ball-background="true">
+  <title>Especialización Bicho — Entomólogo</title>
+  <circle data-role="ball-top" cx="128" cy="128" r="118" fill="#91a119"/>
+  <path data-role="ball-bottom" d="M10 128a118 118 0 0 0 236 0Z" fill="#5a6410"/>
+  <path data-role="ball-band" d="M12 128h232" stroke="#18212b" stroke-width="14"/>
+  <circle data-role="ball-button" cx="128" cy="128" r="63" fill="#f7f3e8" stroke="#18212b" stroke-width="10"/>
+  <g data-poke5e-emblem="true" transform="translate(48 48) scale(.625)"><ellipse cx="128" cy="133" rx="42" ry="60" fill="#91a119" stroke="#18212b" stroke-width="9"/><path d="M128 74v118M89 105 61 83m106 22 28-22M87 143H54m115 0h33M91 176l-27 22m101-22 27 22M109 72 91 48m56 24 18-24" fill="none" stroke="#18212b" stroke-width="9" stroke-linecap="round"/></g>
+  <circle data-role="ball-outline" cx="128" cy="128" r="118" fill="none" stroke="#18212b" stroke-width="12"/>
+</svg>

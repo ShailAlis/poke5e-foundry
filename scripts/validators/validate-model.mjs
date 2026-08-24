@@ -25,8 +25,18 @@ const projectRoot = resolve(root, "..");
 const pokemon = JSON.parse(await readFile(resolve(root, "pokemon.json"), "utf8")).items;
 const moves = JSON.parse(await readFile(resolve(root, "moves.json"), "utf8")).moves;
 const movesById = new Map(moves.map(move => [move.id, move]));
+const assertTrainerBallSvg = async (icon, label) => {
+  const path = resolve(projectRoot, icon.replace("modules/poke5e-foundry/", ""));
+  await access(path);
+  const svg = await readFile(path, "utf8");
+  if (!svg.includes('data-poke5e-ball-background="true"')) throw new Error(`${label}: missing Poké Ball background.`);
+  if ((svg.match(/data-role="ball-(?:top|bottom|band|button|outline)"/g) ?? []).length !== 5) throw new Error(`${label}: incomplete Poké Ball structure.`);
+  if ((svg.match(/data-poke5e-emblem="true"/g) ?? []).length !== 1) throw new Error(`${label}: missing or duplicated foreground emblem.`);
+};
 const {
   MODULE_ID,
+  TRAINER_HUMAN_ICON,
+  TRAINER_ORIGIN_ICON,
   TRAINER_FEATURES,
   TRAINER_PATHS,
   displayAssetUrl,
@@ -38,6 +48,9 @@ const {
   trainerPathFeatureSources,
   trainerPathSources,
   trainerClassSource,
+  trainerIdentityIcon,
+  trainerPathIcon,
+  trainerSpecializationIcon,
   moveMachineIcon,
   trainerPokeslotLimit
 } = await import("../core/model.mjs");
@@ -73,6 +86,18 @@ if (displayAssetUrl("modules/poke5e-foundry/assets/pokemon/0001/sprite.png") !==
   throw new Error("Legacy module asset URLs are not migrated to the configured asset host.");
 }
 if (displayAssetUrl("icons/svg/sword.svg") !== "icons/svg/sword.svg") throw new Error("Foundry icon URLs must remain unchanged.");
+if (displayAssetUrl(TRAINER_HUMAN_ICON) !== TRAINER_HUMAN_ICON || displayAssetUrl(TRAINER_ORIGIN_ICON) !== TRAINER_ORIGIN_ICON) {
+  throw new Error("Trainer identity icons must remain local module assets.");
+}
+if (trainerIdentityIcon({ name: "Humano", type: "race", flags: { [MODULE_ID]: { kind: "trainer-creation-human" } } }) !== TRAINER_HUMAN_ICON) throw new Error("The Human item icon was not detected.");
+if (trainerIdentityIcon({ name: "Origen: Kanto", type: "background", flags: { [MODULE_ID]: { kind: "trainer-creation-origin" } } }) !== TRAINER_ORIGIN_ICON) throw new Error("The Origin item icon was not detected.");
+if (trainerIdentityIcon({ name: "Soldado", type: "background", flags: {} }) !== null) throw new Error("An unrelated background received the Origin icon.");
+for (const type of ["normal", "fighting", "flying", "poison", "ground", "rock", "bug", "ghost", "steel", "fire", "water", "grass", "electric", "psychic", "ice", "dragon", "dark", "fairy"]) {
+  const icon = trainerSpecializationIcon(type);
+  if (displayAssetUrl(icon) !== icon) throw new Error(`${type}: specialization icon must remain local.`);
+  await assertTrainerBallSvg(icon, type);
+  if (trainerIdentityIcon({ type: "feat", flags: { [MODULE_ID]: { specializationType: type } } }) !== icon) throw new Error(`${type}: specialization icon was not detected.`);
+}
 
 for (const species of pokemon) {
   const catalog = speciesItemSource(species, movesById);
@@ -96,6 +121,13 @@ const featureUuids = new Map(trainerFeatures.map((source, index) => [source.flag
 const pathFeatures = trainerPathFeatureSources();
 if (TRAINER_PATHS.length !== 13 || pathFeatures.length !== 52) throw new Error("Expected 13 Trainer paths with four features each.");
 if (pathFeatures.some(source => !["automatic", "resource", "partial", "manual", "supplement"].includes(source.flags[MODULE_ID].automation))) throw new Error("Every Trainer path feature must declare its automation mode.");
+for (const path of TRAINER_PATHS) {
+  const icon = trainerPathIcon(path.id);
+  if (displayAssetUrl(icon) !== icon) throw new Error(`${path.id}: Trainer path icon must remain local.`);
+  await assertTrainerBallSvg(icon, path.id);
+  if (trainerIdentityIcon({ type: "subclass", system: { identifier: path.id }, flags: { [MODULE_ID]: { kind: "trainer-path", pathId: path.id } } }) !== icon) throw new Error(`${path.id}: Trainer path icon was not detected.`);
+}
+if (pathFeatures.some(source => source.img !== trainerPathIcon(source.flags[MODULE_ID].pathId))) throw new Error("Trainer path features must use their path icon.");
 for (const [index, source] of pathFeatures.entries()) featureUuids.set(source.flags[MODULE_ID].sourceId, `Compendium.world.poke5e-progression.Item.pathFeature${index}`);
 const trainerPaths = trainerPathSources(featureUuids);
 if (trainerPaths.length !== TRAINER_PATHS.length) throw new Error("Invalid Trainer path source count.");

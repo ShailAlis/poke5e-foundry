@@ -74,8 +74,14 @@ async function probeIcon(category, id) {
   }
 }
 
-/** Devuelve el icono personalizado detectado o el respaldo recibido. */
+/**
+ * Devuelve directamente el PNG incluido para cualquier hueco conocido. Así el
+ * ActiveEffect guarda siempre la imagen que Foundry dibuja sobre el token,
+ * incluso si el explorador de archivos no puede listar la carpeta. El mapa de
+ * detección se conserva para extensiones opcionales y rutas descubiertas.
+ */
 export function pokemonEffectIcon(category, id, fallback = "icons/svg/aura.svg") {
+  if (EFFECT_ICON_SLOTS[category]?.includes(id)) return customEffectIconPath(category, id);
   return loadedIcons.get(`${category}.${id}`) ?? fallback;
 }
 

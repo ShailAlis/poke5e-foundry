@@ -25,6 +25,7 @@ import { SKILLS } from "./trainer-creation-data.mjs";
 import { biomeLabel, loadPoke5eData } from "../core/data-service.mjs";
 import { filterEncounterSpecies } from "../world/encounter-generator.mjs";
 import { capturedLegendaryNumbers } from "../pokemon/legendary-species.mjs";
+import { fullyHealedPokemonInstance } from "../pokemon/recovery.mjs";
 
 const CharacterActorSheet = dnd5e.applications.actor.CharacterActorSheet;
 
@@ -58,6 +59,8 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
       openPokemon: Poke5eTrainerActorSheet.#openPokemon,
       recallPokemon: Poke5eTrainerActorSheet.#recallPokemon,
       togglePokemonTeam: Poke5eTrainerActorSheet.#togglePokemonTeam,
+      healFaintedPokemon: Poke5eTrainerActorSheet.#healFaintedPokemon,
+      removeFaintedPokemon: Poke5eTrainerActorSheet.#removeFaintedPokemon,
       givePokechef: Poke5eTrainerActorSheet.#givePokechef,
       guruSpirit: Poke5eTrainerActorSheet.#guruSpirit,
       chooseSpecialization: Poke5eTrainerActorSheet.#chooseSpecialization,
@@ -399,6 +402,43 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
     sheet.render({ force: true });
   }
 
+  /** Restaura PG, PP y estados de un Pokémon que se encuentre a 0 PG. */
+  static async #healFaintedPokemon(event, target) {
+    const sheet = this;
+    const item = Poke5eTrainerActorSheet.#item(sheet, target);
+    if (!item || !sheet.actor.isOwner) return;
+    const instance = item.getFlag(MODULE_ID, "instance") ?? {};
+    if (Number(instance.hp?.value) > 0) return;
+    await recallPokemon(item, { fainted: true, forced: true });
+    const healed = fullyHealedPokemonInstance(instance);
+    await item.setFlag(MODULE_ID, "instance", healed);
+    ui.notifications.info(game.i18n.format("POKE5E.Team.FullyHealedNotice", { pokemon: displayPokemonName(item) }));
+    sheet.render({ force: true });
+  }
+
+  /** Elimina definitivamente un Pokémon debilitado tras confirmar su muerte. */
+  static async #removeFaintedPokemon(event, target) {
+    const sheet = this;
+    const item = Poke5eTrainerActorSheet.#item(sheet, target);
+    if (!item || !sheet.actor.isOwner || Number(item.getFlag(MODULE_ID, "instance")?.hp?.value) > 0) return;
+    let confirmed = false;
+    try {
+      confirmed = await foundry.applications.api.DialogV2.confirm({
+        window: { title: game.i18n.localize("POKE5E.Team.DeathTitle") },
+        content: `<p>${game.i18n.format("POKE5E.Team.DeathPrompt", { pokemon: foundry.utils.escapeHTML(displayPokemonName(item)) })}</p>`,
+        yes: { label: game.i18n.localize("POKE5E.Team.ConfirmDeath"), icon: "fa-solid fa-skull", default: false },
+        no: { label: game.i18n.localize("POKE5E.Common.Cancel"), default: true }
+      });
+    } catch { confirmed = false; }
+    if (!confirmed) return;
+    await recallPokemon(item, { fainted: true, forced: true });
+    if (sheet.actor.getFlag(MODULE_ID, "rangerCompanion") === item.id) await sheet.actor.unsetFlag(MODULE_ID, "rangerCompanion");
+    const pokemon = displayPokemonName(item);
+    await item.delete();
+    ui.notifications.info(game.i18n.format("POKE5E.Team.DeathNotice", { pokemon }));
+    sheet.render({ force: true });
+  }
+
   /** Consume Rastreador Pokémon y muestra las especies de la zona elegida. */
   static async #usePokemonTracker() {
     const sheet = this;
@@ -542,6 +582,7 @@ export async function migrateTrainerClassAdvancements() {
       const expectedFeature = expectedPathFeatures.get(sourceId);
       if (!expectedFeature) continue;
       const update = {
+        img: expectedFeature.img,
         "system.description": expectedFeature.system.description,
         effects: expectedFeature.effects,
         [`flags.${MODULE_ID}.automation`]: expectedFeature.flags[MODULE_ID].automation
@@ -673,6 +714,7 @@ function preparePokemon(item) {
     deployed: Boolean(deployedActorFor(item)),
     hpValue,
     hpMax,
+    fainted: hpValue <= 0,
     hpPercent: Math.max(0, Math.min(100, Math.round((hpValue / hpMax) * 100))),
     experience,
     speciesSr: Number(item.getFlag(MODULE_ID, "species")?.sr) || 0
