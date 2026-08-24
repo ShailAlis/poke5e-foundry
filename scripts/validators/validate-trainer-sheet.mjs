@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import { access, readFile } from "node:fs/promises";
 
 const root = new URL("../../", import.meta.url);
-const [script, css, teamTemplate, manifestText, packageText] = await Promise.all([
+const [script, css, teamTemplate, teamTabIcon, manifestText, packageText] = await Promise.all([
   readFile(new URL("scripts/trainer/trainer-actor-sheet.mjs", root), "utf8"),
   readFile(new URL("styles/poke5e.css", root), "utf8"),
   readFile(new URL("templates/trainer-sheet-team.hbs", root), "utf8"),
+  readFile(new URL("assets/icons/pokeball-tab.svg", root), "utf8"),
   readFile(new URL("module.json", root), "utf8"),
   readFile(new URL("package.json", root), "utf8")
 ]);
@@ -16,8 +17,16 @@ assert.match(script, /static PARTS\s*=\s*\{\s*\.\.\.super\.PARTS,/s,
   "The Trainer sheet must retain every native dnd5e part");
 assert.match(script, /pokemonTeam:\s*\{\s*container:\s*\{\s*classes:\s*\["tab-body"\],\s*id:\s*"tabs"\s*\},\s*template:\s*`\$\{MODULE_PATH\}\/templates\/trainer-sheet-team\.hbs`,\s*scrollable:\s*\[""\]\s*\}/s,
   "The Pokémon Team part must remain in the native tab-body container");
-assert.match(script, /static TABS\s*=\s*\[\s*\.\.\.super\.TABS\.slice\(0, 1\),\s*\{\s*tab:\s*"pokemonTeam"[^{}]+\},\s*\.\.\.super\.TABS\.slice\(1\)\s*\]/s,
+assert.match(script, /static TABS\s*=\s*\[\s*\.\.\.super\.TABS\.slice\(0, 1\),\s*\{\s*tab:\s*"pokemonTeam",\s*label:\s*"POKE5E\.Team\.WindowTitle",\s*svg:\s*`\$\{MODULE_PATH\}\/assets\/icons\/pokeball-tab\.svg`\s*\},\s*\.\.\.super\.TABS\.slice\(1\)\.filter\(\(\{ tab \}\) => !\["spells", "specialTraits"\]\.includes\(tab\)\)\s*\]/s,
   "The Trainer sheet must retain the native dnd5e tabs");
+assert.match(script, /!\["spells", "specialTraits"\]\.includes\(tab\)/,
+  "The Trainer sheet must omit unused Spells and Special Traits tabs");
+assert.match(script, /tab:\s*"pokemonTeam"[^{}]+svg:\s*`\$\{MODULE_PATH\}\/assets\/icons\/pokeball-tab\.svg`/,
+  "The Pokemon Team tab must use its dedicated Poke Ball SVG");
+assert.match(teamTabIcon, /data-poke5e-tab-icon="pokeball"/,
+  "The Pokemon Team tab icon must remain an identifiable Poke Ball asset");
+assert.match(teamTabIcon, /<path d="M5 32h54"[^>]+stroke="#180204"[^>]+\/>[\s\S]*?<circle cx="32" cy="32" r="10"/,
+  "The Pokemon Team tab icon needs a clear band and central button at small sizes");
 assert.match(script, /position:\s*\{\s*width:\s*1000,\s*height:\s*800\s*\}/,
   "The Trainer sheet should open in a landscape Pokédex format");
 assert.doesNotMatch(script, /pokedexChrome|static LIMITED_PARTS/,
@@ -60,7 +69,8 @@ assertNoLayoutOverride("Trainer root", /\.poke5e-trainer-sheet$/i, outerLayoutPr
 assertNoLayoutOverride("window-content", /\.window-content$/i,
   /(?:^|;)\s*(?:display|position|overflow(?:-[xy])?|(?:min-|max-)?(?:width|height)|grid(?:-[\w-]+)?|flex(?:-[\w-]+)?|contain|transform|inset|top|right|bottom|left|padding(?:-[\w-]+)?|border(?:-(?:width|style))?)\s*:/i);
 assertNoLayoutOverride("sheet-body", /\.sheet-body$/i, outerLayoutProperty);
-assertNoLayoutOverride("ability-scores", /\.ability-scores$/i, outerLayoutProperty);
+assertNoLayoutOverride("ability-scores", /\.ability-scores$/i,
+  /(?:^|;)\s*(?:display|position|overflow(?:-[xy])?|(?:min-|max-)?(?:width|height)|grid(?:-[\w-]+)?|flex(?:-[\w-]+)?|contain|transform|inset|right|bottom|left|margin(?:-[\w-]+)?|padding(?:-[\w-]+)?|border(?:-(?:width|style))?)\s*:/i);
 assertNoLayoutOverride("native tabs", /nav\.tabs$/i, outerLayoutProperty);
 
 const innerLayoutProperty = /(?:^|;)\s*(?:display|position|z-index|overflow(?:-[xy])?|(?:max-)?(?:width|height)|grid(?:-[\w-]+)?|flex(?:-[\w-]+)?|contain|transform|inset|top|right|bottom|left|margin(?:-[\w-]+)?|padding(?:-[\w-]+)?|border(?:-(?:width|style))?)\s*:/i;
@@ -84,6 +94,8 @@ assert.match(css, /\.sheet-header::before\s*\{[^{}]*width:\s*76px;[^{}]*height:\
   "The Trainer sheet needs the large blue Pokédex lens");
 assert.match(css, /\.window-content\s*\{[^{}]*margin-block-start:\s*calc\(-1 \* var\(--header-height\)\);/s,
   "The native sheet must start below the clipped region while retaining its draggable header");
+assert.match(css, /\.ability-scores\s*\{[^{}]*top:\s*35px;/s,
+  "Ability score markers must follow the corrected sheet header offset");
 assert.match(css, /\.window-header :is\(\.window-icon, \.window-title\)\s*\{[^{}]*visibility:\s*hidden;/s,
   "The Foundry title must be visually integrated into the Pokedex shell");
 assert.match(css, /\.sheet-header > \.right \.boon-badge\s*\{[^{}]*display:\s*none;/s,

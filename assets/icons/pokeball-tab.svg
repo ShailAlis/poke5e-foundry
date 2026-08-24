@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title" data-poke5e-tab-icon="pokeball">
+  <title id="title">Equipo Pok&#233;mon</title>
+  <defs>
+    <linearGradient id="top" x1="12" y1="8" x2="48" y2="34" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ef5960"/>
+      <stop offset="0.52" stop-color="#c52a31"/>
+      <stop offset="1" stop-color="#741017"/>
+    </linearGradient>
+    <linearGradient id="bottom" x1="16" y1="34" x2="48" y2="57" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f8ffff"/>
+      <stop offset="1" stop-color="#b9d8dc"/>
+    </linearGradient>
+    <radialGradient id="button" cx="38%" cy="32%" r="68%">
+      <stop stop-color="#f4ffff"/>
+      <stop offset="0.22" stop-color="#58e5ff"/>
+      <stop offset="0.68" stop-color="#0878b5"/>
+      <stop offset="1" stop-color="#021c35"/>
+    </radialGradient>
+  </defs>
+  <circle cx="32" cy="32" r="28" fill="url(#top)"/>
+  <path d="M4 32a28 28 0 0 0 56 0Z" fill="url(#bottom)"/>
+  <path d="M5 32h54" fill="none" stroke="#180204" stroke-width="6"/>
+  <circle cx="32" cy="32" r="10" fill="#f7f3e8" stroke="#180204" stroke-width="5"/>
+  <circle cx="32" cy="32" r="5.5" fill="url(#button)" stroke="#0878b5" stroke-width="1.5"/>
+  <path d="M15 16c7-7 18-9 27-5" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".5"/>
+  <circle cx="32" cy="32" r="28" fill="none" stroke="#180204" stroke-width="5"/>
+</svg>

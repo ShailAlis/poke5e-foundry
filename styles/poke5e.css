@@ -688,6 +688,7 @@
 }
 
 .dnd5e2.sheet.actor.character.poke5e-trainer-sheet .ability-scores {
+  top: 35px;
   color: var(--pk-device-ink);
 }
 .dnd5e2.sheet.actor.character.poke5e-trainer-sheet .ability-scores .ability-score::before {

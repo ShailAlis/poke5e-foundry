@@ -81,8 +81,8 @@ export class Poke5eTrainerActorSheet extends CharacterActorSheet {
 
   static TABS = [
     ...super.TABS.slice(0, 1),
-    { tab: "pokemonTeam", label: "POKE5E.Team.WindowTitle", icon: "fa-solid fa-circle-dot" },
-    ...super.TABS.slice(1)
+    { tab: "pokemonTeam", label: "POKE5E.Team.WindowTitle", svg: `${MODULE_PATH}/assets/icons/pokeball-tab.svg` },
+    ...super.TABS.slice(1).filter(({ tab }) => !["spells", "specialTraits"].includes(tab))
   ];
 
   /**
