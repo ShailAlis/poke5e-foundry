@@ -21,7 +21,7 @@ import { deployedActorFor, recallPokemon, setPokemonCombatantsDefeated, syncPoke
 import { CONTEST_TYPES, contestAppealOutcome, contestCompatibility, contestDetailsForMove, contestTypeOptions } from "../world/contests.mjs";
 import { POKEMON_STATUS_EFFECTS, applyMoveStatuses, applyPokemonStatus, inferMoveStatusEffects, pokemonIncapacitatingStatus, pokemonStatusEntries, pokemonStatusId, removePokemonStatus } from "../combat/status-effects.mjs";
 import { applyMoveOngoingEffects, moveHasImmediateDamage, ongoingEffectEntries, removeOngoingEffect } from "../combat/ongoing-effects.mjs";
-import { applyDynamicModifier, applyMoveLock, applyMoveModifierEffects, attackHitsPokemonTarget, consecutiveStrikeStacks, consumeCapturedMoveModifiers, isMoveRecharging, moveModifierEntries, moveModifierIdsToConsume, pokemonCombatModifiers, removeAllMoveModifiers, removeMoveModifier, resetConsecutiveStrike, targetedPokemonModifiers } from "../combat/move-modifiers.mjs";
+import { applyDynamicModifier, applyMoveLock, applyMoveModifierEffects, attackHitsPokemonTarget, consecutiveStrikeStacks, consumeCapturedMoveModifiers, isMoveRecharging, moveModifierEntries, moveModifierIdsToConsume, pokemonCombatModifiers, removeAllMoveModifiers, removeMoveModifier, resetConsecutiveStrike, shouldRollPokemonDamage, targetedPokemonModifiers } from "../combat/move-modifiers.mjs";
 import { CHAIN_MULTI_HIT_MOVES, CONSECUTIVE_ESCALATION_MOVES, FIXED_MULTI_ATTACK_MOVES, STOP_ON_MISS_MOVES, addExtraDie, diceMultiplierForStacks, resolveChainHits, scaleDiceCount, swiftProjectileCount } from "../combat/multi-hit.mjs";
 import { DRAIN_FRACTION_MOVES, RECOIL_FRACTION_MOVES, recoilAmount } from "../combat/recoil.mjs";
 import { markFalseSwipeTarget, requestFaintTargets, requestHpEffect, rollFailedSaves } from "../combat/hp-effects.mjs";
@@ -164,6 +164,43 @@ function preparePokemonSkills({ combatActor, trainer, pokemonItem, species, inst
       expertise: rank >= 2,
       modifier: baseTotal + hobbyistBonus + companionBonus,
       modifierLabel: signed(baseTotal + hobbyistBonus + companionBonus)
+    };
+  });
+}
+
+/** Prepara las seis salvaciones con la competencia y los efectos activos. */
+function preparePokemonSavingThrows({ combatActor, trainer, species, instance, level }) {
+  const proficiency = 2 + Math.floor((Math.max(1, Number(level) || 1) - 1) / 4);
+  const effectiveAttributes = pokemonAttributesWithNature(species, instance);
+  const combat = pokemonCombatModifiers(combatActor);
+
+  return Object.entries(effectiveAttributes).map(([key, fallbackScore]) => {
+    const actorAbility = combatActor?.system?.abilities?.[key];
+    const projectedScore = (Number(fallbackScore) || 10)
+      + (trainer?.type === "character" ? aceTrainerAbilityBonus(trainer, key) : 0);
+    const score = Number(actorAbility?.value) || projectedScore;
+    const fallbackRank = species.savingThrows?.includes(key)
+      || (key === "wis" && trainer?.type === "character" && hasTrainerPath(trainer, "guru", 5)) ? 1 : 0;
+    const rank = actorAbility ? Number(actorAbility.proficient) || 0 : fallbackRank;
+    const prepared = Number(actorAbility?.save?.value ?? actorAbility?.save?.total ?? actorAbility?.save);
+    const actorProficiency = Number(combatActor?.system?.attributes?.prof) || proficiency;
+    const baseModifier = Number.isFinite(prepared)
+      ? prepared
+      : Math.floor((score - 10) / 2) + (rank * actorProficiency);
+    const modifier = baseModifier + (Number(combat.saves[key]) || 0);
+    const labelKey = CONFIG.DND5E.abilities?.[key]?.label;
+    return {
+      id: key,
+      key: key.toUpperCase(),
+      label: labelKey ? game.i18n.localize(labelKey) : key.toUpperCase(),
+      score,
+      modifier: signed(Math.floor((score - 10) / 2)),
+      saveModifier: signed(modifier),
+      saveValue: modifier,
+      proficient: rank > 0,
+      advantage: combat.saveAdvantage || combat.saveAdvantageAbilities.includes(key),
+      disadvantage: combat.saveDisadvantageAbilities.includes(key),
+      bonusDice: combat.saveDice
     };
   });
 }
@@ -335,9 +372,6 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
         automatic: automation === "automatic"
       };
     }).filter(Boolean);
-    const abilityScores = Object.entries(combatSpecies.attributes).map(([key, score]) => ({
-      key: key.toUpperCase(), score, modifier: signed(Math.floor((Number(score) - 10) / 2))
-    }));
     const defenses = pokemonDefenses(effectiveTypes);
     const experience = experienceProgress(instance.experience, level);
     const hpMaximum = Math.max(1, Number(instance.hp?.max) || Number(species.hp) || 1);
@@ -346,6 +380,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const pendingAdvancements = hasPendingPokemonAdvancements(instance);
     const heldActor = heldItemActorAdjustments({ sourceId: heldItem?.sourceId, speciesId: species.id, charges: heldItem?.charges, state: heldItem?.state });
     const combatActor = trainer?.getFlag?.(MODULE_ID, "kind") === "wild" ? trainer : deployedActorFor(this.pokemonItem);
+    const abilityScores = preparePokemonSavingThrows({ combatActor, trainer, species, instance, level });
     const death = combatActor?.system?.attributes?.death;
     const deathSuccess = Math.max(0, Math.min(3, Number(death?.success) || 0));
     const deathFailure = Math.max(0, Math.min(3, Number(death?.failure) || 0));
@@ -541,6 +576,10 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     this.element.querySelectorAll("[data-action='roll-skill']").forEach(button => button.addEventListener("click", event => {
       const key = event.currentTarget.dataset.skillKey;
       if (key) this.#rollSkillCheck(key);
+    }));
+    this.element.querySelectorAll("[data-action='roll-save']").forEach(button => button.addEventListener("click", event => {
+      const key = event.currentTarget.dataset.abilityKey;
+      if (key) this.#rollSavingThrow(key);
     }));
     this.element.querySelector("[data-action='select-multitalent']")?.addEventListener("change", async event => {
       const instance = this.#instance();
@@ -1416,7 +1455,8 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
       neuroforceTrigger = abilityRollsSuperEffectiveTwice(instance.abilities, isSuperEffective ? 2 : 1);
     }
     const rollsTwiceHigher = (notBurned && abilityRollsDamageTwiceHigher(instance.abilities, { moveType: move.type, speciesTypes: species.type ?? [], movePp: move.pp, moveId: move.id, moveName: move.name })) || neuroforceTrigger;
-    if (formula) {
+    const rollDamage = formula && shouldRollPokemonDamage(attackResult, selectedTokens.map(token => token.actor));
+    if (rollDamage) {
       const DamageRoll = CONFIG.Dice?.DamageRoll;
       if (DamageRoll) {
         // Vigor (guts) ignora la tirada doble-quedarse-con-la-menor de Quemado.
@@ -1918,6 +1958,31 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const name = displayPokemonName(this.pokemonItem);
     const roll = await new Roll("1d20 + @modifier", { modifier }).evaluate();
     await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor: combatActor ?? trainer, alias: name }), flavor: `${name} — ${skill.label}` });
+  }
+
+  /** Tira una salvación desde el botón de la característica en la pestaña Datos. */
+  async #rollSavingThrow(abilityKey) {
+    const trainer = this.pokemonItem.parent?.type === "character" ? this.pokemonItem.parent : null;
+    const combatActor = this.pokemonItem.parent?.getFlag?.(MODULE_ID, "kind") === "wild"
+      ? this.pokemonItem.parent
+      : deployedActorFor(this.pokemonItem);
+    const species = this.pokemonItem.getFlag(MODULE_ID, "species") ?? {};
+    const instance = this.#instance();
+    const savingThrow = preparePokemonSavingThrows({
+      combatActor, trainer, species, instance, level: Number(instance.level) || 1
+    }).find(entry => entry.id === abilityKey);
+    if (!savingThrow) return;
+
+    const dice = savingThrow.advantage === savingThrow.disadvantage
+      ? "1d20"
+      : savingThrow.advantage ? "2d20kh" : "2d20kl";
+    const bonusDice = savingThrow.bonusDice.map(formula => ` + ${formula}`).join("");
+    const roll = await new Roll(`${dice} + @modifier${bonusDice}`, { modifier: savingThrow.saveValue }).evaluate();
+    const name = displayPokemonName(this.pokemonItem);
+    await roll.toMessage({
+      speaker: ChatMessage.getSpeaker({ actor: combatActor ?? trainer, alias: name }),
+      flavor: game.i18n.format("POKE5E.PokemonSheet.SaveFlavor", { name, ability: savingThrow.label })
+    });
   }
 
   /**

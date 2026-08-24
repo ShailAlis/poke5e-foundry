@@ -34,7 +34,21 @@ assert.equal(modifierTriggerMatches(MOVE_MODIFIER_EFFECTS["steel-wing"], { attac
 assert.equal(modifierTriggerMatches(MOVE_MODIFIER_EFFECTS["steel-wing"], { attack: { hit: true, natural: 18 } }), false);
 assert.equal(MOVE_MODIFIER_EFFECTS.reflect.modifiers.meleeDamageResistance, true);
 
-const { pokemonCombatModifiers } = await import("../combat/move-modifiers.mjs");
+const { attackHitsPokemonTarget, pokemonCombatModifiers, shouldRollPokemonDamage } = await import("../combat/move-modifiers.mjs");
+
+// Una fórmula de daño no debe ejecutarse si la tirada no alcanza la CA de
+// ninguno de los objetivos. Los críticos naturales conservan las reglas de
+// impacto y fallo automáticos, y sin objetivo se mantiene el flujo manual.
+const armorClass = value => ({ system: { attributes: { ac: { value } } } });
+const ac15 = armorClass(15);
+assert.equal(attackHitsPokemonTarget({ natural: 10, total: 14 }, ac15), false);
+assert.equal(attackHitsPokemonTarget({ natural: 10, total: 15 }, ac15), true);
+assert.equal(attackHitsPokemonTarget({ natural: 1, total: 30 }, ac15), false);
+assert.equal(attackHitsPokemonTarget({ natural: 20, total: 10 }, ac15), true);
+assert.equal(shouldRollPokemonDamage({ natural: 10, total: 14 }, [ac15]), false);
+assert.equal(shouldRollPokemonDamage({ natural: 10, total: 15 }, [ac15]), true);
+assert.equal(shouldRollPokemonDamage({ natural: 10, total: 14 }, []), true);
+assert.equal(shouldRollPokemonDamage(null, [ac15]), true);
 const flaggedEffect = state => ({ getFlag: (moduleId, key) => moduleId === "poke5e-foundry" ? (key === "kind" ? "move-modifier" : state) : null });
 const mockActor = { effects: [flaggedEffect({ modifiers: { attack: -5, saves: { wis: -2 }, attackDisadvantage: true } })] };
 assert.deepEqual(pokemonCombatModifiers(mockActor).saves, { wis: -2 });

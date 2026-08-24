@@ -51,7 +51,7 @@ globalThis.canvas = {
   },
   tokens: { placeables: [] }
 };
-const { actorReturnsUpright, cleanDeploymentActor, deployPokemon, deploymentActorName, deploymentPosition, ensureDeploymentPermissions, isAllowedDeployment, joinTrainerCombat, pokemonZeroHpOutcome, removeDeployment, syncDeploymentHp, trainerCombatForToken } = await import("../world/deployment.mjs");
+const { actorReturnsUpright, cleanDeploymentActor, deployPokemon, deploymentActorName, deploymentFootprintPositions, deploymentPosition, ensureDeploymentPermissions, isAllowedDeployment, joinTrainerCombat, pokemonZeroHpOutcome, removeDeployment, syncDeploymentHp, trainerCombatForToken } = await import("../world/deployment.mjs");
 
 if (pokemonZeroHpOutcome("wild") !== "defeated") throw new Error("Wild Pokémon should be defeated at 0 HP.");
 if (pokemonZeroHpOutcome("deployed") !== "death-saves") throw new Error("Trainer Pokémon should make death saves at 0 HP.");
@@ -106,6 +106,10 @@ if (actorReturnsUpright(actorKind("npc"))) throw new Error("Unrelated NPCs shoul
 const trainerToken = { center: { x: 50, y: 50 }, document: { x: 0, y: 0 }, w: 100, h: 100 };
 canvas.tokens.placeables = [trainerToken];
 const tokenData = { width: 1, height: 1 };
+const largeFootprint = deploymentFootprintPositions({ x: 100, y: 200 }, { width: 2, height: 2 });
+if (JSON.stringify(largeFootprint) !== JSON.stringify([
+  { x: 100, y: 200 }, { x: 100, y: 300 }, { x: 200, y: 200 }, { x: 200, y: 300 }
+])) throw new Error("The deployment highlight does not cover the full token footprint.");
 const validPosition = deploymentPosition({ x: 250, y: 50 }, tokenData);
 const distantPosition = deploymentPosition({ x: 350, y: 50 }, tokenData);
 if (!isAllowedDeployment(validPosition, trainerToken, tokenData)) throw new Error("A free position at 10 feet should be allowed.");

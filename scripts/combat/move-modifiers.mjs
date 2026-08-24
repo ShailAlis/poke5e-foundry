@@ -347,6 +347,16 @@ export function attackHitsPokemonTarget(attack, actor) {
   return !Number.isFinite(ac) || Number(attack.total) >= ac;
 }
 
+/**
+ * Decide si corresponde tirar el daño. Sin tirada de ataque (movimientos con
+ * salvación) o sin objetivos se conserva el flujo manual; con objetivos, al
+ * menos uno debe haber sido impactado según su CA.
+ */
+export function shouldRollPokemonDamage(attack, actors = []) {
+  const targets = [...(actors ?? [])];
+  return !attack || !targets.length || targets.some(actor => attackHitsPokemonTarget(attack, actor));
+}
+
 async function completeModifierApplication(payload) {
   const requester = game.users.get(payload.userId);
   const owner = payload.sourceOwnerActorUuid ? await fromUuid(payload.sourceOwnerActorUuid) : null;

@@ -636,6 +636,15 @@ function chooseDeploymentPosition(trainerToken, tokenData, pokemonName) {
 function highlightDeploymentArea(name, trainerToken, tokenData) {
   const gridLayer = canvas.interface?.grid;
   if (!gridLayer?.highlightPosition) return;
+  if (canvas.grid.isGridless) {
+    const gridDistance = Math.max(Number(canvas.grid.distance) || 5, 1);
+    const points = canvas.grid.getCircle?.(trainerToken.center, DEPLOY_RANGE / gridDistance) ?? [];
+    const Polygon = globalThis.PIXI?.Polygon;
+    if (Polygon && points.length) {
+      gridLayer.highlightPosition(name, { shape: new Polygon(points), color: 0x2e6fbb, alpha: 0.38 });
+    }
+    return;
+  }
   const steps = Math.ceil(DEPLOY_RANGE / Math.max(Number(canvas.grid.distance) || 5, 1)) + 2;
   const tokenWidth = Number(tokenData.width ?? 1) * canvas.grid.sizeX;
   const tokenHeight = Number(tokenData.height ?? 1) * canvas.grid.sizeY;
@@ -646,15 +655,35 @@ function highlightDeploymentArea(name, trainerToken, tokenData) {
   const seen = new Set();
   for (let dx = -steps; dx <= steps; dx++) {
     for (let dy = -steps; dy <= steps; dy++) {
-      const position = canvas.grid.isGridless
-        ? deploymentPosition({ x: trainerToken.center.x + (dx * canvas.grid.sizeX), y: trainerToken.center.y + (dy * canvas.grid.sizeY) }, tokenData)
-        : { x: anchor.x + (dx * canvas.grid.sizeX), y: anchor.y + (dy * canvas.grid.sizeY) };
+      const position = { x: anchor.x + (dx * canvas.grid.sizeX), y: anchor.y + (dy * canvas.grid.sizeY) };
       const key = `${position.x}:${position.y}`;
       if (seen.has(key) || !isAllowedDeployment(position, trainerToken, tokenData)) continue;
       seen.add(key);
-      gridLayer.highlightPosition(name, { x: position.x, y: position.y, color: 0x2e6fbb, alpha: 0.38 });
+      for (const cell of deploymentFootprintPositions(position, tokenData)) {
+        gridLayer.highlightPosition(name, { x: cell.x, y: cell.y, color: 0x2e6fbb, alpha: 0.38 });
+      }
     }
   }
+}
+
+/**
+ * Casillas que ocupa un token desde su esquina superior izquierda. Pintar la
+ * huella completa evita que el área parezca desplazada hacia esa esquina en
+ * Pokémon de tamaño Grande o superior.
+ */
+export function deploymentFootprintPositions(position, tokenData, grid = canvas.grid) {
+  const columns = Math.max(1, Math.ceil(Number(tokenData.width) || 1));
+  const rows = Math.max(1, Math.ceil(Number(tokenData.height) || 1));
+  const cells = [];
+  for (let column = 0; column < columns; column++) {
+    for (let row = 0; row < rows; row++) {
+      cells.push({
+        x: position.x + (column * grid.sizeX),
+        y: position.y + (row * grid.sizeY)
+      });
+    }
+  }
+  return cells;
 }
 
 /**

@@ -112,7 +112,12 @@
 
   <section class="poke5e-stat-grid" aria-label="Características">
     {{#each abilityScores}}
-      <div><span>{{key}}</span><strong>{{score}}</strong><small>{{modifier}}</small></div>
+      <div class="{{#if proficient}}proficient{{/if}}">
+        <span class="poke5e-stat-name">{{key}}</span><strong>{{score}}</strong><small>{{modifier}}</small>
+        <button type="button" data-action="roll-save" data-ability-key="{{id}}" title="{{localize "POKE5E.PokemonSheet.RollSave" ability=label modifier=saveModifier}}">
+          <i class="fa-solid fa-dice-d20"></i><span>{{localize "POKE5E.PokemonSheet.SaveShort"}} {{saveModifier}}</span>{{#if proficient}}<i class="fa-solid fa-star" aria-hidden="true"></i>{{/if}}
+        </button>
+      </div>
     {{/each}}
   </section>
 
