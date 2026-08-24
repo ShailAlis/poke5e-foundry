@@ -9,7 +9,7 @@
  * través del socket. Lo arrancan main.mjs y los botones de captura de
  * trainer-team.mjs y trainer-actor-sheet.mjs.
  */
-import { captureDifficulty, captureHasAdvantage, POKEBALL_IDS } from "./capture-rules.mjs";
+import { captureDifficulty, captureExperienceReward, captureHasAdvantage, capturedHitPoints, POKEBALL_IDS } from "./capture-rules.mjs";
 import { hasTrainerPath, rangerCaptureAdvantage } from "../trainer/trainer-path-rules.mjs";
 import { loadPoke5eData } from "../core/data-service.mjs";
 import { removeDeployment } from "../world/deployment.mjs";
@@ -188,7 +188,7 @@ export async function completeCapture(payload) {
   const species = pokemonItem?.getFlag(MODULE_ID, "species");
   const originalInstance = pokemonItem?.getFlag(MODULE_ID, "instance");
   if (!pokemonItem || !species || !originalInstance) throw new Error("La ficha salvaje está incompleta.");
-  if (isCapturedLegendary(species)) throw new Error(game.i18n.format("POKE5E.Legendary.AlreadyCaptured", { pokemon: species.name }));
+  if (isCapturedLegendary(species, undefined, undefined, { excludeActorId: wildActor.id })) throw new Error(game.i18n.format("POKE5E.Legendary.AlreadyCaptured", { pokemon: species.name }));
   const level = Math.max(1, Number(originalInstance.level) || 1);
   if (level > trainerLevel(trainer)) throw new Error("El nivel del Pokémon supera el del entrenador.");
   if (Number(wildActor.system.attributes?.hp?.value) <= 0) throw new Error("Un Pokémon debilitado no puede ser capturado.");
@@ -198,10 +198,8 @@ export async function completeCapture(payload) {
     const instance = foundry.utils.deepClone(originalInstance);
     instance.level = level;
     instance.experience = experienceAtLevel(level);
-    instance.hp = {
-      value: Math.max(1, Number(wildActor.system.attributes.hp.value) || 1),
-      max: Math.max(1, Number(wildActor.system.attributes.hp.max) || Number(instance.hp?.max) || 1)
-    };
+    const capturedMaximumHp = Math.max(1, Number(wildActor.system.attributes.hp.max) || Number(instance.hp?.max) || 1);
+    instance.hp = capturedHitPoints(payload.ballId, wildActor.system.attributes.hp.value, capturedMaximumHp);
     instance.status = instance.status || targetStatuses(wildActor, instance)[0] || "";
     instance.inTeam = getPokemonItems(trainer).filter(item => item.getFlag(MODULE_ID, "instance")?.inTeam).length < trainerPokeslotLimit(trainer);
     instance.caughtWith = payload.ballId;
@@ -222,7 +220,7 @@ export async function completeCapture(payload) {
     if (!capturedItem) throw new Error("No se pudo añadir el Pokémon al entrenador.");
     await removeWildCombatants(wildActor);
     await removeDeployment(wildActor, { deleteTokens: true });
-    const captureExperience = Math.floor(experienceAward(level, species.sr) / 5);
+    const captureExperience = captureExperienceReward(experienceAward(level, species.sr));
     await ChatMessage.create({
       speaker: ChatMessage.getSpeaker({ actor: trainer }),
       content: `<div class="dnd5e chat-card poke5e-capture-card success"><header class="card-header"><h3><i class="fa-solid fa-circle-dot"></i> ${game.i18n.format("POKE5E.Capture.ChatCapturedTitle", { pokemon: escapeHtml(species.name) })}</h3></header><p>${game.i18n.format("POKE5E.Capture.ChatCaptured", { trainer: `<strong>${escapeHtml(trainer.name)}</strong>`, pokemon: escapeHtml(species.name), ball: escapeHtml(payload.ballName) })}</p><p>${game.i18n.format("POKE5E.Capture.ChatPokemonSummary", { level, hp: instance.hp.value, max: instance.hp.max, destination: game.i18n.localize(instance.inTeam ? "POKE5E.Capture.ActiveTeam" : "POKE5E.Capture.Reserve") })}</p><p>${game.i18n.format("POKE5E.Capture.ChatXP", { xp: formatNumber(captureExperience) })}</p></div>`

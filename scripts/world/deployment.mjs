@@ -637,11 +637,18 @@ function highlightDeploymentArea(name, trainerToken, tokenData) {
   const gridLayer = canvas.interface?.grid;
   if (!gridLayer?.highlightPosition) return;
   const steps = Math.ceil(DEPLOY_RANGE / Math.max(Number(canvas.grid.distance) || 5, 1)) + 2;
+  const tokenWidth = Number(tokenData.width ?? 1) * canvas.grid.sizeX;
+  const tokenHeight = Number(tokenData.height ?? 1) * canvas.grid.sizeY;
+  const anchor = deploymentPosition({
+    x: trainerToken.center.x - (tokenWidth / 2),
+    y: trainerToken.center.y - (tokenHeight / 2)
+  }, tokenData);
   const seen = new Set();
   for (let dx = -steps; dx <= steps; dx++) {
     for (let dy = -steps; dy <= steps; dy++) {
-      const point = { x: trainerToken.center.x + (dx * canvas.grid.sizeX), y: trainerToken.center.y + (dy * canvas.grid.sizeY) };
-      const position = deploymentPosition(point, tokenData);
+      const position = canvas.grid.isGridless
+        ? deploymentPosition({ x: trainerToken.center.x + (dx * canvas.grid.sizeX), y: trainerToken.center.y + (dy * canvas.grid.sizeY) }, tokenData)
+        : { x: anchor.x + (dx * canvas.grid.sizeX), y: anchor.y + (dy * canvas.grid.sizeY) };
       const key = `${position.x}:${position.y}`;
       if (seen.has(key) || !isAllowedDeployment(position, trainerToken, tokenData)) continue;
       seen.add(key);

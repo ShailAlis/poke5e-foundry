@@ -16,6 +16,7 @@ import { MODULE_ID, MODULE_PATH, displayPokemonName, evolutionRequirementLabel, 
 import { pokedollars, updatePokedollars } from "../world/economy.mjs";
 import { MAX_KNOWN_MOVES, applyLearnedMove, filterMoveCatalog, moveEligibility } from "./move-learning.mjs";
 import { normalizeMoveDamageTypes, pokemonDefenses, typeLabel } from "../combat/combat.mjs";
+import { isMoveTargetInRange, moveMaximumRange } from "../combat/move-range.mjs";
 import { deployedActorFor, recallPokemon, setPokemonCombatantsDefeated, syncPokemonHeldItemToDeployment, syncPokemonIdentityToDeployment } from "../world/deployment.mjs";
 import { CONTEST_TYPES, contestAppealOutcome, contestCompatibility, contestDetailsForMove, contestTypeOptions } from "../world/contests.mjs";
 import { POKEMON_STATUS_EFFECTS, applyMoveStatuses, applyPokemonStatus, inferMoveStatusEffects, pokemonIncapacitatingStatus, pokemonStatusEntries, pokemonStatusId, removePokemonStatus } from "../combat/status-effects.mjs";
@@ -276,7 +277,7 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     this.moveFilters = { query: "", category: "available" };
     this.refocusMoveSearch = false;
     this.sheetMode = "combat";
-    this.pokemonTab = "details";
+    this.pokemonTab = "moves";
     this.contestType = "cool";
   }
 
@@ -943,6 +944,8 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     const catalogMove = data.movesById.get(entry?.moveId);
     if (!entry || !catalogMove) return;
     const combatActor = this.pokemonItem.parent?.getFlag?.(MODULE_ID, "kind") === "wild" ? this.pokemonItem.parent : deployedActorFor(this.pokemonItem);
+    const selectedTokens = [...(game.user.targets ?? [])];
+    if (!validateMoveTargetRanges(combatActor, selectedTokens, catalogMove)) return;
     const incapacitated = pokemonIncapacitatingStatus(combatActor);
     // Congelado y Dormido impiden actuar de verdad, salvo Somnitalk
     // (#rollSleepTalk), que en los videojuegos existe precisamente para
@@ -1003,7 +1006,6 @@ export class Poke5ePokemonSheet extends HandlebarsApplicationMixin(ApplicationV2
     if (abilityBlocksRepeatingMove(instance.abilities) && instance.lastMoveId === move.id) {
       return ui.notifications.warn(game.i18n.format("POKE5E.Notifications.TruantRepeat", { name, move: move.name }));
     }
-    const selectedTokens = [...(game.user.targets ?? [])];
     const singleTargetPokemonItem = selectedTokens.length === 1 ? await pokemonItemForActor(selectedTokens[0].actor) : null;
     const singleTargetInstance = singleTargetPokemonItem?.getFlag(MODULE_ID, "instance") ?? null;
     const sourceSuppressesTargetAbilities = abilitySuppressesTargetAbilities(instance.abilities);
@@ -2510,6 +2512,30 @@ function evolutionTimeLabel(value) {
 
 function attackScopeLabel(scope) {
   return { melee: "cuerpo a cuerpo", ranged: "a distancia" }[String(scope ?? "").toLowerCase()] ?? String(scope ?? "ataque");
+}
+
+/** Validates every selected target before PP or any special move effect is spent. */
+function validateMoveTargetRanges(combatActor, targets, move) {
+  const maximum = moveMaximumRange(move);
+  if (maximum == null || !targets.length) return true;
+  const sourceToken = canvas.tokens?.placeables?.find(token => token.actor?.id === combatActor?.id);
+  if (!sourceToken?.center) {
+    ui.notifications.warn(game.i18n.localize("POKE5E.Notifications.MoveRangeNeedsToken"));
+    return false;
+  }
+  for (const target of targets) {
+    if (!target?.center) continue;
+    const distance = Number(canvas.grid.measurePath([sourceToken.center, target.center]).distance);
+    if (!isMoveTargetInRange(move, distance)) {
+      ui.notifications.warn(game.i18n.format("POKE5E.Notifications.MoveOutOfRange", {
+        target: target.name,
+        distance: Math.round(distance * 10) / 10,
+        range: maximum
+      }));
+      return false;
+    }
+  }
+  return true;
 }
 
 /**

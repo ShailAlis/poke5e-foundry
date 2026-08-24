@@ -35,6 +35,9 @@ const ownedMewtwo = { getFlag: (_module, key) => key === "kind" ? "pokemon" : ke
 const playerActor = { id: "player", type: "character", hasPlayerOwner: true, items: [ownedMewtwo], getFlag: () => null };
 const npcActor = { id: "npc", type: "character", hasPlayerOwner: true, items: [ownedMewtwo], getFlag: (_module, key) => key === "kind" ? "npc-trainer" : null };
 assert.deepEqual([...capturedLegendaryNumbers([playerActor, npcActor], [])], [150]);
+const wildActor = { id: "wild", type: "npc", items: [ownedMewtwo], getFlag: (_module, key) => key === "kind" ? "wild" : null };
+assert.deepEqual([...capturedLegendaryNumbers([wildActor], [])], [150]);
+assert.deepEqual([...capturedLegendaryNumbers([wildActor], [], { excludeActorId: "wild" })], []);
 assert(naturalMovesAtLevel(bulbasaur, 1).includes("tackle"));
 assert(naturalMovesAtLevel(bulbasaur, 6).includes("vine-whip"));
 assert(adjustedHitPoints(bulbasaur, 2) > bulbasaur.hp);

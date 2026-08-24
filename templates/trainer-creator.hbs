@@ -92,7 +92,8 @@
     {{#if step3}}
       <section>
         <div class="poke5e-section-title"><h2><i class="fa-solid fa-circle-dot"></i> {{localize "POKE5E.Creator.FirstPokemon"}}</h2><span>{{localize "POKE5E.Creator.StarterRequirements"}}</span></div>
-        <div class="poke5e-creator-fields">
+        <div class="poke5e-creator-fields two">
+          <label><span>{{localize "POKE5E.Common.Type"}}</span><select name="starterType"><option value="">{{localize "POKE5E.Common.All"}}</option>{{#each starterTypes}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
           <label><span>{{localize "POKE5E.Common.Species"}}</span><select name="starter"><option value="">{{localize "POKE5E.Creator.ChooseSpecies"}}</option>{{#each starters}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
         </div>
         <div class="poke5e-callout"><i class="fa-solid fa-dice"></i><div>{{localize "POKE5E.Creator.RandomStarterTraits"}}</div></div>

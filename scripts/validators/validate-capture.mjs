@@ -8,7 +8,9 @@ import assert from "node:assert/strict";
 import {
   baseCaptureDifficulty,
   captureDifficulty,
+  captureExperienceReward,
   captureHasAdvantage,
+  capturedHitPoints,
   healthCaptureReduction,
   pokeballAdjustment
 } from "../pokemon/capture-rules.mjs";
@@ -20,6 +22,9 @@ assert.equal(healthCaptureReduction(49, 100), 5);
 assert.equal(healthCaptureReduction(9, 100), 10);
 assert.equal(captureHasAdvantage(["poisoned"]), true);
 assert.equal(captureHasAdvantage(["prone"]), false);
+assert.equal(captureExperienceReward(125), 62);
+assert.deepEqual(capturedHitPoints("poke-ball", 7, 20), { value: 7, max: 20 });
+assert.deepEqual(capturedHitPoints("heal-ball", 7, 20), { value: 20, max: 20 });
 assert.equal(pokeballAdjustment("net-ball", { types: ["water"] }).reduction, 10);
 assert.equal(pokeballAdjustment("heavy-ball", { size: "medium" }).reduction, 10);
 assert.equal(pokeballAdjustment("quick-ball", { combatRound: 1 }).reduction, 15);

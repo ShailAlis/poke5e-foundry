@@ -31,6 +31,8 @@ const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
  * reemplazarlos si se vuelve a ejecutar, sin tocar lo que se haya añadido después.
  */
 const CREATION_KIND_PREFIX = "trainer-creation-";
+const HUMAN_ICON = `${MODULE_PATH}/assets/icons/human.svg`;
+const ORIGIN_ICON = `${MODULE_PATH}/assets/icons/origin.svg`;
 
 /** Ventana del asistente de creación de Entrenador, con sus cuatro pasos. */
 export class Poke5eTrainerCreator extends HandlebarsApplicationMixin(ApplicationV2) {
@@ -72,6 +74,7 @@ export class Poke5eTrainerCreator extends HandlebarsApplicationMixin(Application
       classSkills: previous.classSkills ?? [],
       extraSkills: previous.extraSkills ?? [],
       specialization: previous.specialization ?? "",
+      starterType: previous.starterType ?? "",
       starter: previous.starter ?? "",
       nature: previous.nature ?? "",
       ability: previous.ability ?? ""
@@ -94,8 +97,11 @@ export class Poke5eTrainerCreator extends HandlebarsApplicationMixin(Application
     const specialization = SPECIALIZATIONS.find(entry => entry.type === this.selection.specialization);
     const unavailableClassSkills = new Set([origin?.skill, specialization?.skill].filter(Boolean));
     const evolvedSpecies = new Set(data.evolutions.map(entry => entry.to));
-    const starters = data.pokemon
-      .filter(species => Number(species.sr) <= 0.5 && !evolvedSpecies.has(species.id))
+    const eligibleStarters = data.pokemon
+      .filter(species => Number(species.sr) <= 0.5 && !evolvedSpecies.has(species.id));
+    this.eligibleStarterTypes = new Map(eligibleStarters.map(species => [species.id, new Set(species.type ?? [])]));
+    const starters = eligibleStarters
+      .filter(species => !this.selection.starterType || (species.type ?? []).includes(this.selection.starterType))
       .sort((a, b) => String(a.name).localeCompare(String(b.name)))
       .map(species => option(species.id, `${species.name} (SR ${species.sr})`, this.selection.starter));
     const starter = data.pokemonById.get(this.selection.starter);
@@ -162,6 +168,9 @@ export class Poke5eTrainerCreator extends HandlebarsApplicationMixin(Application
         ["coast", game.i18n.localize("POKE5E.Creator.EnvironmentCoast")], ["desert", game.i18n.localize("POKE5E.Creator.EnvironmentDesert")],
         ["forest", game.i18n.localize("POKE5E.Creator.EnvironmentForest")], ["mountain", game.i18n.localize("POKE5E.Creator.EnvironmentMountain")]
       ].map(([value, label]) => option(value, label, this.selection.environment)),
+      starterTypes: [...new Set(eligibleStarters.flatMap(species => species.type ?? []))]
+        .sort((a, b) => typeLabel(a).localeCompare(typeLabel(b)))
+        .map(type => option(type, typeLabel(type), this.selection.starterType)),
       starters, starter: starter ? { ...starter, img: portraitUrl(starter) } : null,
       resolved,
       hasConstitutionSave: resolved?.savingThrows.includes("con") ?? false,
@@ -194,12 +203,21 @@ export class Poke5eTrainerCreator extends HandlebarsApplicationMixin(Application
     if (input.name === "classSkills" || input.name === "extraSkills") {
       this.selection[input.name] = [...this.element.querySelectorAll(`[name='${input.name}']:checked`)].map(entry => entry.value);
     } else this.selection[input.name] = input.value;
-    if (["origin", "starter", "specialization", "baseAbilityMethod"].includes(input.name)) {
+    if (["origin", "starterType", "starter", "specialization", "baseAbilityMethod"].includes(input.name)) {
       this.#captureAll();
       this.selection[changedName] = changedValue;
       if (changedName === "starter") {
         this.selection.nature = "";
         this.selection.ability = "";
+      }
+      if (changedName === "starterType") {
+        const selectedStarter = this.selection.starter;
+        const selectedTypes = this.eligibleStarterTypes?.get(selectedStarter);
+        if (selectedStarter && changedValue && !selectedTypes?.has(changedValue)) {
+          this.selection.starter = "";
+          this.selection.nature = "";
+          this.selection.ability = "";
+        }
       }
       if (changedName === "specialization") this.#removeGrantedClassSkills();
       this.render({ force: true });
@@ -373,7 +391,7 @@ export function isHumanSpecies(item) {
  * humanSource() de npc-trainer-actor.mjs.
  */
 function humanSpeciesSource() {
-  const source = creationItem("Humano", "race", "human", "<p>En el mundo de Pokémon 5e todos los personajes jugadores son humanos. Los rasgos culturales proceden de su origen regional.</p>", "icons/svg/people.svg");
+  const source = creationItem("Humano", "race", "human", "<p>En el mundo de Pokémon 5e todos los personajes jugadores son humanos. Los rasgos culturales proceden de su origen regional.</p>", HUMAN_ICON);
   source.system.movement = { walk: 30, fly: 0, swim: 0, burrow: 0, climb: 0, units: "ft", hover: false };
   source.system.type = { value: "humanoid", subtype: "human", custom: "" };
   return source;
@@ -381,7 +399,7 @@ function humanSpeciesSource() {
 
 /** Item de trasfondo del origen, con sus bonificaciones, competencia e idiomas. */
 function originSource(rules) {
-  return creationItem(`Origen: ${rules.origin.name}`, "background", "origin", `<p>Obtienes +2 a ${ABILITIES[rules.originAbilities[0]]} y +1 a ${ABILITIES[rules.originAbilities[1]]}, competencia en ${SKILLS[rules.origin.skill]} y los idiomas ${rules.languages.join(" y ")}.</p>`);
+  return creationItem(`Origen: ${rules.origin.name}`, "background", "origin", `<p>Obtienes +2 a ${ABILITIES[rules.originAbilities[0]]} y +1 a ${ABILITIES[rules.originAbilities[1]]}, competencia en ${SKILLS[rules.origin.skill]} y los idiomas ${rules.languages.join(" y ")}.</p>`, ORIGIN_ICON);
 }
 
 /**

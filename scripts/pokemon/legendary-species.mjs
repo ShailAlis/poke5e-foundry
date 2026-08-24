@@ -27,24 +27,21 @@ export function uniqueLegendaryNumber(species) {
 }
 
 /**
- * Reúne los legendarios que ya pertenecen a PJ. Los entrenadores NPC y los
- * actores sin propietario jugador no cuentan; también se reconocen los PJ que
- * un usuario tenga asignados aunque la propiedad de su actor sea heredada.
+ * Reúne los legendarios que ya existen en el mundo: capturados por cualquier
+ * entrenador (PJ o NPC) y actores salvajes o desplegados presentes en campo.
+ * `excludeActorId` permite revalidar una captura sin contar al propio objetivo.
  */
 export function capturedLegendaryNumbers(
   actors = globalThis.game?.actors?.contents ?? globalThis.game?.actors ?? [],
-  users = globalThis.game?.users?.contents ?? globalThis.game?.users ?? []
+  _users = globalThis.game?.users?.contents ?? globalThis.game?.users ?? [],
+  { excludeActorId = null } = {}
 ) {
   const actorList = collectionValues(actors);
-  const assigned = new Set(collectionValues(users)
-    .filter(user => !user.isGM && user.character)
-    .map(user => typeof user.character === "string" ? user.character : user.character.id));
   const captured = new Set();
   for (const actor of actorList) {
-    if (actor.type !== "character") continue;
-    if (actor.getFlag?.(MODULE_ID, "kind") === "npc-trainer") continue;
-    if (actor.getFlag?.(MODULE_ID, "trainerCreation")?.npc) continue;
-    if (!actor.hasPlayerOwner && !assigned.has(actor.id)) continue;
+    if (actor.id === excludeActorId) continue;
+    const actorKind = actor.getFlag?.(MODULE_ID, "kind");
+    if (actor.type !== "character" && !["wild", "deployed"].includes(actorKind)) continue;
     for (const item of collectionValues(actor.items)) {
       if (item.getFlag?.(MODULE_ID, "kind") !== "pokemon") continue;
       const number = uniqueLegendaryNumber(item.getFlag(MODULE_ID, "species"));
@@ -54,10 +51,10 @@ export function capturedLegendaryNumbers(
   return captured;
 }
 
-/** Indica si esa especie legendaria ya pertenece a algún PJ. */
-export function isCapturedLegendary(species, actors, users) {
+/** Indica si esa especie legendaria ya existe en un entrenador o en el campo. */
+export function isCapturedLegendary(species, actors, users, options) {
   const number = uniqueLegendaryNumber(species);
-  return Boolean(number && capturedLegendaryNumbers(actors, users).has(number));
+  return Boolean(number && capturedLegendaryNumbers(actors, users, options).has(number));
 }
 
 function collectionValues(collection) {

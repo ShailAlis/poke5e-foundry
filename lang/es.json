@@ -691,7 +691,9 @@
   "POKE5E.Biomes.tundra": "Tundra",
   "POKE5E.Biomes.volcano": "VolcÃ¡n",
   "POKE5E.Biomes.woodland": "Arboleda",
-  "POKE5E.Legendary.AlreadyCaptured": "{pokemon} es un Pokémon legendario único y ya pertenece a un jugador.",
-  "POKE5E.Legendary.AlreadyCapturedWild": "{pokemon} ya pertenece a un jugador y no puede aparecer como Pokémon salvaje.",
-  "POKE5E.Legendary.AlreadyCapturedNpc": "{pokemon} ya pertenece a un jugador y no puede formar parte del equipo de un Entrenador NPC."
+  "POKE5E.Legendary.AlreadyCaptured": "{pokemon} es un Pokémon legendario único y ya existe en el mundo.",
+  "POKE5E.Legendary.AlreadyCapturedWild": "{pokemon} ya está en el campo o pertenece a un entrenador y no puede aparecer como Pokémon salvaje.",
+  "POKE5E.Legendary.AlreadyCapturedNpc": "{pokemon} ya está en el campo o pertenece a otro entrenador y no puede formar parte de este equipo.",
+  "POKE5E.Notifications.MoveRangeNeedsToken": "Despliega al Pokémon en la escena para comprobar el alcance del movimiento.",
+  "POKE5E.Notifications.MoveOutOfRange": "{target} está a {distance} pies; el alcance máximo de este movimiento es de {range} pies."
 }

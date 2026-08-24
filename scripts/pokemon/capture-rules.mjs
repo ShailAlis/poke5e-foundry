@@ -13,6 +13,17 @@ export const POKEBALL_IDS = Object.freeze([
   "luxury-ball", "premier-ball", "dusk-ball", "heal-ball", "quick-ball", "dream-ball"
 ]);
 
+/** Half the defeat reward, rounded down as all experience awards are integers. */
+export function captureExperienceReward(defeatExperience) {
+  return Math.max(0, Math.floor((Number(defeatExperience) || 0) / 2));
+}
+
+/** Preserves current HP on capture; a Heal Ball restores the new Pokémon fully. */
+export function capturedHitPoints(ballId, currentHp, maximumHp) {
+  const max = Math.max(1, Number(maximumHp) || 1);
+  return { value: ballId === "heal-ball" ? max : Math.max(1, Math.min(max, Number(currentHp) || 1)), max };
+}
+
 /**
  * Estados que conceden ventaja a la tirada de captura. Incluye variantes de
  * nombre porque conviven los identificadores de D&D 5e, los de status-effects.mjs

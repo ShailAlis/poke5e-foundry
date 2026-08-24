@@ -5,7 +5,7 @@
     <section class="poke5e-encounter-config">
       <div class="poke5e-section-title"><h2><i class="fa-solid fa-filter"></i> {{localize "POKE5E.Encounter.HabitatSpecies"}}</h2><button type="button" data-action="clear-filters"><i class="fa-solid fa-filter-circle-xmark"></i> {{localize "POKE5E.Common.Reset"}}</button></div>
       <div class="poke5e-encounter-filters">
-        <label class="search"><span>{{localize "POKE5E.Common.Search"}}</span><input type="search" value="{{filters.query}}" placeholder="{{localize "POKE5E.Common.SearchPokemonPlaceholder"}}" data-action="search"></label>
+        <label class="search"><span>{{localize "POKE5E.Common.Search"}}</span><div class="poke5e-search-field"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" value="{{filters.query}}" placeholder="{{localize "POKE5E.Common.SearchPokemonPlaceholder"}}" data-action="search"></div></label>
         <label><span>{{localize "POKE5E.Common.Type"}}</span><select data-filter="type">{{selectOptions typeOptions selected=filters.type blank=(localize "POKE5E.Common.All")}}</select></label>
         <label><span>{{localize "POKE5E.Common.Biome"}}</span><select data-filter="biome">{{selectOptions biomeOptions selected=filters.biome blank=(localize "POKE5E.Common.All")}}</select></label>
         <label><span>{{localize "POKE5E.Common.Region"}}</span><select data-filter="region">{{selectOptions regionOptions selected=filters.region blank=(localize "POKE5E.Common.AllFeminine")}}</select></label>

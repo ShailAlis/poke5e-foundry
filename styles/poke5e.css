@@ -432,6 +432,35 @@
   border-bottom-color: #7d1821;
   background: linear-gradient(100deg, #a91f2a, #d9363e 55%, #76131c);
 }
+.poke5e-trainer-sheet .window-content {
+  background:
+    radial-gradient(circle at 92% 6%, rgba(217, 54, 62, 0.09), transparent 24rem),
+    linear-gradient(145deg, #f8f5ec, #e9eef2);
+}
+.poke5e-trainer-sheet nav.tabs {
+  padding-inline: 0.45rem;
+  border-block-color: rgba(125, 24, 33, 0.35);
+  background: rgba(255, 255, 255, 0.68);
+  box-shadow: 0 2px 8px rgba(24, 33, 43, 0.08);
+}
+.poke5e-trainer-sheet nav.tabs > a,
+.poke5e-trainer-sheet nav.tabs > button { border-radius: 7px 7px 0 0; }
+.poke5e-trainer-sheet nav.tabs > .active {
+  color: #fff;
+  background: linear-gradient(180deg, #d9363e, #a91f2a);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.28);
+}
+.poke5e-trainer-sheet .sheet-header {
+  padding: 0.7rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 3px 12px rgba(24, 33, 43, 0.11);
+}
+.poke5e-trainer-sheet .sheet-body .tab:not(.poke5e-sheet-team-tab) {
+  padding: 0.65rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.58);
+}
 .poke5e-sheet-team-tab {
   min-height: 100%;
   padding: 1rem;
@@ -558,6 +587,17 @@
 .poke5e-encounter-filters input,
 .poke5e-encounter-filters select,
 .poke5e-encounter-generator-row input { width: 100%; min-width: 0; }
+.poke5e-search-field { position: relative; min-width: 0; }
+.poke5e-search-field > i {
+  position: absolute;
+  left: 0.65rem;
+  top: 50%;
+  z-index: 1;
+  color: rgba(24, 33, 43, 0.5);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+.poke5e-search-field input[type="search"] { padding-left: 2rem; }
 .poke5e-encounter-filters fieldset { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 0.2rem; min-width: 0; margin: 0; padding: 0; border: 0; background: none; }
 .poke5e-encounter-filters legend { grid-column: 1 / -1; padding: 0; font-size: 0.7rem; }
 .poke5e-encounter-generator-row { display: grid; grid-template-columns: 90px 160px auto 1fr; align-items: end; gap: 0.5rem; margin-top: 0.55rem; padding-top: 0.55rem; border-top: 1px dashed rgba(24, 33, 43, 0.18); }

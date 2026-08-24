@@ -691,7 +691,9 @@
   "POKE5E.Biomes.tundra": "Tundra",
   "POKE5E.Biomes.volcano": "Volcano",
   "POKE5E.Biomes.woodland": "Woodland",
-  "POKE5E.Legendary.AlreadyCaptured": "{pokemon} is a unique Legendary Pokémon and already belongs to a player.",
-  "POKE5E.Legendary.AlreadyCapturedWild": "{pokemon} already belongs to a player and cannot appear as a wild Pokémon.",
-  "POKE5E.Legendary.AlreadyCapturedNpc": "{pokemon} already belongs to a player and cannot join an NPC Trainer's team."
+  "POKE5E.Legendary.AlreadyCaptured": "{pokemon} is a unique Legendary Pokémon and already exists in the world.",
+  "POKE5E.Legendary.AlreadyCapturedWild": "{pokemon} is already on the field or belongs to a Trainer and cannot appear as a wild Pokémon.",
+  "POKE5E.Legendary.AlreadyCapturedNpc": "{pokemon} is already on the field or belongs to another Trainer and cannot join this team.",
+  "POKE5E.Notifications.MoveRangeNeedsToken": "Deploy the Pokémon in the scene to validate the move's range.",
+  "POKE5E.Notifications.MoveOutOfRange": "{target} is {distance} feet away; this move's maximum range is {range} feet."
 }
